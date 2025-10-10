@@ -48,8 +48,7 @@ struct SettingsView: View {
                     settings.chatkitDeviceId = deviceId
                     settings.chatkitDomainKey = domainKey
                 }
-                Toggle("Use advanced ChatKit UI", isOn: $settings.chatkitAdvanced)
-                Text("Advanced mode connects directly to your ChatKit backend using the domain key. The macOS-native chat remains available when this is off.")
+                Text("Arcadia Coach now always uses the web-based ChatKit experience. Provide either a domain key or a short-lived client token to connect.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -68,14 +67,11 @@ struct SettingsView: View {
                 if settings.agentId.isEmpty {
                     Text("Add an Agent ID to unlock lesson and quiz requests.").foregroundStyle(.secondary)
                 }
-                if settings.chatkitClientToken.isEmpty {
-                    Text("Provide a ChatKit client token to enable the Agent Chat panel.").foregroundStyle(.secondary)
-                }
                 if settings.chatkitBackendURL.isEmpty {
-                    Text("Configure a backend URL to fetch ChatKit tokens automatically.").foregroundStyle(.secondary)
+                    Text("Configure a ChatKit backend URL to fetch domain-backed sessions.").foregroundStyle(.secondary)
                 }
-                if settings.chatkitAdvanced && settings.chatkitDomainKey.isEmpty {
-                    Text("Advanced mode requires a domain key registered in the OpenAI allowlist.").foregroundStyle(.secondary)
+                if settings.chatkitDomainKey.isEmpty && settings.chatkitClientToken.isEmpty {
+                    Text("Provide either a domain key or an override client token so ChatKit can connect.").foregroundStyle(.secondary)
                 }
             }
         }

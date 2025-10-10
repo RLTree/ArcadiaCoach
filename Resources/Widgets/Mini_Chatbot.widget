@@ -1,5 +1,6 @@
 {
   "version": "1.0",
+  "id": "mini_chatbot",
   "name": "Mini Chatbot",
   "template": "{\"type\":\"Card\",\"size\":\"md\",\"children\":[{\"type\":\"Col\",\"gap\":3,\"children\":[{\"type\":\"Row\",\"children\":[{\"type\":\"Icon\",\"name\":\"sparkle\",\"color\":\"primary\",\"children\":[]},{\"type\":\"Title\",\"value\":{{ (title) | tojson }},\"size\":\"sm\",\"children\":[]},{\"type\":\"Spacer\",\"children\":[]},{\"type\":\"Badge\",\"label\":{{ (status) | tojson }},\"color\":\"success\",\"children\":[]}]},{\"type\":\"Divider\",\"children\":[]},{\"type\":\"Col\",\"gap\":2,\"maxHeight\":320,\"children\":[{%- set _c -%}{%-for m in messages -%},{\"type\":\"Row\",\"key\":{{ (m.id) | tojson }},\"align\":\"start\",\"justify\":{% if m.role === \"user\" %}\"end\"{% else %}\"start\"{% endif %},\"gap\":2,\"children\":[{%- set _c -%}{%-if m.role === \"assistant\" -%},{\"type\":\"Box\",\"background\":\"alpha-10\",\"radius\":\"full\",\"padding\":1,\"children\":[{\"type\":\"Icon\",\"name\":\"sparkle\",\"size\":\"sm\",\"children\":[]}]}{%-else-%}{%-endif-%},{\"type\":\"Box\",\"maxWidth\":\"80%\",\"padding\":3,\"radius\":\"xl\",\"background\":{% if m.role === \"user\" %}\"surface-elevated-secondary\"{% else %}\"surface-secondary\"{% endif %},\"border\":{\"size\":1},\"children\":[{\"type\":\"Markdown\",\"value\":{{ (m.text) | tojson }},\"children\":[]}]}{%-if m.role === \"user\" -%},{\"type\":\"Box\",\"background\":\"alpha-10\",\"radius\":\"full\",\"padding\":1,\"children\":[{\"type\":\"Icon\",\"name\":\"profile\",\"size\":\"sm\",\"children\":[]}]}{%-else-%}{%-endif-%}{%- endset -%}{{- (_c[1:] if _c and _c[0] == ',' else _c) -}}]}{%-endfor-%}{%- endset -%}{{- (_c[1:] if _c and _c[0] == ',' else _c) -}}]},{\"type\":\"Divider\",\"children\":[]},{\"type\":\"Form\",\"onSubmitAction\":{\"type\":\"chat.send\"},\"children\":[{\"type\":\"Col\",\"gap\":2,\"children\":[{\"type\":\"Textarea\",\"name\":\"chat.message\",\"placeholder\":{{ (placeholder) | tojson }},\"rows\":2,\"autoResize\":true,\"children\":[]},{\"type\":\"Row\",\"children\":[{\"type\":\"Spacer\",\"children\":[]},{\"type\":\"Button\",\"submit\":true,\"label\":\"Send\",\"style\":\"primary\",\"iconEnd\":\"play\",\"children\":[]}]}]}]}]}]}",
   "jsonSchema": {
@@ -38,7 +39,7 @@
           ],
           "additionalProperties": false
         },
-        "minItems": 3
+        "minItems": 0
       }
     },
     "required": [

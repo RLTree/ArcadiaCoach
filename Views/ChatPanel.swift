@@ -3,45 +3,12 @@ import Foundation
 
 struct ChatPanel: View {
     @EnvironmentObject private var settings: AppSettings
-    @StateObject private var chatVM = AgentChatViewModel()
     @State private var advancedSession: ChatKitSessionResponse?
     @State private var advancedStatus: String?
     @State private var advancedLoading: Bool = false
     private let widgetBase64 = WidgetResource.miniChatbotWidgetBase64()
 
     var body: some View {
-        Group {
-            if settings.chatkitAdvanced {
-                advancedContent
-            } else {
-                nativeContent
-            }
-        }
-        .padding(12)
-        .onChange(of: settings.agentId) { newValue in
-            chatVM.handleAgentChange(agentId: newValue)
-            advancedSession = nil
-        }
-    }
-
-    private var nativeContent: some View {
-        MiniChatbotView(
-            title: "Mini Chatbot",
-            status: chatVM.statusLabel(for: settings.agentId),
-            placeholder: nativePlaceholder,
-            messages: chatVM.messages,
-            canSend: chatVM.canSend(agentId: settings.agentId),
-            isSending: chatVM.isSending,
-            onSubmit: { text in
-                await chatVM.send(agentId: settings.agentId, message: text)
-            }
-        )
-        .task {
-            chatVM.prepareWelcomeMessage(agentId: settings.agentId)
-        }
-    }
-
-    private var advancedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Agent Chat (Advanced)")
                 .font(.title2)
@@ -81,13 +48,13 @@ struct ChatPanel: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .padding(12)
+        .onChange(of: settings.agentId) { _ in
+            advancedSession = nil
+        }
         .task(id: advancedTaskKey) {
             await loadAdvancedSession()
         }
-    }
-
-    private var nativePlaceholder: String {
-        settings.agentId.isEmpty ? "Add your Agent ID in Settings to start chatting." : "Ask Arcadia Coach anything…"
     }
 
     private var advancedTaskKey: String {
@@ -151,7 +118,6 @@ struct ChatPanel: View {
 
     @MainActor
     private func loadAdvancedSession() async {
-        guard settings.chatkitAdvanced else { return }
         guard !settings.agentId.isEmpty else { return }
 
         if directConnectionConfiguration != nil {

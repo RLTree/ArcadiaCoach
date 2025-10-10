@@ -27,7 +27,7 @@ mcp_widgets = HostedMCPTool(
     tool_config={
         "type": "mcp",
         "server_label": "Arcadia_Coach_Widgets",
-        "server_url": "https://nonsidereal-monoeciously-delaine.ngrok-free.dev/mcp",
+        "server_url": "https://mcp.arcadiacoach.com/mcp",
         "server_description": (
             "Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach."
         ),

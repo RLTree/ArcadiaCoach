@@ -20,6 +20,21 @@ from chatkit.types import (
     ThreadStreamEvent,
     UserMessageItem,
 )
+from chatkit.widgets import (
+    Badge,
+    Box,
+    Button,
+    Card,
+    Col,
+    Divider,
+    Form,
+    Icon,
+    Markdown,
+    Row,
+    Spacer,
+    Textarea,
+    Title,
+)
 from fastapi import HTTPException, status
 from openai.types.responses import ResponseInputContentParam
 
@@ -112,6 +127,8 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         async for event in stream_agent_response(agent_context, result):
             yield event
 
+        await self._stream_mini_chatbot_widget(agent_context, thread, context)
+
     async def to_message_content(self, _input: Attachment) -> ResponseInputContentParam:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -126,6 +143,154 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             role="assistant",
             content=[{"type": "output_text", "text": content}],
         )
+
+    async def _stream_mini_chatbot_widget(
+        self,
+        agent_context: ArcadiaAgentContext,
+        thread: ThreadMetadata,
+        context: dict[str, Any],
+    ) -> None:
+        try:
+            page = await self.store.load_thread_items(
+                thread.id,
+                after=None,
+                limit=100,
+                order="asc",
+                context=context,
+            )
+        except Exception:
+            return
+
+        messages: list[dict[str, str]] = []
+        for item in page.data:
+            if isinstance(item, UserMessageItem):
+                text = _user_message_text(item)
+                if text:
+                    messages.append({"id": item.id, "role": "user", "text": text})
+            elif isinstance(item, AssistantMessageItem):
+                text = self._assistant_message_text(item)
+                if text:
+                    messages.append({"id": item.id, "role": "assistant", "text": text})
+
+        widget = self._build_mini_chatbot_widget(messages)
+        if widget is None:
+            return
+
+        try:
+            await agent_context.stream_widget(widget)
+        except Exception:
+            # Widget streaming failures should not break the chat flow.
+            pass
+
+    def _assistant_message_text(self, item: AssistantMessageItem) -> str:
+        parts: list[str] = []
+        for part in getattr(item, "content", []) or []:
+            text = getattr(part, "text", None)
+            if text:
+                parts.append(text)
+        return " ".join(parts).strip()
+
+    def _build_mini_chatbot_widget(self, messages: list[dict[str, str]]) -> Card | None:
+        header = Row(
+            children=[
+                Icon(name="sparkle"),
+                Title(value="Arcadia Coach", size="sm"),
+                Spacer(),
+                Badge(label="Online", color="success"),
+            ]
+        )
+
+        message_rows: list[Row] = []
+        for message in messages[-30:]:
+            role = message.get("role", "assistant")
+            text = message.get("text", "").strip()
+            if not text:
+                continue
+            bubble = Box(
+                children=[Markdown(value=text)],
+                maxWidth="80%",
+                padding=3,
+                radius="xl",
+                background="surface-elevated-secondary" if role == "user" else "surface-secondary",
+                border={"size": 1},
+            )
+
+            row_children: list[Any] = []
+            if role != "user":
+                row_children.append(
+                    Box(
+                        background="alpha-10",
+                        radius="full",
+                        padding=1,
+                        children=[Icon(name="sparkle", size="sm")],
+                    )
+                )
+            row_children.append(bubble)
+            if role == "user":
+                row_children.append(
+                    Box(
+                        background="alpha-10",
+                        radius="full",
+                        padding=1,
+                        children=[Icon(name="profile", size="sm")],
+                    )
+                )
+
+            message_rows.append(
+                Row(
+                    key=message.get("id"),
+                    align="start",
+                    justify="end" if role == "user" else "start",
+                    gap=2,
+                    children=row_children,
+                )
+            )
+
+        history_column = Col(
+            gap=2,
+            maxHeight=320,
+            children=message_rows,
+        )
+
+        composer = Form(
+            onSubmitAction={"type": "chat.send"},
+            children=[
+                Col(
+                    gap=2,
+                    children=[
+                        Textarea(
+                            name="chat.message",
+                            placeholder="Ask Arcadia Coach anything…",
+                            rows=2,
+                            autoResize=True,
+                        ),
+                        Row(
+                            children=[
+                                Spacer(),
+                                Button(
+                                    submit=True,
+                                    label="Send",
+                                    style="primary",
+                                    iconEnd="play",
+                                ),
+                            ]
+                        ),
+                    ],
+                )
+            ],
+        )
+
+        body = Col(
+            gap=2,
+            children=[history_column, Divider(), composer],
+        )
+
+        card = Card(
+            size="md",
+            children=[Col(gap=3, children=[header, Divider(), body])],
+        )
+
+        return card
 
     def _init_thread_item_converter(self) -> Any | None:
         converter_cls = ThreadItemConverter

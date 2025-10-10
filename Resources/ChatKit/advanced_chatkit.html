@@ -19,6 +19,10 @@
       height: 100vh;
       width: 100%;
     }
+    #chatkit-root [data-kind="message"],
+    #chatkit-root section[aria-label="Composer"] {
+      display: none !important;
+    }
   </style>
   <script type="module" crossorigin src="https://cdn.openai.com/chatkit/latest/chatkit.js"></script>
 </head>
@@ -80,9 +84,11 @@
           agent,
           layout: {
             position: 'inline',
-            autoFocus: true,
-            showComposer: true
+            autoFocus: false,
+            showComposer: false
           },
+          header: { enabled: false },
+          history: { enabled: false },
           theme: {
             mode: 'system',
             fontSize: 'md',
@@ -92,6 +98,14 @@
         if (customWidget && chatkitInstance?.widgets?.register) {
           try {
             chatkitInstance.widgets.register(customWidget);
+            if (customWidget.id && chatkitInstance.widgets.open) {
+              chatkitInstance.widgets.open(customWidget.id, {
+                title: 'Arcadia Coach',
+                status: 'Online',
+                placeholder: 'Ask Arcadia Coach anything…',
+                messages: []
+              });
+            }
           } catch (err) {
             console.warn('Unable to register custom widget', err);
           }
