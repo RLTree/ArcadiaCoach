@@ -13,10 +13,10 @@ struct AdvancedChatKitView: NSViewRepresentable {
     var widgetBase64: String
 
     func makeNSView(context: Context) -> WKWebView {
-        let configuration = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webConfiguration = WKWebViewConfiguration()
+        let webView = WKWebView(frame: .zero, configuration: webConfiguration)
         webView.setValue(false, forKey: "drawsBackground")
-        if let html = loadHTML(widgetBase64: widgetBase64, configuration: configuration) {
+        if let html = loadHTML(widgetBase64: widgetBase64, configuration: self.configuration) {
             webView.loadHTMLString(html, baseURL: nil)
         }
         return webView

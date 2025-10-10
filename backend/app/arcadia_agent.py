@@ -11,7 +11,6 @@ from pydantic import ConfigDict, Field
 
 from .constants import INSTRUCTIONS, MODEL
 from .memory_store import MemoryStore
-from .tools import elo_update, progress_advance, progress_start
 
 # Tool instances ---------------------------------------------------------------
 
@@ -56,7 +55,7 @@ arcadia_agent = Agent[ArcadiaAgentContext](
     name="Arcadia Coach",
     instructions=INSTRUCTIONS,
     model=MODEL,
-    tools=[file_search, web_search, mcp_widgets, progress_start, progress_advance, elo_update],  # type: ignore[arg-type]
+    tools=[file_search, web_search, mcp_widgets],  # type: ignore[arg-type]
     model_settings=ModelSettings(
         store=True,
         reasoning=Reasoning(
