@@ -7,6 +7,15 @@ final class SessionViewModel: ObservableObject {
     @Published var milestone: EndMilestone?
     @Published var sessionId: String? = UUID().uuidString
 
+    func reset(for agentId: String) async {
+        let cacheKey = sessionId ?? "default"
+        await AgentService.resetSession(agentId: agentId, key: cacheKey)
+        sessionId = UUID().uuidString
+        lesson = nil
+        quiz = nil
+        milestone = nil
+    }
+
     func loadLesson(agentId: String, topic: String) async {
         guard !agentId.isEmpty else { return }
         do {

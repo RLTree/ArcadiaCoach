@@ -13,8 +13,8 @@ final class AgentChatViewModel: ObservableObject {
     @Published var isSending: Bool = false
     @Published var lastError: String?
 
-    private var sessionId: String?
     private var welcomed = false
+    private var sessionKey = UUID().uuidString
 
     func prepareWelcomeMessage(agentId: String) {
         guard !welcomed else { return }
@@ -29,8 +29,12 @@ final class AgentChatViewModel: ObservableObject {
     func handleAgentChange(agentId: String) {
         welcomed = false
         messages.removeAll()
+        let previousKey = sessionKey
+        Task {
+            await AgentService.resetSession(agentId: agentId, key: previousKey)
+        }
+        sessionKey = UUID().uuidString
         prepareWelcomeMessage(agentId: agentId)
-        sessionId = nil
     }
 
     func statusLabel(for agentId: String) -> String {
@@ -46,12 +50,10 @@ final class AgentChatViewModel: ObservableObject {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !agentId.isEmpty else { return }
 
-        if sessionId == nil { sessionId = UUID().uuidString }
-
         messages.append(ChatMessage(role: .user, text: trimmed))
         isSending = true
         do {
-            let envelope: WidgetEnvelope = try await AgentService.send(agentId: agentId, model: "gpt-5", message: trimmed, sessionId: sessionId, expecting: WidgetEnvelope.self)
+            let envelope: WidgetEnvelope = try await AgentService.send(agentId: agentId, model: "gpt-5", message: trimmed, sessionId: sessionKey, expecting: WidgetEnvelope.self)
             let reply = Self.extractReply(from: envelope)
             messages.append(ChatMessage(role: .assistant, text: reply))
             lastError = nil
@@ -63,7 +65,7 @@ final class AgentChatViewModel: ObservableObject {
         isSending = false
     }
 
-    private static func extractReply(from envelope: WidgetEnvelope) -> String {
+    static func extractReply(from envelope: WidgetEnvelope) -> String {
         if let display = envelope.display, !display.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return display
         }

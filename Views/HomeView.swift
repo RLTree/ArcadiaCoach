@@ -50,6 +50,7 @@ struct HomeView: View {
             appVM.lastEnvelope = .init(display: milestone.display, widgets: milestone.widgets, citations: nil)
         }
         .onChange(of: settings.agentId) { newValue in
+            Task { await session.reset(for: newValue) }
             if !newValue.isEmpty {
                 showOnboarding = false
             }

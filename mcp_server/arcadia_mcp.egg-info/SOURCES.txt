@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+server.py
+arcadia_mcp.egg-info/PKG-INFO
+arcadia_mcp.egg-info/SOURCES.txt
+arcadia_mcp.egg-info/dependency_links.txt
+arcadia_mcp.egg-info/entry_points.txt
+arcadia_mcp.egg-info/requires.txt
+arcadia_mcp.egg-info/top_level.txt

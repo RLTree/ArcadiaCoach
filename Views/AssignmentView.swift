@@ -35,7 +35,9 @@ struct AssignmentView: View {
                 WidgetStatRowView(props: props).environmentObject(settings)
             }
         case .MiniChatbot:
-            EmptyView()
+            if let props = widget.propsMiniChatbot {
+                WidgetMiniChatbotView(props: props).environmentObject(settings)
+            }
         }
     }
 }

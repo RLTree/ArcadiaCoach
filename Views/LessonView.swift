@@ -56,7 +56,10 @@ struct LessonView: View {
                             .environmentObject(settings)
                     }
                 case .MiniChatbot:
-                    EmptyView()
+                    if let props = widget.propsMiniChatbot {
+                        WidgetMiniChatbotView(props: props)
+                            .environmentObject(settings)
+                    }
                 }
             }
 }
