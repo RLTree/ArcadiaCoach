@@ -1,148 +1,177 @@
 import SwiftUI
-import WebKit
+import Foundation
 
 struct ChatPanel: View {
     @EnvironmentObject private var settings: AppSettings
-    @State private var clientSecret: String?
-    @State private var sessionId: String?
-    @State private var loadMessage: String?
-    @State private var isLoading = false
-
-    private var activeSecret: String? {
-        if let secret = clientSecret { return secret }
-        return settings.chatkitClientToken.isEmpty ? nil : settings.chatkitClientToken
-    }
+    @StateObject private var chatVM = AgentChatViewModel()
+    @State private var advancedSession: ChatKitSessionResponse?
+    @State private var advancedStatus: String?
+    @State private var advancedLoading: Bool = false
+    private let widgetBase64 = WidgetResource.miniChatbotWidgetBase64()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Agent Chat")
-                .font(.title2)
-                .bold()
-            if isLoading {
-                ProgressView("Connecting to ChatKit…")
-            }
-            if let loadMessage {
-                Text(loadMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if let secret = activeSecret, !secret.isEmpty {
-                ChatKitWebView(token: secret, agentId: settings.agentId)
-                    .accessibilityLabel("Interactive agent chat")
+        Group {
+            if settings.chatkitAdvanced {
+                advancedContent
             } else {
-                chatKitInstructions
+                nativeContent
             }
         }
         .padding(12)
-        .task(id: settings.chatkitBackendURL) {
-            await ensureToken()
+        .onChange(of: settings.agentId) { newValue in
+            chatVM.handleAgentChange(agentId: newValue)
+            advancedSession = nil
         }
     }
 
-    private var chatKitInstructions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Connect ChatKit")
-                .font(.headline)
-            if settings.chatkitBackendURL.isEmpty {
-                Text("Set a ChatKit backend URL in Settings or paste a client token manually.")
+    private var nativeContent: some View {
+        MiniChatbotView(
+            title: "Mini Chatbot",
+            status: chatVM.statusLabel(for: settings.agentId),
+            placeholder: nativePlaceholder,
+            messages: chatVM.messages,
+            canSend: chatVM.canSend(agentId: settings.agentId),
+            isSending: chatVM.isSending,
+            onSubmit: { text in
+                await chatVM.send(agentId: settings.agentId, message: text)
+            }
+        )
+        .task {
+            chatVM.prepareWelcomeMessage(agentId: settings.agentId)
+        }
+    }
+
+    private var advancedContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Agent Chat (Advanced)")
+                .font(.title2)
+                .bold()
+            if settings.agentId.isEmpty {
+                Text("Add an Agent ID in Settings to enable the advanced ChatKit experience.")
                     .font(.body)
                     .foregroundStyle(.secondary)
+            } else if directConnectionConfiguration == nil && settings.chatkitBackendURL.isEmpty {
+                Text("Set your ChatKit backend URL in Settings to issue tokens for ChatKit.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            } else if directConnectionConfiguration != nil && settings.chatkitDomainKey.isEmpty {
+                Text("Provide a domain key in Settings to connect directly to your ChatKit backend.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            } else if advancedLoading {
+                ProgressView("Fetching ChatKit token…")
+            } else if let config = advancedConfiguration {
+                AdvancedChatKitView(
+                    configuration: config,
+                    widgetBase64: widgetBase64
+                )
+                .frame(minHeight: 420)
+                if let expiry = advancedSession?.expires_at, config.apiURL == nil {
+                    Text("Token expires \(expiry.formatted(date: .omitted, time: .shortened)).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if let apiURL = config.apiURL {
+                    Text("Connected to \(apiURL) using domain key authentication.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             } else {
-                Text("Fetching a token from \(settings.chatkitBackendURL)…")
+                Text(advancedStatus ?? "Unable to fetch ChatKit token.")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .task(id: advancedTaskKey) {
+            await loadAdvancedSession()
+        }
+    }
+
+    private var nativePlaceholder: String {
+        settings.agentId.isEmpty ? "Add your Agent ID in Settings to start chatting." : "Ask Arcadia Coach anything…"
+    }
+
+    private var advancedTaskKey: String {
+        [settings.chatkitBackendURL, settings.agentId, settings.chatkitDeviceId, settings.chatkitDomainKey].joined(separator: "|")
+    }
+
+    private var directConnectionConfiguration: AdvancedChatKitConfiguration? {
+        guard !settings.chatkitBackendURL.isEmpty, !settings.chatkitDomainKey.isEmpty else {
+            return nil
+        }
+        guard let apiURL = normalizedChatkitURL(from: settings.chatkitBackendURL) else {
+            return nil
+        }
+        return AdvancedChatKitConfiguration(
+            agentId: settings.agentId,
+            token: nil,
+            apiURL: apiURL.absoluteString,
+            domainKey: settings.chatkitDomainKey
+        )
+    }
+
+    private var tokenBasedConfiguration: AdvancedChatKitConfiguration? {
+        if let session = advancedSession {
+            return AdvancedChatKitConfiguration(
+                agentId: settings.agentId,
+                token: session.client_secret,
+                apiURL: nil,
+                domainKey: nil
+            )
+        }
+        if !settings.chatkitClientToken.isEmpty {
+            return AdvancedChatKitConfiguration(
+                agentId: settings.agentId,
+                token: settings.chatkitClientToken,
+                apiURL: nil,
+                domainKey: nil
+            )
+        }
+        return nil
+    }
+
+    private var advancedConfiguration: AdvancedChatKitConfiguration? {
+        directConnectionConfiguration ?? tokenBasedConfiguration
+    }
+
+    private func normalizedChatkitURL(from value: String) -> URL? {
+        guard var components = URLComponents(string: value) else { return nil }
+        var path = components.path
+        if path.isEmpty || path == "/" {
+            path = "/chatkit"
+        } else if !path.hasSuffix("/chatkit") {
+            if path.hasSuffix("/") {
+                path += "chatkit"
+            } else {
+                path += "/chatkit"
+            }
+        }
+        components.path = path
+        return components.url
     }
 
     @MainActor
-    private func ensureToken() async {
-        guard settings.chatkitClientToken.isEmpty else { return }
-        guard !settings.chatkitBackendURL.isEmpty else { return }
-        guard let url = URL(string: settings.chatkitBackendURL) else {
-            loadMessage = "Invalid backend URL."
+    private func loadAdvancedSession() async {
+        guard settings.chatkitAdvanced else { return }
+        guard !settings.agentId.isEmpty else { return }
+
+        if directConnectionConfiguration != nil {
+            advancedSession = nil
+            advancedStatus = nil
             return
         }
-        isLoading = true
-        do {
-            let response = try await ChatKitTokenService.fetch(baseURL: url, deviceId: settings.chatkitDeviceId)
-            clientSecret = response.client_secret
-            sessionId = response.session_id
-            if let expiry = response.expires_at {
-                loadMessage = "Session \(response.session_id) expires \(expiry.formatted())."
-            } else {
-                loadMessage = "Received ChatKit client token."
-            }
-        } catch {
-            loadMessage = "Failed to fetch token: \(error.localizedDescription)"
+
+        guard let baseURL = URL(string: settings.chatkitBackendURL) else {
+            advancedStatus = "Invalid backend URL."
+            return
         }
-        isLoading = false
-    }
-}
-
-private struct ChatKitWebView: NSViewRepresentable {
-    var token: String
-    var agentId: String
-
-    func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView(frame: .zero)
-        webView.configuration.preferences.javaScriptEnabled = true
-        webView.loadHTMLString(html, baseURL: nil)
-        return webView
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        let script = "window.updateChatKit?.(\"\(jsEscaped(token))\", \"\(jsEscaped(agentId))\");"
-        webView.evaluateJavaScript(script, completionHandler: nil)
-    }
-
-    private var html: String {
-        """
-        <!DOCTYPE html>
-        <html lang=\"en\">
-        <head>
-          <meta charset=\"utf-8\" />
-          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-          <style>
-            body { margin: 0; background-color: transparent; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }
-            #chatkit-root { height: 100vh; width: 100%; }
-            openai-chatkit { height: 100%; width: 100%; }
-          </style>
-          <script type=\"module\">
-            import ChatKit from \"https://cdn.platform.openai.com/deployments/chatkit/chatkit.js\";
-            let chatkit;
-            async function mount(token, agentId) {
-              if (!chatkit) {
-                chatkit = await ChatKit.create({
-                  element: document.querySelector('#chatkit-root'),
-                  api: { clientToken: token },
-                  layout: { autoFocus: false },
-                  theme: { mode: 'light' }
-                });
-              }
-              chatkit.setOptions({ api: { clientToken: token }, agent: agentId ? { id: agentId } : undefined });
-            }
-            window.updateChatKit = mount;
-            window.addEventListener('DOMContentLoaded', () => {
-              mount('\(jsEscaped(token))', '\(jsEscaped(agentId))');
-            });
-          </script>
-        </head>
-        <body>
-          <div id=\"chatkit-root\"></div>
-        </body>
-        </html>
-        """
-    }
-
-    private func jsEscaped(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "'", with: "\\'")
+        advancedLoading = true
+        defer { advancedLoading = false }
+        do {
+            let session = try await ChatKitTokenService.fetch(baseURL: baseURL, deviceId: settings.chatkitDeviceId)
+            advancedSession = session
+            advancedStatus = nil
+        } catch {
+            advancedStatus = error.localizedDescription
+        }
     }
 }

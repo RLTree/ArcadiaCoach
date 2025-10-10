@@ -39,22 +39,24 @@ struct LessonView: View {
 
     @ViewBuilder
     private func widgetView(for widget: Widget) -> some View {
-        switch widget.type {
-        case .Card:
-            if let props = widget.propsCard {
-                WidgetCardView(props: props)
-                    .environmentObject(settings)
+                switch widget.type {
+                case .Card:
+                    if let props = widget.propsCard {
+                        WidgetCardView(props: props)
+                            .environmentObject(settings)
+                    }
+                case .List:
+                    if let props = widget.propsList {
+                        WidgetListView(props: props)
+                            .environmentObject(settings)
+                    }
+                case .StatRow:
+                    if let props = widget.propsStat {
+                        WidgetStatRowView(props: props)
+                            .environmentObject(settings)
+                    }
+                case .MiniChatbot:
+                    EmptyView()
+                }
             }
-        case .List:
-            if let props = widget.propsList {
-                WidgetListView(props: props)
-                    .environmentObject(settings)
-            }
-        case .StatRow:
-            if let props = widget.propsStat {
-                WidgetStatRowView(props: props)
-                    .environmentObject(settings)
-            }
-        }
-    }
 }

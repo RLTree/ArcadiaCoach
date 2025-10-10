@@ -1,11 +1,15 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from chatkit.server import StreamingResult
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 
 from .chatkit import ChatKitService, ChatKitSession
+from .chat_server import ArcadiaChatServer, create_chat_server
 from .config import Settings, get_settings
 
 
@@ -30,6 +34,7 @@ app.add_middleware(
 
 
 _service: Optional[ChatKitService] = None
+_chat_server: Optional[ArcadiaChatServer] = None
 
 
 def get_service() -> ChatKitService:
@@ -37,6 +42,13 @@ def get_service() -> ChatKitService:
     if _service is None:
         _service = ChatKitService()
     return _service
+
+
+def get_chat_server() -> ArcadiaChatServer:
+    global _chat_server
+    if _chat_server is None:
+        _chat_server = create_chat_server()
+    return _chat_server
 
 
 @app.get("/healthz")
@@ -58,3 +70,14 @@ def create_session(payload: SessionRequest, service: ChatKitService = Depends(ge
         client_secret=session.client_secret,
         expires_at=session.expires_at,
     )
+
+
+@app.post("/chatkit")
+async def chatkit_endpoint(request: Request, server: ArcadiaChatServer = Depends(get_chat_server)) -> Response:
+    payload = await request.body()
+    result = await server.process(payload, {"request": request})
+    if isinstance(result, StreamingResult):
+        return StreamingResponse(result, media_type="text/event-stream")
+    if hasattr(result, "json"):
+        return Response(content=result.json, media_type="application/json")
+    return JSONResponse(result)

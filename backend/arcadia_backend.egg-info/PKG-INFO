@@ -3,7 +3,7 @@ Name: arcadia-backend
 Version: 0.1.0
 Summary: Backend services for Arcadia Coach (ChatKit session token generation and utilities).
 Author: Arcadia Coach
-Requires-Python: >=3.10
+Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: fastapi>=0.115.0
 Requires-Dist: uvicorn[standard]>=0.30.0
@@ -11,6 +11,9 @@ Requires-Dist: pydantic>=2.7.0
 Requires-Dist: pydantic-settings>=2.2.0
 Requires-Dist: python-dotenv>=1.0.1
 Requires-Dist: httpx>=0.27.0
+Requires-Dist: openai>=1.40.0
+Requires-Dist: openai-chatkit>=0.0.4
+Requires-Dist: openai-guardrails>=0.1.0
 
 # Arcadia Coach Backend
 

@@ -1,100 +1,121 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
+	classes = {
+	};
 	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
-	AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */; };
-	AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
-	AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
-	AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F032924F97A00B8BEA0 /* WidgetModels.swift */; };
-	AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F042924F97A00B8BEA0 /* AppSettings.swift */; };
-	AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F052924F97A00B8BEA0 /* GameState.swift */; };
-	AA0010062924F97A00B8BEA0 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */; };
-	AA0010072924F97A00B8BEA0 /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F072924F97A00B8BEA0 /* AgentService.swift */; };
-	AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F082924F97A00B8BEA0 /* MCPTypes.swift */; };
-	AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F092924F97A00B8BEA0 /* AppViewModel.swift */; };
-	AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */; };
-	AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */; };
-	AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0C2924F97A00B8BEA0 /* HomeView.swift */; };
-	AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */; };
-	AA00100E2924F97A00B8BEA0 /* LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0E2924F97A00B8BEA0 /* LessonView.swift */; };
-	AA00100F2924F97A00B8BEA0 /* QuizSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */; };
-	AA0010102924F97A00B8BEA0 /* MilestoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F102924F97A00B8BEA0 /* MilestoneView.swift */; };
-	AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F112924F97A00B8BEA0 /* AssignmentView.swift */; };
-	AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F122924F97A00B8BEA0 /* SettingsView.swift */; };
-	AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */; };
-	AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F142924F97A00B8BEA0 /* WidgetListView.swift */; };
-	AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */; };
-	AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F162924F97A00B8BEA0 /* GlassButton.swift */; };
-	AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */; };
-		AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA001F182924F9F600B8BEA0 /* Assets.xcassets */; };
-		AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
-		AA00101E2924FDB800B8BEA0 /* ChatKitTokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */; };
+		AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */; };
+		AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
+		AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
+		AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F032924F97A00B8BEA0 /* WidgetModels.swift */; };
+		AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F042924F97A00B8BEA0 /* AppSettings.swift */; };
+		AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F052924F97A00B8BEA0 /* GameState.swift */; };
+		AA0010062924F97A00B8BEA0 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */; };
+		AA0010072924F97A00B8BEA0 /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F072924F97A00B8BEA0 /* AgentService.swift */; };
+		AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F082924F97A00B8BEA0 /* MCPTypes.swift */; };
+		AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F092924F97A00B8BEA0 /* AppViewModel.swift */; };
+		AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */; };
+		AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */; };
+		AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0C2924F97A00B8BEA0 /* HomeView.swift */; };
+		AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */; };
+		AA00100E2924F97A00B8BEA0 /* LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0E2924F97A00B8BEA0 /* LessonView.swift */; };
+		AA00100F2924F97A00B8BEA0 /* QuizSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */; };
+		AA0010102924F97A00B8BEA0 /* MilestoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F102924F97A00B8BEA0 /* MilestoneView.swift */; };
+		AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F112924F97A00B8BEA0 /* AssignmentView.swift */; };
+		AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F122924F97A00B8BEA0 /* SettingsView.swift */; };
+		AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */; };
+		AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F142924F97A00B8BEA0 /* WidgetListView.swift */; };
+		AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */; };
+		AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F162924F97A00B8BEA0 /* GlassButton.swift */; };
+		AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */; };
+	AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA001F182924F9F600B8BEA0 /* Assets.xcassets */; };
+	AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
+	AA00102129250AF500B8BEA0 /* Mini_Chatbot.widget in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */; };
+	AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */; };
+	AA00101E2924FDB800B8BEA0 /* ChatKitTokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */; };
+	AA00101F29250A0000B8BEA0 /* MiniChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */; };
+	AA00102029250A0000B8BEA0 /* AgentChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */; };
+	AA00102329250D0E00B8BEA0 /* WidgetResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */; };
+	AA00102429250E7400B8BEA0 /* AdvancedChatKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-	AA00101A2924FA8E00B8BEA0 /* PBXContainerItemProxy */ = {
-		isa = PBXContainerItemProxy;
-		containerPortal = AA000FF02924F7D200B8BEA0 /* Project object */;
-		proxyType = 1;
-		remoteGlobalIDString = AA0010202924F8C300B8BEA0;
-		remoteInfo = ArcadiaCoach;
-	};
+		AA00101A2924FA8E00B8BEA0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000FF02924F7D200B8BEA0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0010202924F8C300B8BEA0;
+			remoteInfo = ArcadiaCoach;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-	AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcadiaCoachApp.swift; sourceTree = "<group>"; };
-	AA001F012924F97A00B8BEA0 /* EloEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloEngine.swift; sourceTree = "<group>"; };
-	AA001F022924F97A00B8BEA0 /* AgentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModels.swift; sourceTree = "<group>"; };
-	AA001F032924F97A00B8BEA0 /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModels.swift; sourceTree = "<group>"; };
-	AA001F042924F97A00B8BEA0 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-	AA001F052924F97A00B8BEA0 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
-	AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
-	AA001F072924F97A00B8BEA0 /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
-	AA001F082924F97A00B8BEA0 /* MCPTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTypes.swift; sourceTree = "<group>"; };
-	AA001F092924F97A00B8BEA0 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
-	AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
-	AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-	AA001F0C2924F97A00B8BEA0 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-	AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPanel.swift; sourceTree = "<group>"; };
-	AA001F0E2924F97A00B8BEA0 /* LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonView.swift; sourceTree = "<group>"; };
-	AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSummaryView.swift; sourceTree = "<group>"; };
-	AA001F102924F97A00B8BEA0 /* MilestoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneView.swift; sourceTree = "<group>"; };
-	AA001F112924F97A00B8BEA0 /* AssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentView.swift; sourceTree = "<group>"; };
-	AA001F122924F97A00B8BEA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-	AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCardView.swift; sourceTree = "<group>"; };
-	AA001F142924F97A00B8BEA0 /* WidgetListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetListView.swift; sourceTree = "<group>"; };
-	AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatRowView.swift; sourceTree = "<group>"; };
-	AA001F162924F97A00B8BEA0 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
-	AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerView.swift; sourceTree = "<group>"; };
+		AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcadiaCoachApp.swift; sourceTree = "<group>"; };
+		AA001F012924F97A00B8BEA0 /* EloEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloEngine.swift; sourceTree = "<group>"; };
+		AA001F022924F97A00B8BEA0 /* AgentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModels.swift; sourceTree = "<group>"; };
+		AA001F032924F97A00B8BEA0 /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModels.swift; sourceTree = "<group>"; };
+		AA001F042924F97A00B8BEA0 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		AA001F052924F97A00B8BEA0 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
+		AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		AA001F072924F97A00B8BEA0 /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
+		AA001F082924F97A00B8BEA0 /* MCPTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTypes.swift; sourceTree = "<group>"; };
+		AA001F092924F97A00B8BEA0 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
+		AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AA001F0C2924F97A00B8BEA0 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPanel.swift; sourceTree = "<group>"; };
+		AA001F0E2924F97A00B8BEA0 /* LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonView.swift; sourceTree = "<group>"; };
+		AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSummaryView.swift; sourceTree = "<group>"; };
+		AA001F102924F97A00B8BEA0 /* MilestoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneView.swift; sourceTree = "<group>"; };
+		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentView.swift; sourceTree = "<group>"; };
+		AA001F122924F97A00B8BEA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCardView.swift; sourceTree = "<group>"; };
+		AA001F142924F97A00B8BEA0 /* WidgetListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetListView.swift; sourceTree = "<group>"; };
+		AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatRowView.swift; sourceTree = "<group>"; };
+		AA001F162924F97A00B8BEA0 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
+		AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerView.swift; sourceTree = "<group>"; };
 		AA001F182924F9F600B8BEA0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloEngineTests.swift; sourceTree = "<group>"; };
 		AA001F1A2924FA6300B8BEA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA001F1B2924FA7C00B8BEA0 /* ArcadiaCoach.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ArcadiaCoach.entitlements; sourceTree = "<group>"; };
-		AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloEngineTests.swift; sourceTree = "<group>"; };
 		AA001F1C2924FA7000B8BEA0 /* TestsInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = TestsInfo.plist; sourceTree = "<group>"; };
 		AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArcadiaCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArcadiaCoachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatKitTokenService.swift; sourceTree = "<group>"; };
+	AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatKitTokenService.swift; sourceTree = "<group>"; };
+	AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChatViewModel.swift; sourceTree = "<group>"; };
+	AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniChatbotView.swift; sourceTree = "<group>"; };
+	AA001F2929250AF500B8BEA0 /* Resources */ = {isa = PBXGroup; children = (
+		AA001F2C29250B5C00B8BEA0 /* Widgets */,
+		AA001F2D29250B5C00B8BEA0 /* ChatKit */,
+	); path = Resources; sourceTree = "<group>"; };
+	AA001F2C29250B5C00B8BEA0 /* Widgets */ = {isa = PBXGroup; children = (
+		AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */,
+	); path = Widgets; sourceTree = "<group>"; };
+	AA001F2D29250B5C00B8BEA0 /* ChatKit */ = {isa = PBXGroup; children = (
+		AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */,
+	); path = ChatKit; sourceTree = "<group>"; };
+	AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */ = {isa = PBXFileReference; lastKnownFileType = text; path = Mini_Chatbot.widget; sourceTree = "<group>"; };
+	AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = advanced_chatkit.html; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-	AA00101B2924F8C300B8BEA0 /* Frameworks */ = {
-		isa = PBXFrameworksBuildPhase;
-		buildActionMask = 2147483647;
-		files = (
-		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
-	AA00101C2924FA0400B8BEA0 /* Frameworks */ = {
-		isa = PBXFrameworksBuildPhase;
-		buildActionMask = 2147483647;
-		files = (
-		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
+		AA00101B2924F8C300B8BEA0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA00101C2924FA0400B8BEA0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -105,63 +126,76 @@
 			AA001F1A2924FA6300B8BEA0 /* Info.plist */,
 			AA001F1B2924FA7C00B8BEA0 /* ArcadiaCoach.entitlements */,
 			AA001F182924F9F600B8BEA0 /* Assets.xcassets */,
+			AA001F2929250AF500B8BEA0 /* Resources */,
 			AA001F1F2924FB5F00B8BEA0 /* Models */,
 			AA001F202924FB5F00B8BEA0 /* Services */,
-			AA001F212924FB5F00B8BEA0 /* ViewModels */,
-			AA001F222924FB5F00B8BEA0 /* Views */,
-			AA001F232924FB5F00B8BEA0 /* Tests */,
-			AA001F252924FBE600B8BEA0 /* Products */,
-		);
-		sourceTree = "<group>";
-	};
-	AA001F1F2924FB5F00B8BEA0 /* Models */ = {
-		isa = PBXGroup;
-		children = (
-			AA001F012924F97A00B8BEA0 /* EloEngine.swift */,
-			AA001F022924F97A00B8BEA0 /* AgentModels.swift */,
-			AA001F032924F97A00B8BEA0 /* WidgetModels.swift */,
-			AA001F042924F97A00B8BEA0 /* AppSettings.swift */,
-			AA001F052924F97A00B8BEA0 /* GameState.swift */,
-		);
-		path = Models;
-		sourceTree = "<group>";
-	};
-		AA001F202924FB5F00B8BEA0 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */,
-				AA001F072924F97A00B8BEA0 /* AgentService.swift */,
-				AA001F082924F97A00B8BEA0 /* MCPTypes.swift */,
-				AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */,
+				AA001F212924FB5F00B8BEA0 /* ViewModels */,
+				AA001F222924FB5F00B8BEA0 /* Views */,
+				AA001F232924FB5F00B8BEA0 /* Tests */,
+				AA001F252924FBE600B8BEA0 /* Products */,
 			);
-			path = Services;
 			sourceTree = "<group>";
 		};
+		AA001F1F2924FB5F00B8BEA0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AA001F012924F97A00B8BEA0 /* EloEngine.swift */,
+				AA001F022924F97A00B8BEA0 /* AgentModels.swift */,
+				AA001F032924F97A00B8BEA0 /* WidgetModels.swift */,
+				AA001F042924F97A00B8BEA0 /* AppSettings.swift */,
+				AA001F052924F97A00B8BEA0 /* GameState.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+	AA001F202924FB5F00B8BEA0 /* Services */ = {
+		isa = PBXGroup;
+		children = (
+			AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */,
+			AA001F072924F97A00B8BEA0 /* AgentService.swift */,
+			AA001F082924F97A00B8BEA0 /* MCPTypes.swift */,
+			AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */,
+			AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */,
+		);
+		path = Services;
+		sourceTree = "<group>";
+	};
+	AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResource.swift; sourceTree = "<group>"; };
 	AA001F212924FB5F00B8BEA0 /* ViewModels */ = {
 		isa = PBXGroup;
 		children = (
 			AA001F092924F97A00B8BEA0 /* AppViewModel.swift */,
 			AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */,
+			AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */,
 		);
 		path = ViewModels;
 		sourceTree = "<group>";
 	};
-	AA001F222924FB5F00B8BEA0 /* Views */ = {
-		isa = PBXGroup;
-		children = (
-			AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */,
-			AA001F0C2924F97A00B8BEA0 /* HomeView.swift */,
-			AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */,
-			AA001F0E2924F97A00B8BEA0 /* LessonView.swift */,
-			AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */,
-			AA001F102924F97A00B8BEA0 /* MilestoneView.swift */,
-			AA001F112924F97A00B8BEA0 /* AssignmentView.swift */,
-			AA001F122924F97A00B8BEA0 /* SettingsView.swift */,
-			AA001F242924FB9500B8BEA0 /* Components */,
-		);
-		path = Views;
-		sourceTree = "<group>";
-	};
+		AA001F222924FB5F00B8BEA0 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */,
+				AA001F0C2924F97A00B8BEA0 /* HomeView.swift */,
+				AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */,
+				AA001F0E2924F97A00B8BEA0 /* LessonView.swift */,
+				AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */,
+				AA001F102924F97A00B8BEA0 /* MilestoneView.swift */,
+				AA001F112924F97A00B8BEA0 /* AssignmentView.swift */,
+				AA001F122924F97A00B8BEA0 /* SettingsView.swift */,
+				AA001F242924FB9500B8BEA0 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AA001F232924FB5F00B8BEA0 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */,
+				AA001F1C2924FA7000B8BEA0 /* TestsInfo.plist */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 	AA001F242924FB9500B8BEA0 /* Components */ = {
 		isa = PBXGroup;
 		children = (
@@ -170,141 +204,141 @@
 			AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */,
 			AA001F162924F97A00B8BEA0 /* GlassButton.swift */,
 			AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */,
+			AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */,
+			AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */,
 		);
 		path = Components;
 		sourceTree = "<group>";
 	};
-	AA001F232924FB5F00B8BEA0 /* Tests */ = {
-		isa = PBXGroup;
-		children = (
-			AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */,
-			AA001F1C2924FA7000B8BEA0 /* TestsInfo.plist */,
-		);
-		path = Tests;
-		sourceTree = "<group>";
-	};
-	AA001F252924FBE600B8BEA0 /* Products */ = {
-		isa = PBXGroup;
-		children = (
-			AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */,
-			AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */,
-		);
-		name = Products;
-		sourceTree = "<group>";
-	};
+	AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedChatKitView.swift; sourceTree = "<group>"; };
+		AA001F252924FBE600B8BEA0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */,
+				AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-	AA0010202924F8C300B8BEA0 /* ArcadiaCoach */ = {
-		isa = PBXNativeTarget;
-		buildConfigurationList = AA00102A2924F8C300B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoach" */;
-		buildPhases = (
-			AA00101F2924F8C300B8BEA0 /* Sources */,
-			AA00101B2924F8C300B8BEA0 /* Frameworks */,
-			AA0010212924F8C300B8BEA0 /* Resources */,
-		);
-		buildRules = (
-		);
-		dependencies = (
-		);
-		name = ArcadiaCoach;
-		productName = ArcadiaCoach;
-		productReference = AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */;
-		productType = "com.apple.product-type.application";
-	};
-	AA0010262924FA0400B8BEA0 /* ArcadiaCoachTests */ = {
-		isa = PBXNativeTarget;
-		buildConfigurationList = AA00102D2924FA0400B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoachTests" */;
-		buildPhases = (
-			AA0010272924FA0400B8BEA0 /* Sources */,
-			AA00101C2924FA0400B8BEA0 /* Frameworks */,
-			AA0010282924FA0400B8BEA0 /* Resources */,
-		);
-		buildRules = (
-		);
-		dependencies = (
-			AA00101D2924FA8E00B8BEA0 /* PBXTargetDependency */,
-		);
-		name = ArcadiaCoachTests;
-		productName = ArcadiaCoachTests;
-		productReference = AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */;
-		productType = "com.apple.product-type.bundle.unit-test";
-	};
+		AA0010202924F8C300B8BEA0 /* ArcadiaCoach */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA00102A2924F8C300B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoach" */;
+			buildPhases = (
+				AA00101F2924F8C300B8BEA0 /* Sources */,
+				AA00101B2924F8C300B8BEA0 /* Frameworks */,
+				AA0010212924F8C300B8BEA0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ArcadiaCoach;
+			productName = ArcadiaCoach;
+			productReference = AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AA0010262924FA0400B8BEA0 /* ArcadiaCoachTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA00102D2924FA0400B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoachTests" */;
+			buildPhases = (
+				AA0010272924FA0400B8BEA0 /* Sources */,
+				AA00101C2924FA0400B8BEA0 /* Frameworks */,
+				AA0010282924FA0400B8BEA0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA00101D2924FA8E00B8BEA0 /* PBXTargetDependency */,
+			);
+			name = ArcadiaCoachTests;
+			productName = ArcadiaCoachTests;
+			productReference = AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-	AA000FF02924F7D200B8BEA0 /* Project object */ = {
-		isa = PBXProject;
-		attributes = {
-			BuildIndependentTargetsInParallel = YES;
-			LastSwiftUpdateCheck = 1500;
-			LastUpgradeCheck = 1500;
-			TargetAttributes = {
-				AA0010202924F8C300B8BEA0 = {
-					CreatedOnToolsVersion = 15.0;
-				};
-				AA0010262924FA0400B8BEA0 = {
-					CreatedOnToolsVersion = 15.0;
-					TestTargetID = AA0010202924F8C300B8BEA0;
+		AA000FF02924F7D200B8BEA0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					AA0010202924F8C300B8BEA0 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					AA0010262924FA0400B8BEA0 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = AA0010202924F8C300B8BEA0;
+					};
 				};
 			};
+			buildConfigurationList = AA00102F2924F8C300B8BEA0 /* Build configuration list for PBXProject "ArcadiaCoach" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = AA000FEF2924F7D200B8BEA0;
+			productRefGroup = AA001F252924FBE600B8BEA0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0010202924F8C300B8BEA0 /* ArcadiaCoach */,
+				AA0010262924FA0400B8BEA0 /* ArcadiaCoachTests */,
+			);
 		};
-		buildConfigurationList = AA00102F2924F8C300B8BEA0 /* Build configuration list for PBXProject "ArcadiaCoach" */;
-		compatibilityVersion = "Xcode 14.0";
-		developmentRegion = en;
-		hasScannedForEncodings = 0;
-		knownRegions = (
-			en,
-		);
-		mainGroup = AA000FEF2924F7D200B8BEA0;
-		productRefGroup = AA001F252924FBE600B8BEA0 /* Products */;
-		projectDirPath = "";
-		projectRoot = "";
-		targets = (
-			AA0010202924F8C300B8BEA0 /* ArcadiaCoach */,
-			AA0010262924FA0400B8BEA0 /* ArcadiaCoachTests */,
-		);
-	};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-	AA0010212924F8C300B8BEA0 /* Resources */ = {
+		AA0010212924F8C300B8BEA0 /* Resources */ = {
 		isa = PBXResourcesBuildPhase;
 		buildActionMask = 2147483647;
 		files = (
 			AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */,
+			AA00102129250AF500B8BEA0 /* Mini_Chatbot.widget in Resources */,
+			AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */,
 		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
-	AA0010282924FA0400B8BEA0 /* Resources */ = {
-		isa = PBXResourcesBuildPhase;
-		buildActionMask = 2147483647;
-		files = (
-		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0010282924FA0400B8BEA0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-	AA00101F2924F8C300B8BEA0 /* Sources */ = {
+		AA00101F2924F8C300B8BEA0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */,
 				AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */,
-				AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,
-				AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
-				AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
-				AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */,
-				AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */,
-				AA0010102924F97A00B8BEA0 /* MilestoneView.swift in Sources */,
-				AA00100F2924F97A00B8BEA0 /* QuizSummaryView.swift in Sources */,
-				AA00100E2924F97A00B8BEA0 /* LessonView.swift in Sources */,
-				AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */,
-				AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */,
-				AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */,
-				AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */,
-				AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */,
+			AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,
+			AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
+			AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
+			AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */,
+			AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */,
+			AA0010102924F97A00B8BEA0 /* MilestoneView.swift in Sources */,
+			AA00100F2924F97A00B8BEA0 /* QuizSummaryView.swift in Sources */,
+			AA00100E2924F97A00B8BEA0 /* LessonView.swift in Sources */,
+			AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */,
+			AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */,
+			AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */,
+			AA00101F29250A0000B8BEA0 /* MiniChatbotView.swift in Sources */,
+			AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */,
+			AA00102029250A0000B8BEA0 /* AgentChatViewModel.swift in Sources */,
+			AA00102429250E7400B8BEA0 /* AdvancedChatKitView.swift in Sources */,
+			AA00102329250D0E00B8BEA0 /* WidgetResource.swift in Sources */,
+			AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */,
 				AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */,
 				AA00101E2924FDB800B8BEA0 /* ChatKitTokenService.swift in Sources */,
 				AA0010072924F97A00B8BEA0 /* AgentService.swift in Sources */,
@@ -312,246 +346,279 @@
 				AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
 				AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */,
 				AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */,
-			AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */,
-			AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */,
-			AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */,
-		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
-	AA0010272924FA0400B8BEA0 /* Sources */ = {
-		isa = PBXSourcesBuildPhase;
-		buildActionMask = 2147483647;
-		files = (
-			AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */,
-		);
-		runOnlyForDeploymentPostprocessing = 0;
-	};
+				AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */,
+				AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */,
+				AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0010272924FA0400B8BEA0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-	AA00101D2924FA8E00B8BEA0 /* PBXTargetDependency */ = {
-		isa = PBXTargetDependency;
-		target = AA0010202924F8C300B8BEA0 /* ArcadiaCoach */;
-		targetProxy = AA00101A2924FA8E00B8BEA0 /* PBXContainerItemProxy */;
-	};
+		AA00101D2924FA8E00B8BEA0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0010202924F8C300B8BEA0 /* ArcadiaCoach */;
+			targetProxy = AA00101A2924FA8E00B8BEA0 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-	AA00102B2924F8C300B8BEA0 /* Debug */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-			CODE_SIGN_ENTITLEMENTS = ArcadiaCoach.entitlements;
-			CODE_SIGN_STYLE = Automatic;
-			COMBINE_HIDPI_IMAGES = YES;
-			CURRENT_PROJECT_VERSION = 1;
-			GENERATE_INFOPLIST_FILE = NO;
-			INFOPLIST_FILE = Info.plist;
-			LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			MARKETING_VERSION = 1.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
-			PRODUCT_NAME = "$(TARGET_NAME)";
-			SWIFT_EMIT_LOC_STRINGS = YES;
-			SWIFT_VERSION = 5.0;
-			SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+		AA00102B2924F8C300B8BEA0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ArcadiaCoach.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
 		};
-		name = Debug;
-	};
-	AA00102C2924F8C300B8BEA0 /* Release */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-			CODE_SIGN_ENTITLEMENTS = ArcadiaCoach.entitlements;
-			CODE_SIGN_STYLE = Automatic;
-			COMBINE_HIDPI_IMAGES = YES;
-			CURRENT_PROJECT_VERSION = 1;
-			GENERATE_INFOPLIST_FILE = NO;
-			INFOPLIST_FILE = Info.plist;
-			LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			MARKETING_VERSION = 1.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
-			PRODUCT_NAME = "$(TARGET_NAME)";
-			SWIFT_EMIT_LOC_STRINGS = YES;
-			SWIFT_OPTIMIZATION_LEVEL = "-O";
-			SWIFT_VERSION = 5.0;
-			SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+		AA00102C2924F8C300B8BEA0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ArcadiaCoach.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
 		};
-		name = Release;
-	};
-	AA00102E2924FA0400B8BEA0 /* Debug */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			BUNDLE_LOADER = "$(TEST_HOST)";
-			CODE_SIGN_STYLE = Automatic;
-			GENERATE_INFOPLIST_FILE = NO;
-			INFOPLIST_FILE = Tests/TestsInfo.plist;
-			LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
-			PRODUCT_NAME = "$(TARGET_NAME)";
-			SWIFT_VERSION = 5.0;
-			TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ArcadiaCoach.app/Contents/MacOS/ArcadiaCoach";
+		AA00102E2924FA0400B8BEA0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Tests/TestsInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ArcadiaCoach.app/Contents/MacOS/ArcadiaCoach";
+			};
+			name = Debug;
 		};
-		name = Debug;
-	};
-	AA00102F2924FA0400B8BEA0 /* Release */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			BUNDLE_LOADER = "$(TEST_HOST)";
-			CODE_SIGN_STYLE = Automatic;
-			GENERATE_INFOPLIST_FILE = NO;
-			INFOPLIST_FILE = Tests/TestsInfo.plist;
-			LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
-			PRODUCT_NAME = "$(TARGET_NAME)";
-			SWIFT_VERSION = 5.0;
-			TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ArcadiaCoach.app/Contents/MacOS/ArcadiaCoach";
+		AA00102F2924FA0400B8BEA0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Tests/TestsInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ArcadiaCoach.app/Contents/MacOS/ArcadiaCoach";
+			};
+			name = Release;
 		};
-		name = Release;
-	};
-	AA0010302924F8C300B8BEA0 /* Debug */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			ALWAYS_SEARCH_USER_PATHS = NO;
-			CLANG_ANALYZER_NONNULL = YES;
-			CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-			CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
-			CLANG_ENABLE_MODULES = YES;
-			CLANG_ENABLE_OBJC_ARC = YES;
-			CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-			CLANG_WARN_BOOL_CONVERSION = YES;
-			CLANG_WARN_COMMA = YES;
-			CLANG_WARN_CONSTANT_CONVERSION = YES;
-			CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-			CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-			CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-			CLANG_WARN_EMPTY_BODY = YES;
-			CLANG_WARN_ENUM_CONVERSION = YES;
-			CLANG_WARN_INFINITE_RECURSION = YES;
-			CLANG_WARN_INT_CONVERSION = YES;
-			CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-			CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-			CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-			CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-			CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-			CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-			CLANG_WARN_STRICT_PROTOTYPES = YES;
-			CLANG_WARN_SUSPICIOUS_MOVE = YES;
-			CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-			CODE_SIGN_STYLE = Automatic;
-			COPY_PHASE_STRIP = NO;
-			DEBUG_INFORMATION_FORMAT = dwarf;
-			ENABLE_STRICT_OBJC_MSGSEND = YES;
-			ENABLE_TESTABILITY = YES;
-			GCC_C_LANGUAGE_STANDARD = gnu11;
-			GCC_DYNAMIC_NO_PIC = NO;
-			GCC_NO_COMMON_BLOCKS = YES;
-			GCC_OPTIMIZATION_LEVEL = 0;
-			GCC_PREPROCESSOR_DEFINITIONS = (
-				"DEBUG=1",
-				"$(inherited)",
-			);
-			GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-			GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-			GCC_WARN_UNDECLARED_SELECTOR = YES;
-			GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-			GCC_WARN_UNUSED_FUNCTION = YES;
-			GCC_WARN_UNUSED_VARIABLE = YES;
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
-			ONLY_ACTIVE_ARCH = YES;
-			SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-			SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-			SWIFT_VERSION = 5.0;
+		AA0010302924F8C300B8BEA0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
 		};
-		name = Debug;
-	};
-	AA0010312924F8C300B8BEA0 /* Release */ = {
-		isa = XCBuildConfiguration;
-		buildSettings = {
-			ALWAYS_SEARCH_USER_PATHS = NO;
-			CLANG_ANALYZER_NONNULL = YES;
-			CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-			CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
-			CLANG_ENABLE_MODULES = YES;
-			CLANG_ENABLE_OBJC_ARC = YES;
-			CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-			CLANG_WARN_BOOL_CONVERSION = YES;
-			CLANG_WARN_COMMA = YES;
-			CLANG_WARN_CONSTANT_CONVERSION = YES;
-			CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-			CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-			CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-			CLANG_WARN_EMPTY_BODY = YES;
-			CLANG_WARN_ENUM_CONVERSION = YES;
-			CLANG_WARN_INFINITE_RECURSION = YES;
-			CLANG_WARN_INT_CONVERSION = YES;
-			CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-			CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-			CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-			CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-			CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-			CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-			CLANG_WARN_STRICT_PROTOTYPES = YES;
-			CLANG_WARN_SUSPICIOUS_MOVE = YES;
-			CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-			CODE_SIGN_STYLE = Automatic;
-			COPY_PHASE_STRIP = NO;
-			DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-			ENABLE_NS_ASSERTIONS = NO;
-			ENABLE_STRICT_OBJC_MSGSEND = YES;
-			GCC_C_LANGUAGE_STANDARD = gnu11;
-			GCC_NO_COMMON_BLOCKS = YES;
-			GCC_OPTIMIZATION_LEVEL = s;
-			GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-			GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-			GCC_WARN_UNDECLARED_SELECTOR = YES;
-			GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-			GCC_WARN_UNUSED_FUNCTION = YES;
-			GCC_WARN_UNUSED_VARIABLE = YES;
-			MACOSX_DEPLOYMENT_TARGET = 13.0;
-			MTL_ENABLE_DEBUG_INFO = NO;
-			SWIFT_COMPILATION_MODE = wholemodule;
-			SWIFT_OPTIMIZATION_LEVEL = "-O";
-			SWIFT_VERSION = 5.0;
+		AA0010312924F8C300B8BEA0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
 		};
-		name = Release;
-	};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-	AA00102A2924F8C300B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoach" */ = {
-		isa = XCConfigurationList;
-		buildConfigurations = (
-			AA00102B2924F8C300B8BEA0 /* Debug */,
-			AA00102C2924F8C300B8BEA0 /* Release */,
-		);
-		defaultConfigurationIsVisible = 0;
-		defaultConfigurationName = Debug;
-	};
-	AA00102D2924FA0400B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoachTests" */ = {
-		isa = XCConfigurationList;
-		buildConfigurations = (
-			AA00102E2924FA0400B8BEA0 /* Debug */,
-			AA00102F2924FA0400B8BEA0 /* Release */,
-		);
-		defaultConfigurationIsVisible = 0;
-		defaultConfigurationName = Debug;
-	};
-	AA00102F2924F8C300B8BEA0 /* Build configuration list for PBXProject "ArcadiaCoach" */ = {
-		isa = XCConfigurationList;
-		buildConfigurations = (
-			AA0010302924F8C300B8BEA0 /* Debug */,
-			AA0010312924F8C300B8BEA0 /* Release */,
-		);
-		defaultConfigurationIsVisible = 0;
-		defaultConfigurationName = Debug;
-	};
+		AA00102A2924F8C300B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoach" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA00102B2924F8C300B8BEA0 /* Debug */,
+				AA00102C2924F8C300B8BEA0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AA00102D2924FA0400B8BEA0 /* Build configuration list for PBXNativeTarget "ArcadiaCoachTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA00102E2924FA0400B8BEA0 /* Debug */,
+				AA00102F2924FA0400B8BEA0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AA00102F2924F8C300B8BEA0 /* Build configuration list for PBXProject "ArcadiaCoach" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0010302924F8C300B8BEA0 /* Debug */,
+				AA0010312924F8C300B8BEA0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = AA000FF02924F7D200B8BEA0 /* Project object */;
 }

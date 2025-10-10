@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arcadia Coach ChatKit</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      font-family: inherit;
+    }
+    #chatkit-root {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="https://cdn.openai.com/chatkit/latest/chatkit.js"></script>
+</head>
+<body>
+  <div id="chatkit-root"></div>
+  <script type="module">
+    const widgetBase64 = "%WIDGET_BASE64%";
+    const configBase64 = "%CHATKIT_CONFIG_BASE64%";
+
+    function decodeWidget(base64) {
+      if (!base64) return undefined;
+      try {
+        const json = atob(base64);
+        return JSON.parse(json);
+      } catch (err) {
+        console.error("Failed to decode widget", err);
+        return undefined;
+      }
+    }
+
+    const customWidget = decodeWidget(widgetBase64);
+    const initialConfig = configBase64 ? JSON.parse(atob(configBase64)) : null;
+    let chatkitInstance;
+
+    function apiOptionsFrom(config) {
+      if (!config) return undefined;
+      if (config.apiURL) {
+        return {
+          url: config.apiURL,
+          domainKey: config.domainKey,
+        };
+      }
+      if (config.token) {
+        return {
+          clientToken: config.token,
+        };
+      }
+      return undefined;
+    }
+
+    function agentOptionsFrom(config) {
+      const agentId = config?.agentId;
+      return agentId ? { id: agentId } : undefined;
+    }
+
+    async function ensureChat(config) {
+      if (!config) return;
+      const element = document.querySelector('#chatkit-root');
+      const apiOptions = apiOptionsFrom(config);
+      const agent = agentOptionsFrom(config);
+      if (!apiOptions) {
+        console.warn('ChatKit configuration missing api options');
+        return;
+      }
+      if (!chatkitInstance) {
+        chatkitInstance = await ChatKit.create({
+          element,
+          api: apiOptions,
+          agent,
+          layout: {
+            position: 'inline',
+            autoFocus: true,
+            showComposer: true
+          },
+          theme: {
+            mode: 'system',
+            fontSize: 'md',
+            borderRadius: 'xl'
+          }
+        });
+        if (customWidget && chatkitInstance?.widgets?.register) {
+          try {
+            chatkitInstance.widgets.register(customWidget);
+          } catch (err) {
+            console.warn('Unable to register custom widget', err);
+          }
+        }
+      } else {
+        chatkitInstance.setOptions({
+          api: apiOptions,
+          agent,
+        });
+      }
+    }
+
+    window.arcadiaChatKitMount = ensureChat;
+
+    if (initialConfig) {
+      ensureChat(initialConfig);
+    }
+  </script>
+</body>
+</html>

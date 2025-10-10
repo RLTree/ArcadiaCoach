@@ -1,6 +1,6 @@
 import Foundation
 
-enum WidgetType: String, Codable { case Card, List, StatRow }
+enum WidgetType: String, Codable { case Card, List, StatRow, MiniChatbot }
 
 struct WidgetCardSection: Codable, Hashable {
     var heading: String?
@@ -32,11 +32,25 @@ struct WidgetStatRowProps: Codable, Hashable {
     var items: [WidgetStatItem]
 }
 
+struct MiniChatbotMessage: Codable, Hashable {
+    var id: String
+    var role: String
+    var text: String
+}
+
+struct MiniChatbotProps: Codable, Hashable {
+    var title: String
+    var status: String
+    var placeholder: String
+    var messages: [MiniChatbotMessage]
+}
+
 struct Widget: Codable, Hashable {
     var type: WidgetType
     var propsCard: WidgetCardProps?
     var propsList: WidgetListProps?
     var propsStat: WidgetStatRowProps?
+    var propsMiniChatbot: MiniChatbotProps?
 
     enum CodingKeys: String, CodingKey { case type, props }
 
@@ -51,6 +65,7 @@ struct Widget: Codable, Hashable {
         case .Card: propsCard = try JSONDecoder().decode(WidgetCardProps.self, from: data)
         case .List: propsList = try JSONDecoder().decode(WidgetListProps.self, from: data)
         case .StatRow: propsStat = try JSONDecoder().decode(WidgetStatRowProps.self, from: data)
+        case .MiniChatbot: propsMiniChatbot = try JSONDecoder().decode(MiniChatbotProps.self, from: data)
         }
     }
 
@@ -62,6 +77,7 @@ struct Widget: Codable, Hashable {
         case .Card: props = propsCard ?? WidgetCardProps(title: "", sections: nil)
         case .List: props = propsList ?? WidgetListProps(title: nil, rows: [])
         case .StatRow: props = propsStat ?? WidgetStatRowProps(items: [])
+        case .MiniChatbot: props = propsMiniChatbot ?? MiniChatbotProps(title: "", status: "", placeholder: "", messages: [])
         }
         let propsData = try JSONEncoder().encode(AnyCodableEncodable(props))
         let propsObj = try JSONSerialization.jsonObject(with: propsData)

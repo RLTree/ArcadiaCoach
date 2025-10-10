@@ -12,4 +12,6 @@ final class AppSettings: ObservableObject {
     @AppStorage("chatkitClientToken") var chatkitClientToken: String = ""
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
     @AppStorage("chatkitDeviceId") var chatkitDeviceId: String = UUID().uuidString
+    @AppStorage("chatkitAdvanced") var chatkitAdvanced: Bool = false
+    @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
 }

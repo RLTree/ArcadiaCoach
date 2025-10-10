@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var apiKey: String = KeychainHelper.get("OPENAI_API_KEY") ?? ""
     @State private var clientToken: String = ""
     @State private var backendURL: String = ""
+    @State private var domainKey: String = ""
     @State private var deviceId: String = ""
     @State private var fetchStatus: String?
     @State private var isFetchingToken: Bool = false
@@ -22,6 +23,7 @@ struct SettingsView: View {
             }
             Section("ChatKit Backend") {
                 TextField("Backend base URL", text: $backendURL)
+                SecureField("Domain key", text: $domainKey)
                 TextField("Device ID", text: $deviceId)
                 Button(action: fetchChatKitToken) {
                     if isFetchingToken {
@@ -44,7 +46,12 @@ struct SettingsView: View {
                 Button("Save Backend Settings") {
                     settings.chatkitBackendURL = backendURL
                     settings.chatkitDeviceId = deviceId
+                    settings.chatkitDomainKey = domainKey
                 }
+                Toggle("Use advanced ChatKit UI", isOn: $settings.chatkitAdvanced)
+                Text("Advanced mode connects directly to your ChatKit backend using the domain key. The macOS-native chat remains available when this is off.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             Section("Accessibility") {
                 Toggle("Reduce motion", isOn: $settings.reduceMotion)
@@ -67,6 +74,9 @@ struct SettingsView: View {
                 if settings.chatkitBackendURL.isEmpty {
                     Text("Configure a backend URL to fetch ChatKit tokens automatically.").foregroundStyle(.secondary)
                 }
+                if settings.chatkitAdvanced && settings.chatkitDomainKey.isEmpty {
+                    Text("Advanced mode requires a domain key registered in the OpenAI allowlist.").foregroundStyle(.secondary)
+                }
             }
         }
         .padding()
@@ -74,6 +84,7 @@ struct SettingsView: View {
             clientToken = settings.chatkitClientToken
             backendURL = settings.chatkitBackendURL
             deviceId = settings.chatkitDeviceId
+            domainKey = settings.chatkitDomainKey
         }
     }
 

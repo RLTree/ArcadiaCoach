@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 
 
 class WidgetCardSection(BaseModel):
@@ -48,13 +49,22 @@ class WidgetEnvelope(BaseModel):
     citations: Optional[List[str]] = None
 
 
-app = FastMCP(
+mcp = FastMCP(
     name="Arcadia Coach Widgets",
     instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
+    host="0.0.0.0",
+    port=8001,
+    mount_path="/mcp",
+    sse_path="/sse",
 )
 
 
-@app.tool()
+@mcp.custom_route("/health", methods=["GET"])
+async def health_route(_request):
+    return JSONResponse({"status": "ok", "service": "arcadia-mcp"})
+
+
+@mcp.tool()
 def lesson_catalog(topic: str) -> WidgetEnvelope:
     """Generate a widget envelope for a requested lesson topic."""
     card = Widget(
@@ -85,9 +95,12 @@ def lesson_catalog(topic: str) -> WidgetEnvelope:
         propsList=WidgetListProps(
             title="Micro tasks",
             rows=[
-                WidgetListRow(label="Skim reference implementation", href="https://platform.openai.com/docs"),
-                WidgetListRow(label="Re-type core loop from memory", meta="10 minutes"),
-                WidgetListRow(label="Explain to rubber duck", meta="Verbalise outcome"),
+                WidgetListRow(label="Skim reference implementation",
+                              href="https://platform.openai.com/docs"),
+                WidgetListRow(
+                    label="Re-type core loop from memory", meta="10 minutes"),
+                WidgetListRow(label="Explain to rubber duck",
+                              meta="Verbalise outcome"),
             ],
         ),
     )
@@ -111,7 +124,7 @@ def lesson_catalog(topic: str) -> WidgetEnvelope:
     )
 
 
-@app.tool()
+@mcp.tool()
 def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
     """Return quiz recap widgets, including Elo deltas."""
     score_percent = int((correct / max(total, 1)) * 100)
@@ -143,7 +156,8 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
             items=[
                 WidgetStatItem(label="Δ Coding Elo", value="+18"),
                 WidgetStatItem(label="Δ MATH", value="+9"),
-                WidgetStatItem(label="Focus streak", value=f"{datetime.utcnow().strftime('%j')}d"),
+                WidgetStatItem(label="Focus streak",
+                               value=f"{datetime.utcnow().strftime('%j')}d"),
             ]
         ),
     )
@@ -152,9 +166,12 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
         propsList=WidgetListProps(
             title="Next drills",
             rows=[
-                WidgetListRow(label="3 spaced repetition cards", meta="7 minutes"),
-                WidgetListRow(label="Pair program with mentor", meta="Book 15 minutes"),
-                WidgetListRow(label="Share insight in community", href="https://discord.gg"),
+                WidgetListRow(label="3 spaced repetition cards",
+                              meta="7 minutes"),
+                WidgetListRow(label="Pair program with mentor",
+                              meta="Book 15 minutes"),
+                WidgetListRow(label="Share insight in community",
+                              href="https://discord.gg"),
             ],
         ),
     )
@@ -165,7 +182,7 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
     )
 
 
-@app.tool()
+@mcp.tool()
 def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope:
     """Celebrate a milestone and propose next steps."""
     celebration = Widget(
@@ -196,9 +213,12 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
         propsList=WidgetListProps(
             title="Suggested quests",
             rows=[
-                WidgetListRow(label="Draft a project retrospective", meta="15 minutes"),
-                WidgetListRow(label="Teach a friend one core concept", meta="10 minutes"),
-                WidgetListRow(label="Update Arcadia roadmap", href="https://arcadia.example/roadmap"),
+                WidgetListRow(
+                    label="Draft a project retrospective", meta="15 minutes"),
+                WidgetListRow(
+                    label="Teach a friend one core concept", meta="10 minutes"),
+                WidgetListRow(label="Update Arcadia roadmap",
+                              href="https://arcadia.example/roadmap"),
             ],
         ),
     )
@@ -209,7 +229,7 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
     )
 
 
-@app.tool()
+@mcp.tool()
 def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
     """Provide a focus sprint checklist tailored to the preferred chunk size."""
     checklist = Widget(
@@ -217,9 +237,12 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
         propsList=WidgetListProps(
             title=f"Focus sprint ({duration_minutes} min)",
             rows=[
-                WidgetListRow(label="Prep environment", meta="Set lights + playlist"),
-                WidgetListRow(label="Review acceptance criteria", meta="3 minutes"),
-                WidgetListRow(label="Commit to first micro-task", meta="Write what 'done' looks like"),
+                WidgetListRow(label="Prep environment",
+                              meta="Set lights + playlist"),
+                WidgetListRow(label="Review acceptance criteria",
+                              meta="3 minutes"),
+                WidgetListRow(label="Commit to first micro-task",
+                              meta="Write what 'done' looks like"),
             ],
         ),
     )
@@ -227,7 +250,8 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
         type="StatRow",
         propsStat=WidgetStatRowProps(
             items=[
-                WidgetStatItem(label="Chunk length", value=f"{duration_minutes}m"),
+                WidgetStatItem(label="Chunk length",
+                               value=f"{duration_minutes}m"),
                 WidgetStatItem(label="Break", value="5m"),
                 WidgetStatItem(label="Mood check", value="Note energy"),
             ],
@@ -241,7 +265,7 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
 
 
 def main() -> None:
-    app.run(transport="stdio")
+    mcp.run(transport="streamable-http", mount_path="/mcp")
 
 
 if __name__ == "__main__":

@@ -48,6 +48,8 @@ struct QuizSummaryView: View {
             if let props = widget.propsStat {
                 WidgetStatRowView(props: props).environmentObject(settings)
             }
+        case .MiniChatbot:
+            EmptyView()
         }
     }
 }
