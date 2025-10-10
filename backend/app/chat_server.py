@@ -134,7 +134,11 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         item: UserMessageItem | None,
         context: dict[str, Any],
     ) -> AsyncIterator[ThreadStreamEvent]:
+        prefs = self._get_preferences(thread.id)
+
         if item is None:
+            async for event in self._emit_widget(thread, context, prefs):
+                yield event
             return
 
         if _is_tool_completion_item(item):
@@ -143,8 +147,6 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         message_text = _user_message_text(item)
         if not message_text:
             return
-
-        prefs = self._get_preferences(thread.id)
 
         allowed, payload = await run_guardrail_checks(message_text)
         if not allowed:
