@@ -1,0 +1,83 @@
+# Arcadia Coach Backend
+
+This FastAPI service issues ChatKit client tokens tied to your Arcadia workflow so the macOS app (and any web clients) can mount the ChatKit widget securely. It also exposes simple health and diagnostics endpoints for observability.
+
+## Features
+
+- `POST /api/chatkit/session` creates a new ChatKit session and returns its short-lived `client_secret` for the requesting device.
+- `POST /api/chatkit/session/refresh` refreshes an existing session using the session ID you previously issued to the client.
+- `GET /healthz` lightweight health probe for load balancers and uptime monitors.
+
+## Requirements
+
+- Python 3.10+
+- An OpenAI API key with access to ChatKit workflows.
+- The workflow ID you want clients to talk to (`wf_68e818c4672081909c8d17da417f3d0608cde5394e1fcc37`).
+
+## Setup
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+Set up the required environment variables (copy `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Populate `.env`:
+
+```
+OPENAI_API_KEY=sk-...
+CHATKIT_WORKFLOW_ID=wf_68e818c4672081909c8d17da417f3d0608cde5394e1fcc37
+CHATKIT_SESSION_TTL_MINUTES=30  # optional override
+```
+
+> The service reads configuration from environment variables at startup. Use your favourite secret manager for production deployments.
+
+## Run the service
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The macOS app should point its ChatKit token fetcher to `http://localhost:8000/api/chatkit/session` (or whatever base URL you deploy).
+
+## Docker (optional)
+
+A simple container image can be built with:
+
+```bash
+docker build -t arcadia-chatkit-backend .
+```
+
+Then run with:
+
+```bash
+docker run -p 8000:8000 \
+  -e OPENAI_API_KEY=sk-... \
+  -e CHATKIT_WORKFLOW_ID=wf_68e818c4672081909c8d17da417f3d0608cde5394e1fcc37 \
+  arcadia-chatkit-backend
+```
+
+## Endpoints
+
+| Method | Path                        | Description                                      |
+|--------|-----------------------------|--------------------------------------------------|
+| POST   | `/api/chatkit/session`      | Create a new ChatKit session and return secrecy. |
+| POST   | `/api/chatkit/session/refresh` | Refresh an existing session using session ID.  |
+| GET    | `/healthz`                  | Health probe.                                    |
+
+## Testing
+
+Use `httpie` or `curl` to sanity-check the API:
+
+```bash
+http POST :8000/api/chatkit/session device_id=test-device-123
+```
+
+The response will contain a `client_secret`, `session_id`, and `expires_at` timestamp. Hand the `client_secret` straight to your ChatKit client.

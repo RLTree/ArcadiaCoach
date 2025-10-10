@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@openai/chatkit-react": "^1.1.1"
+  }
+}

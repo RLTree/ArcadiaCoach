@@ -1,0 +1,13 @@
+[project]
+name = "arcadia-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server providing Arcadia Coach widgets."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[fast]>=0.3.0",
+    "pydantic>=2.7.0"
+]
+
+[project.scripts]
+arcadia-mcp = "server:main"
