@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Dict
 
 from agents import Agent, FileSearchTool, HostedMCPTool, ModelSettings, WebSearchTool
 from chatkit.agents import AgentContext
@@ -49,18 +50,38 @@ class ArcadiaAgentContext(AgentContext):
     store: Annotated[MemoryStore, Field(exclude=True)]
     request_context: dict[str, Any]
     sanitized_input: str | None = None
+    web_enabled: bool = False
+    reasoning_level: str = "medium"
+    attachments: list[Dict[str, Any]] = Field(default_factory=list)
 
 
-arcadia_agent = Agent[ArcadiaAgentContext](
-    name="Arcadia Coach",
-    instructions=INSTRUCTIONS,
-    model=MODEL,
-    tools=[file_search, web_search, mcp_widgets],  # type: ignore[arg-type]
-    model_settings=ModelSettings(
-        store=True,
-        reasoning=Reasoning(
-            effort="medium",
-            summary="auto",
+_AGENT_CACHE: dict[str, Agent[ArcadiaAgentContext]] = {}
+
+SUPPORTED_MODELS = {
+    "gpt-5-nano",
+    "gpt-5-mini",
+    "gpt-5",
+    "gpt-5-codex",
+}
+
+
+def _build_agent(model: str) -> Agent[ArcadiaAgentContext]:
+    return Agent[ArcadiaAgentContext](
+        name="Arcadia Coach",
+        instructions=INSTRUCTIONS,
+        model=model,
+        tools=[file_search, web_search, mcp_widgets],  # type: ignore[arg-type]
+        model_settings=ModelSettings(
+            store=True,
         ),
-    ),
-)
+    )
+
+
+def get_arcadia_agent(model: str | None) -> Agent[ArcadiaAgentContext]:
+    """Return a cached Arcadia agent configured for the requested model."""
+    selected = model or MODEL
+    if selected not in SUPPORTED_MODELS:
+        selected = MODEL
+    if selected not in _AGENT_CACHE:
+        _AGENT_CACHE[selected] = _build_agent(selected)
+    return _AGENT_CACHE[selected]

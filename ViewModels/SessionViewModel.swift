@@ -10,7 +10,7 @@ final class SessionViewModel: ObservableObject {
     func loadLesson(agentId: String, topic: String) async {
         guard !agentId.isEmpty else { return }
         do {
-            let output: EndLearn = try await AgentService.send(agentId: agentId, message: "learn \(topic)", sessionId: sessionId, expecting: EndLearn.self)
+            let output: EndLearn = try await AgentService.send(agentId: agentId, model: "gpt-5", message: "learn \(topic)", sessionId: sessionId, expecting: EndLearn.self)
             lesson = output
         } catch {
             print("Lesson error", error)
@@ -20,7 +20,7 @@ final class SessionViewModel: ObservableObject {
     func loadQuiz(agentId: String, topic: String) async {
         guard !agentId.isEmpty else { return }
         do {
-            let output: EndQuiz = try await AgentService.send(agentId: agentId, message: "quiz \(topic)", sessionId: sessionId, expecting: EndQuiz.self)
+            let output: EndQuiz = try await AgentService.send(agentId: agentId, model: "gpt-5-codex", message: "quiz \(topic)", sessionId: sessionId, expecting: EndQuiz.self)
             quiz = output
         } catch {
             print("Quiz error", error)
@@ -30,7 +30,7 @@ final class SessionViewModel: ObservableObject {
     func loadMilestone(agentId: String, topic: String) async {
         guard !agentId.isEmpty else { return }
         do {
-            let output: EndMilestone = try await AgentService.send(agentId: agentId, message: "milestone \(topic)", sessionId: sessionId, expecting: EndMilestone.self)
+            let output: EndMilestone = try await AgentService.send(agentId: agentId, model: "gpt-5", message: "milestone \(topic)", sessionId: sessionId, expecting: EndMilestone.self)
             milestone = output
         } catch {
             print("Milestone error", error)

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from chatkit.server import StreamingResult
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -81,3 +81,11 @@ async def chatkit_endpoint(request: Request, server: ArcadiaChatServer = Depends
     if hasattr(result, "json"):
         return Response(content=result.json, media_type="application/json")
     return JSONResponse(result)
+
+
+@app.post("/api/chatkit/upload")
+async def upload_chatkit_file(
+    file: UploadFile = File(...),
+    server: ArcadiaChatServer = Depends(get_chat_server),
+) -> Dict[str, Any]:
+    return await server.handle_file_upload(file)

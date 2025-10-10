@@ -6,6 +6,7 @@ struct AdvancedChatKitConfiguration: Codable, Equatable {
     var token: String?
     var apiURL: String?
     var domainKey: String?
+    var uploadURL: String?
 }
 
 struct AdvancedChatKitView: NSViewRepresentable {

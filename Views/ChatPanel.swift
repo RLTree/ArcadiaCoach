@@ -6,7 +6,7 @@ struct ChatPanel: View {
     @State private var advancedSession: ChatKitSessionResponse?
     @State private var advancedStatus: String?
     @State private var advancedLoading: Bool = false
-    private let widgetBase64 = WidgetResource.miniChatbotWidgetBase64()
+    private let widgetBase64 = WidgetResource.arcadiaChatbotWidgetBase64()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -68,11 +68,13 @@ struct ChatPanel: View {
         guard let apiURL = normalizedChatkitURL(from: settings.chatkitBackendURL) else {
             return nil
         }
+        let uploadURL = normalizedUploadURL(from: settings.chatkitBackendURL)
         return AdvancedChatKitConfiguration(
             agentId: settings.agentId,
             token: nil,
             apiURL: apiURL.absoluteString,
-            domainKey: settings.chatkitDomainKey
+            domainKey: settings.chatkitDomainKey,
+            uploadURL: uploadURL
         )
     }
 
@@ -82,7 +84,8 @@ struct ChatPanel: View {
                 agentId: settings.agentId,
                 token: session.client_secret,
                 apiURL: nil,
-                domainKey: nil
+                domainKey: nil,
+                uploadURL: normalizedUploadURL(from: settings.chatkitBackendURL)
             )
         }
         if !settings.chatkitClientToken.isEmpty {
@@ -90,7 +93,8 @@ struct ChatPanel: View {
                 agentId: settings.agentId,
                 token: settings.chatkitClientToken,
                 apiURL: nil,
-                domainKey: nil
+                domainKey: nil,
+                uploadURL: normalizedUploadURL(from: settings.chatkitBackendURL)
             )
         }
         return nil
@@ -114,6 +118,24 @@ struct ChatPanel: View {
         }
         components.path = path
         return components.url
+    }
+
+    private func normalizedUploadURL(from value: String) -> String? {
+        guard var components = URLComponents(string: value), !value.isEmpty else { return nil }
+        var path = components.path
+        if path.isEmpty || path == "/" {
+            path = "/api/chatkit/upload"
+        } else if path.hasSuffix("/api/chatkit/upload") {
+            // already normalized
+        } else {
+            if path.hasSuffix("/") {
+                path += "api/chatkit/upload"
+            } else {
+                path += "/api/chatkit/upload"
+            }
+        }
+        components.path = path
+        return components.url?.absoluteString
     }
 
     @MainActor

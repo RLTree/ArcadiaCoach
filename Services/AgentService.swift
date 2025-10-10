@@ -4,14 +4,16 @@ final class AgentService {
     struct ResponseEnvelope<T:Decodable>: Decodable { let output: T }
     private static let base = URL(string: "https://api.openai.com/v1/responses")!
 
-    static func send<T:Decodable>(agentId: String, message: String, sessionId: String? = nil, expecting: T.Type) async throws -> T {
+    static func send<T:Decodable>(agentId: String, model: String, message: String, sessionId: String? = nil, expecting: T.Type) async throws -> T {
         let apiKey = KeychainHelper.get("OPENAI_API_KEY") ?? ""
         var req = URLRequest(url: base)
         req.httpMethod = "POST"
         req.addValue("application/json", forHTTPHeaderField: "Content-Type")
         req.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let selectedModel = model.isEmpty ? "gpt-5" : model
         var input: [String:Any] = [
             "agent_id": agentId,
+            "model": selectedModel,
             "input": message
         ]
         if let sessionId {

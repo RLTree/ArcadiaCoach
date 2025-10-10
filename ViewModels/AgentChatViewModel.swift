@@ -51,7 +51,7 @@ final class AgentChatViewModel: ObservableObject {
         messages.append(ChatMessage(role: .user, text: trimmed))
         isSending = true
         do {
-            let envelope: WidgetEnvelope = try await AgentService.send(agentId: agentId, message: trimmed, sessionId: sessionId, expecting: WidgetEnvelope.self)
+            let envelope: WidgetEnvelope = try await AgentService.send(agentId: agentId, model: "gpt-5", message: trimmed, sessionId: sessionId, expecting: WidgetEnvelope.self)
             let reply = Self.extractReply(from: envelope)
             messages.append(ChatMessage(role: .assistant, text: reply))
             lastError = nil

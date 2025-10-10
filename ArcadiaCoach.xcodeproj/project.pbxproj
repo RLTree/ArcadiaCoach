@@ -33,7 +33,7 @@
 		AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */; };
 	AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA001F182924F9F600B8BEA0 /* Assets.xcassets */; };
 	AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
-	AA00102129250AF500B8BEA0 /* Mini_Chatbot.widget in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */; };
+AA00102129250AF500B8BEA0 /* ArcadiaChatbot.widget in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */; };
 	AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */; };
 	AA00101E2924FDB800B8BEA0 /* ChatKitTokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F262924FDB800B8BEA0 /* ChatKitTokenService.swift */; };
 	AA00101F29250A0000B8BEA0 /* MiniChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */; };
@@ -92,12 +92,12 @@
 		AA001F2D29250B5C00B8BEA0 /* ChatKit */,
 	); path = Resources; sourceTree = "<group>"; };
 	AA001F2C29250B5C00B8BEA0 /* Widgets */ = {isa = PBXGroup; children = (
-		AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */,
+        AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */,
 	); path = Widgets; sourceTree = "<group>"; };
 	AA001F2D29250B5C00B8BEA0 /* ChatKit */ = {isa = PBXGroup; children = (
 		AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */,
 	); path = ChatKit; sourceTree = "<group>"; };
-	AA001F2A29250AF500B8BEA0 /* Mini_Chatbot.widget */ = {isa = PBXFileReference; lastKnownFileType = text; path = Mini_Chatbot.widget; sourceTree = "<group>"; };
+AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; lastKnownFileType = text; path = ArcadiaChatbot.widget; sourceTree = "<group>"; };
 	AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = advanced_chatkit.html; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -301,7 +301,7 @@
 		buildActionMask = 2147483647;
 		files = (
 			AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */,
-			AA00102129250AF500B8BEA0 /* Mini_Chatbot.widget in Resources */,
+            AA00102129250AF500B8BEA0 /* ArcadiaChatbot.widget in Resources */,
 			AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */,
 		);
 			runOnlyForDeploymentPostprocessing = 0;

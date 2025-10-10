@@ -1,6 +1,6 @@
 """Shared constants for the Arcadia Coach ChatKit backend."""
 
-MODEL = "gpt-4.1-mini"
+MODEL = "gpt-5"
 
 INSTRUCTIONS = (
     "You are Arcadia Coach, an instructional design assistant. "

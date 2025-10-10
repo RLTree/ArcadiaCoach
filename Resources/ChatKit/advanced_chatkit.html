@@ -19,10 +19,6 @@
       height: 100vh;
       width: 100%;
     }
-    #chatkit-root [data-kind="message"],
-    #chatkit-root section[aria-label="Composer"] {
-      display: none !important;
-    }
   </style>
   <script type="module" crossorigin src="https://cdn.openai.com/chatkit/latest/chatkit.js"></script>
 </head>
@@ -46,6 +42,63 @@
     const customWidget = decodeWidget(widgetBase64);
     const initialConfig = configBase64 ? JSON.parse(atob(configBase64)) : null;
     let chatkitInstance;
+    let currentConfig = initialConfig;
+    let pendingUploadWidgetId = null;
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    fileInput.addEventListener('change', async () => {
+      const files = Array.from(fileInput.files || []);
+      if (!files.length || !chatkitInstance) {
+        return;
+      }
+      try {
+        const results = [];
+        for (const file of files) {
+          const form = new FormData();
+          form.append('file', file);
+          if (currentConfig?.agentId) {
+            form.append('agent_id', currentConfig.agentId);
+          }
+          const uploadURL = resolveUploadURL(currentConfig);
+          const response = await fetch(uploadURL, {
+            method: 'POST',
+            body: form,
+          });
+          if (!response.ok) {
+            throw new Error(`Upload failed (${response.status})`);
+          }
+          const data = await response.json();
+          results.push(data);
+        }
+        if (results.length) {
+          await chatkitInstance.sendCustomAction({
+            type: 'files_uploaded',
+            payload: { files: results },
+          }, pendingUploadWidgetId ?? undefined);
+        }
+      } catch (error) {
+        console.error('File upload failed', error);
+      } finally {
+        fileInput.value = '';
+        pendingUploadWidgetId = null;
+      }
+    });
+
+    function resolveUploadURL(config) {
+      if (config?.uploadURL) {
+        return config.uploadURL;
+      }
+      const base = config?.apiURL
+        ? new URL(config.apiURL)
+        : new URL('/chatkit', window.location.origin);
+      base.pathname = '/api/chatkit/upload';
+      return base.toString();
+    }
 
     function apiOptionsFrom(config) {
       if (!config) return undefined;
@@ -68,8 +121,41 @@
       return agentId ? { id: agentId } : undefined;
     }
 
+    async function handleWidgetAction(action, widgetItem) {
+      if (!chatkitInstance || !action) {
+        return;
+      }
+      try {
+        switch (action.type) {
+          case 'chat.toggleWeb':
+            await chatkitInstance.sendCustomAction({ type: 'toggle_web' }, widgetItem?.id);
+            break;
+          case 'chat.toggleTone':
+            await chatkitInstance.sendCustomAction({ type: 'toggle_tone' }, widgetItem?.id);
+            break;
+          case 'chat.setLevel': {
+            const level = action.params?.level ?? action.payload?.level;
+            await chatkitInstance.sendCustomAction({
+              type: 'set_level',
+              payload: { level },
+            }, widgetItem?.id);
+            break;
+          }
+          case 'chat.add':
+            pendingUploadWidgetId = widgetItem?.id ?? null;
+            fileInput.click();
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error('Widget action failed', error);
+      }
+    }
+
     async function ensureChat(config) {
       if (!config) return;
+      currentConfig = config;
       const element = document.querySelector('#chatkit-root');
       const apiOptions = apiOptionsFrom(config);
       const agent = agentOptionsFrom(config);
@@ -89,6 +175,9 @@
           },
           header: { enabled: false },
           history: { enabled: false },
+          widgets: {
+            onAction: handleWidgetAction,
+          },
           theme: {
             mode: 'system',
             fontSize: 'md',
@@ -98,12 +187,13 @@
         if (customWidget && chatkitInstance?.widgets?.register) {
           try {
             chatkitInstance.widgets.register(customWidget);
-            if (customWidget.id && chatkitInstance.widgets.open) {
-              chatkitInstance.widgets.open(customWidget.id, {
-                title: 'Arcadia Coach',
-                status: 'Online',
-                placeholder: 'Ask Arcadia Coach anything…',
-                messages: []
+            const maybeOpen = chatkitInstance.widgets?.open;
+            if (customWidget.id && typeof maybeOpen === "function") {
+              maybeOpen(customWidget.id, {
+                title: "Arcadia Coach",
+                status: "Online",
+                placeholder: "Ask Arcadia Coach anything…",
+                messages: [],
               });
             }
           } catch (err) {
@@ -114,6 +204,9 @@
         chatkitInstance.setOptions({
           api: apiOptions,
           agent,
+          widgets: {
+            onAction: handleWidgetAction,
+          },
         });
       }
     }
