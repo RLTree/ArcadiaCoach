@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from agents import Agent, AgentContext, FileSearchTool, HostedMCPTool, ModelSettings, WebSearchTool
+from agents import Agent, FileSearchTool, HostedMCPTool, ModelSettings, WebSearchTool
+from chatkit.agents import AgentContext
 from openai.types.shared.reasoning import Reasoning
 from pydantic import ConfigDict, Field
 
