@@ -23,6 +23,7 @@ from chatkit.types import (
     UserMessageItem,
 )
 from chatkit.widgets import (
+    ActionConfig,
     Badge,
     Box,
     Borders,
@@ -447,7 +448,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 size="sm",
                 variant="solid" if value == prefs.reasoning_level else "outline",
                 color="primary" if value == prefs.reasoning_level else "secondary",
-                onClickAction={"type": "chat.setLevel", "payload": {"level": value}},
+                onClickAction=ActionConfig(type="chat.setLevel", payload={"level": value}),
             )
             for value, label in LEVEL_CONFIG
         ]
@@ -464,7 +465,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                     size="lg",
                     variant="solid" if prefs.web_enabled else "outline",
                     color="info" if prefs.web_enabled else "secondary",
-                    onClickAction={"type": "chat.toggleWeb"},
+                    onClickAction=ActionConfig(type="chat.toggleWeb"),
                 ),
                 Button(
                     iconStart="lightbulb",
@@ -472,7 +473,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                     size="lg",
                     variant="solid" if prefs.show_tone_picker else "outline",
                     color="secondary",
-                    onClickAction={"type": "chat.toggleTone"},
+                    onClickAction=ActionConfig(type="chat.toggleTone"),
                 ),
                 Button(
                     iconStart="plus",
@@ -480,7 +481,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                     size="lg",
                     variant="outline",
                     color="secondary",
-                    onClickAction={"type": "chat.add"},
+                    onClickAction=ActionConfig(type="chat.add"),
                 ),
                 Spacer(),
                 Caption(
@@ -535,6 +536,36 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 ]
             )
 
+        if prefs.uploaded_files:
+            attachment_rows = []
+            for ref in prefs.uploaded_files:
+                preview_text = ref.preview if ref.preview else f"{ref.mime_type}, {ref.size} bytes"
+                attachment_rows.append(
+                    Row(
+                        key=f"file_{ref.storage_id}",
+                        align="center",
+                        gap=2,
+                        children=[
+                            Icon(name="document", color="secondary"),
+                            Markdown(
+                                value=f"**{ref.name}** ({ref.mime_type}, {ref.size} bytes)\\n{preview_text}"
+                            ),
+                        ],
+                    )
+                )
+            body_children.extend(
+                [
+                    Divider(),
+                    Col(
+                        gap=2,
+                        children=[
+                            Caption(value="Attached files", color="secondary"),
+                            Col(gap=1, children=attachment_rows),
+                        ],
+                    ),
+                ]
+            )
+
         body = Col(
             padding=4,
             gap=2,
@@ -554,6 +585,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         )
 
         card = Card(
+            id="arcadia_chatbot",
             size="md",
             padding=0,
             children=[

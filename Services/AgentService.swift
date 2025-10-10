@@ -16,9 +16,6 @@ final class AgentService {
             "model": selectedModel,
             "input": message
         ]
-        if let sessionId {
-            input["session_id"] = sessionId
-        }
         req.httpBody = try JSONSerialization.data(withJSONObject: input)
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
