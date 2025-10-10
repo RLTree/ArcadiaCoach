@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Annotated, Any, Dict
+from typing import Annotated, Any, Dict, Tuple
 
 from agents import Agent, FileSearchTool, HostedMCPTool, ModelSettings, WebSearchTool
 from chatkit.agents import AgentContext
@@ -55,7 +54,7 @@ class ArcadiaAgentContext(AgentContext):
     attachments: list[Dict[str, Any]] = Field(default_factory=list)
 
 
-_AGENT_CACHE: dict[str, Agent[ArcadiaAgentContext]] = {}
+_AGENT_CACHE: dict[Tuple[str, bool], Agent[ArcadiaAgentContext]] = {}
 
 SUPPORTED_MODELS = {
     "gpt-5-nano",
@@ -65,23 +64,27 @@ SUPPORTED_MODELS = {
 }
 
 
-def _build_agent(model: str) -> Agent[ArcadiaAgentContext]:
+def _build_agent(model: str, web_enabled: bool) -> Agent[ArcadiaAgentContext]:
+    tools: list[Any] = [file_search, mcp_widgets]  # type: ignore[var-annotated]
+    if web_enabled:
+        tools.insert(1, web_search)  # keep search tools grouped
     return Agent[ArcadiaAgentContext](
         name="Arcadia Coach",
         instructions=INSTRUCTIONS,
         model=model,
-        tools=[file_search, web_search, mcp_widgets],  # type: ignore[arg-type]
+        tools=tools,  # type: ignore[arg-type]
         model_settings=ModelSettings(
             store=True,
         ),
     )
 
 
-def get_arcadia_agent(model: str | None) -> Agent[ArcadiaAgentContext]:
-    """Return a cached Arcadia agent configured for the requested model."""
+def get_arcadia_agent(model: str | None, web_enabled: bool) -> Agent[ArcadiaAgentContext]:
+    """Return a cached Arcadia agent configured for the requested model and web toggle."""
     selected = model or MODEL
     if selected not in SUPPORTED_MODELS:
         selected = MODEL
-    if selected not in _AGENT_CACHE:
-        _AGENT_CACHE[selected] = _build_agent(selected)
-    return _AGENT_CACHE[selected]
+    cache_key: Tuple[str, bool] = (selected, web_enabled)
+    if cache_key not in _AGENT_CACHE:
+        _AGENT_CACHE[cache_key] = _build_agent(selected, web_enabled)
+    return _AGENT_CACHE[cache_key]

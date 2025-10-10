@@ -196,7 +196,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             agent_input = augmented_input
 
         model_name = MODEL_FOR_LEVEL.get(prefs.reasoning_level, "gpt-5")
-        agent = get_arcadia_agent(model_name)
+        agent = get_arcadia_agent(model_name, prefs.web_enabled)
         reasoning_effort = REASONING_FOR_LEVEL.get(prefs.reasoning_level, "medium")
 
         result = Runner.run_streamed(
@@ -503,6 +503,36 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                         children=[Row(gap=2, wrap="wrap", children=tone_buttons)],
                     )
                 )
+            )
+
+        if prefs.uploaded_files:
+            attachment_rows = []
+            for ref in prefs.uploaded_files:
+                preview_text = ref.preview if ref.preview else f"{ref.mime_type}, {ref.size} bytes"
+                attachment_rows.append(
+                    Row(
+                        key=f"file_{ref.storage_id}",
+                        align="center",
+                        gap=2,
+                        children=[
+                            Icon(name="document", color="secondary"),
+                            Markdown(
+                                value=f"**{ref.name}** ({ref.mime_type}, {ref.size} bytes)\\n{preview_text}"
+                            ),
+                        ],
+                    )
+                )
+            body_children.extend(
+                [
+                    Divider(),
+                    Col(
+                        gap=2,
+                        children=[
+                            Caption(value="Attached files", color="secondary"),
+                            Col(gap=1, children=attachment_rows),
+                        ],
+                    ),
+                ]
             )
 
         body = Col(
