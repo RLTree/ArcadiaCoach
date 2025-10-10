@@ -10,7 +10,7 @@ struct ChatPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Agent Chat (Advanced)")
+            Text("Agent Chat")
                 .font(.title2)
                 .bold()
             if settings.agentId.isEmpty {
