@@ -4,12 +4,25 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Widget(BaseModel):
     type: Literal["Card", "List", "StatRow", "MiniChatbot"]
     props: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _merge_specialized_props(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+        if values.get("props"):
+            return values
+        for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot"):
+            if key in values and values[key] is not None:
+                values["props"] = values[key]
+                break
+        return values
 
 
 class WidgetEnvelope(BaseModel):

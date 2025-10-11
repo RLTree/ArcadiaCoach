@@ -122,7 +122,7 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
         return payload
     if isinstance(payload, BaseModel):
         if isinstance(payload, WidgetEnvelope) and expecting in (EndLearn, EndQuiz, EndMilestone):
-            data = payload.model_dump()
+            data = _fix_widget_props(payload.model_dump())
             if expecting == EndLearn:
                 data["intent"] = "lesson"
             elif expecting == EndQuiz:
@@ -134,6 +134,7 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
             return expecting.model_validate(data)
         return expecting.model_validate(payload.model_dump())
     if isinstance(payload, dict):
+        payload = _fix_widget_props(payload)
         if expecting in (EndLearn, EndQuiz, EndMilestone) and "intent" not in payload:
             if expecting == EndLearn:
                 payload["intent"] = "lesson"
@@ -159,6 +160,7 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Agent returned malformed payload for {expecting.__name__}",
             ) from exc
+        data = _fix_widget_props(data) if isinstance(data, dict) else data
         if isinstance(data, dict) and expecting in (EndLearn, EndQuiz, EndMilestone) and "intent" not in data:
             if expecting == EndLearn:
                 data["intent"] = "lesson"
@@ -182,6 +184,28 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Agent returned unsupported payload for {expecting.__name__}",
         ) from exc
+
+
+def _fix_widget_props(data: dict) -> dict:
+    """Normalize widget payloads coming back from MCP tools."""
+    widgets = data.get("widgets")
+    if not isinstance(widgets, list):
+        return data
+    normalized: list[dict[str, Any]] = []
+    for widget in widgets:
+        if not isinstance(widget, dict):
+            normalized.append(widget)
+            continue
+        if "props" not in widget or not isinstance(widget.get("props"), dict):
+            props: dict[str, Any] = {}
+            for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot"):
+                if isinstance(widget.get(key), dict):
+                    props.update(widget[key])  # type: ignore[arg-type]
+            if props:
+                widget["props"] = props
+        normalized.append(widget)
+    data["widgets"] = normalized
+    return data
 
 
 class TopicRequest(BaseModel):
@@ -222,7 +246,9 @@ async def create_lesson(
     settings: Settings = Depends(get_settings),
 ) -> EndLearn:
     message = f"learn {payload.topic}".strip()
-    return await _run_structured(settings, payload.session_id, message, EndLearn)
+    result = await _run_structured(settings, payload.session_id, message, EndLearn)
+    logger.info("Returning EndLearn response: %s", result.model_dump_json())
+    return result
 
 
 @router.post("/quiz", response_model=EndQuiz, status_code=status.HTTP_200_OK)
@@ -231,7 +257,9 @@ async def create_quiz(
     settings: Settings = Depends(get_settings),
 ) -> EndQuiz:
     message = f"quiz {payload.topic}".strip()
-    return await _run_structured(settings, payload.session_id, message, EndQuiz)
+    result = await _run_structured(settings, payload.session_id, message, EndQuiz)
+    logger.info("Returning EndQuiz response: %s", result.model_dump_json())
+    return result
 
 
 @router.post("/milestone", response_model=EndMilestone, status_code=status.HTTP_200_OK)
@@ -240,7 +268,9 @@ async def create_milestone(
     settings: Settings = Depends(get_settings),
 ) -> EndMilestone:
     message = f"milestone {payload.topic}".strip()
-    return await _run_structured(settings, payload.session_id, message, EndMilestone)
+    result = await _run_structured(settings, payload.session_id, message, EndMilestone)
+    logger.info("Returning EndMilestone response: %s", result.model_dump_json())
+    return result
 
 
 @router.post("/chat", response_model=WidgetEnvelope, status_code=status.HTTP_200_OK)
