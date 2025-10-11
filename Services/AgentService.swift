@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 final class AgentService {
     private struct SessionResponse: Decodable { let id: String }
@@ -33,8 +34,10 @@ final class AgentService {
     private static let sessionsURL = URL(string: "https://api.openai.com/v1/sessions")!
     private static let sessionCache = SessionCache()
     private static let jsonDecoder = JSONDecoder()
+    private static let logger = Logger(subsystem: "com.arcadiacoach.app", category: "AgentService")
 
     static func resetSession(agentId: String, key: String? = nil) async {
+        logger.notice("Resetting cached session (agent=\(agentId, privacy: .public), key=\(key ?? "nil", privacy: .public))")
         await sessionCache.reset(agentId: agentId, key: key)
     }
 
@@ -47,14 +50,18 @@ final class AgentService {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            logger.error("Failed to create session (status=\((response as? HTTPURLResponse)?.statusCode ?? -1, privacy: .public), body=\(body, privacy: .public))")
             throw NSError(domain: "AgentService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create session", "body": body])
         }
-        return try jsonDecoder.decode(SessionResponse.self, from: data).id
+        let sessionId = try jsonDecoder.decode(SessionResponse.self, from: data).id
+        logger.debug("Created agent session (agent=\(agentId, privacy: .public), session=\(sessionId, privacy: .public))")
+        return sessionId
     }
 
     static func send<T: Decodable>(agentId: String, model _: String, message: String, sessionId: String? = nil, expecting _: T.Type) async throws -> T {
         let apiKey = KeychainHelper.get("OPENAI_API_KEY") ?? ""
         guard !apiKey.isEmpty else {
+            logger.error("Missing OpenAI API key when attempting to send message.")
             throw NSError(domain: "AgentService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Missing OpenAI API key. Add it in Settings."])
         }
 
@@ -79,11 +86,16 @@ final class AgentService {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
+        logger.debug("Sending agent request (agent=\(agentId, privacy: .public), session=\(session, privacy: .public), messageLength=\(message.count, privacy: .public))")
+
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            logger.error("Agent request failed (status=\((response as? HTTPURLResponse)?.statusCode ?? -1, privacy: .public), body=\(body, privacy: .public))")
             throw NSError(domain: "AgentService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bad status", "body": body])
         }
+
+        logger.debug("Agent response received (status=\((response as? HTTPURLResponse)?.statusCode ?? -1, privacy: .public), bytes=\(data.count, privacy: .public))")
 
         return try await decodeStructuredResponse(
             data: data,
@@ -104,14 +116,17 @@ final class AgentService {
         }
 
         if let error = root["error"] as? [String: Any], let message = error["message"] as? String {
+            logger.error("Agent response returned error message: \(message, privacy: .public)")
             throw NSError(domain: "AgentService", code: 5, userInfo: [NSLocalizedDescriptionKey: message])
         }
 
         let sessionInfo = (root["session"] as? [String: Any]) ?? [:]
         if let newId = (sessionInfo["id"] as? String), !newId.isEmpty, newId != fallbackSessionId {
             await sessionCache.update(agentId: agentId, key: cacheKey, sessionId: newId)
+            logger.debug("Session id updated from response: \(newId, privacy: .public)")
         } else if let newId = root["session_id"] as? String, !newId.isEmpty, newId != fallbackSessionId {
             await sessionCache.update(agentId: agentId, key: cacheKey, sessionId: newId)
+            logger.debug("Session id updated (legacy field): \(newId, privacy: .public)")
         }
 
         let responsePayload = (root["response"] as? [String: Any]) ?? root
@@ -131,6 +146,7 @@ final class AgentService {
         do {
             return try jsonDecoder.decode(T.self, from: data)
         } catch {
+            logger.error("Failed to decode agent payload: \(error.localizedDescription, privacy: .public)")
             throw NSError(
                 domain: "AgentService",
                 code: 4,

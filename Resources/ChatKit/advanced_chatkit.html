@@ -20,13 +20,23 @@
       width: 100%;
     }
   </style>
-  <script type="module" crossorigin src="https://cdn.openai.com/chatkit/latest/chatkit.js"></script>
 </head>
 <body>
   <div id="chatkit-root"></div>
   <script type="module">
-    const widgetBase64 = "%WIDGET_BASE64%";
-    const configBase64 = "%CHATKIT_CONFIG_BASE64%";
+    import { ChatKit } from "https://cdn.openai.com/chatkit/latest/chatkit.js";
+
+    const widgetBase64Raw = "%WIDGET_BASE64%";
+    const widgetBase64 = widgetBase64Raw ? widgetBase64Raw.replace(/\s+/g, "") : "";
+    const configBase64Raw = "%CHATKIT_CONFIG_BASE64%";
+    const configBase64 = configBase64Raw ? configBase64Raw.replace(/\s+/g, "") : "";
+
+    window.addEventListener("error", (event) => {
+      console.error("[ArcadiaChatKit] window error", event?.message ?? "Unknown", event?.error);
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      console.error("[ArcadiaChatKit] unhandled rejection", event?.reason ?? "Unknown");
+    });
 
     function decodeWidget(base64) {
       if (!base64) return undefined;
@@ -34,7 +44,7 @@
         const json = atob(base64);
         return JSON.parse(json);
       } catch (err) {
-        console.error("Failed to decode widget", err);
+        console.error("[ArcadiaChatKit] Failed to decode widget", err);
         return undefined;
       }
     }
@@ -160,30 +170,37 @@
       const apiOptions = apiOptionsFrom(config);
       const agent = agentOptionsFrom(config);
       if (!apiOptions) {
-        console.warn('ChatKit configuration missing api options');
+        console.warn('[ArcadiaChatKit] ChatKit configuration missing api options');
         return;
       }
       if (!chatkitInstance) {
-        chatkitInstance = await ChatKit.create({
-          element,
-          api: apiOptions,
-          agent,
-          layout: {
-            position: 'inline',
-            autoFocus: false,
-            showComposer: false
-          },
-          header: { enabled: false },
-          history: { enabled: false },
-          widgets: {
-            onAction: handleWidgetAction,
-          },
-          theme: {
-            mode: 'system',
-            fontSize: 'md',
-            borderRadius: 'xl'
-          }
-        });
+        console.debug('[ArcadiaChatKit] creating ChatKit instance', { apiOptions, agent });
+        try {
+          chatkitInstance = await ChatKit.create({
+            element,
+            api: apiOptions,
+            agent,
+            layout: {
+              position: 'inline',
+              autoFocus: false,
+              showComposer: false
+            },
+            header: { enabled: false },
+            history: { enabled: false },
+            widgets: {
+              onAction: handleWidgetAction,
+            },
+            theme: {
+              mode: 'system',
+              fontSize: 'md',
+              borderRadius: 'xl'
+            }
+          });
+        } catch (err) {
+          console.error('[ArcadiaChatKit] Failed to create ChatKit instance', err);
+          return;
+        }
+        console.debug('[ArcadiaChatKit] ChatKit instance ready', { hasWidgets: !!chatkitInstance?.widgets });
         if (customWidget && chatkitInstance?.widgets?.register) {
           try {
             chatkitInstance.widgets.register(customWidget);
@@ -197,10 +214,11 @@
               });
             }
           } catch (err) {
-            console.warn('Unable to register custom widget', err);
+            console.warn('[ArcadiaChatKit] Unable to register custom widget', err);
           }
         }
       } else {
+        console.debug('[ArcadiaChatKit] updating ChatKit options');
         chatkitInstance.setOptions({
           api: apiOptions,
           agent,

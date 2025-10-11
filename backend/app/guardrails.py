@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import Any, Dict, Tuple
 
 from guardrails.runtime import instantiate_guardrails, load_config_bundle, run_guardrails
 from openai import AsyncOpenAI
+
+from .config import get_settings
+
+logger = logging.getLogger(__name__)
 
 _GUARDRAILS_CONFIG: Dict[str, Any] = {
     "guardrails": [
@@ -45,9 +50,19 @@ _GUARDRAILS_CONFIG: Dict[str, Any] = {
     ]
 }
 
-_client = AsyncOpenAI()
-_ctx = SimpleNamespace(guardrail_llm=_client)
-_bundle = instantiate_guardrails(load_config_bundle(_GUARDRAILS_CONFIG))
+_settings = get_settings()
+_client: AsyncOpenAI | None
+_ctx: SimpleNamespace | None
+
+if _settings.openai_api_key:
+    _client = AsyncOpenAI(api_key=_settings.openai_api_key)
+    _ctx = SimpleNamespace(guardrail_llm=_client)
+    _bundle = instantiate_guardrails(load_config_bundle(_GUARDRAILS_CONFIG))
+else:
+    logger.warning("OPENAI_API_KEY missing; guardrail checks are disabled.")
+    _client = None
+    _ctx = None
+    _bundle = None
 
 
 def _has_tripwire(results: Any) -> bool:
@@ -84,6 +99,8 @@ def _build_failure(results: Any) -> Dict[str, Any]:
 
 async def run_guardrail_checks(text: str) -> Tuple[bool, str | Dict[str, Any]]:
     """Run guardrail policies. Return (allowed, payload)."""
+    if _ctx is None or _bundle is None:
+        return True, text
     results = await run_guardrails(
         _ctx,
         text,

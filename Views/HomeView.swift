@@ -55,6 +55,13 @@ struct HomeView: View {
                 showOnboarding = false
             }
         }
+        .alert(item: $session.lastError) { error in
+            Alert(
+                title: Text("\(error.action.rawValue) failed"),
+                message: Text(error.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     private var header: some View {
@@ -81,24 +88,47 @@ struct HomeView: View {
     }
 
     private var sessionControls: some View {
-        HStack(spacing: 12) {
-            GlassButton(title: "Start Lesson", systemName: "book.fill") {
-                Task { await session.loadLesson(agentId: settings.agentId, topic: "transformers") }
-            }
-            GlassButton(title: "Start Quiz", systemName: "gamecontroller.fill") {
-                Task { await session.loadQuiz(agentId: settings.agentId, topic: "pytorch") }
-            }
-            GlassButton(title: "Milestone", systemName: "flag.checkered") {
-                Task { await session.loadMilestone(agentId: settings.agentId, topic: "roadmap") }
-            }
-            if settings.minimalMode {
-                GlassButton(title: "Focus", systemName: "timer") {
-                    NotificationCenter.default.post(name: .resetFocusTimer, object: nil)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                GlassButton(
+                    title: "Start Lesson",
+                    systemName: "book.fill",
+                    isBusy: session.activeAction == .lesson,
+                    isDisabled: session.activeAction != nil && session.activeAction != .lesson
+                ) {
+                    Task { await session.loadLesson(agentId: settings.agentId, topic: "transformers") }
+                }
+                GlassButton(
+                    title: "Start Quiz",
+                    systemName: "gamecontroller.fill",
+                    isBusy: session.activeAction == .quiz,
+                    isDisabled: session.activeAction != nil && session.activeAction != .quiz
+                ) {
+                    Task { await session.loadQuiz(agentId: settings.agentId, topic: "pytorch") }
+                }
+                GlassButton(
+                    title: "Milestone",
+                    systemName: "flag.checkered",
+                    isBusy: session.activeAction == .milestone,
+                    isDisabled: session.activeAction != nil && session.activeAction != .milestone
+                ) {
+                    Task { await session.loadMilestone(agentId: settings.agentId, topic: "roadmap") }
+                }
+                if settings.minimalMode {
+                    GlassButton(title: "Focus", systemName: "timer") {
+                        NotificationCenter.default.post(name: .resetFocusTimer, object: nil)
+                    }
                 }
             }
+            .disabled(settings.agentId.isEmpty)
+            .accessibilityElement(children: .contain)
+
+            if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
+                Text(lastEvent)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .disabled(settings.agentId.isEmpty)
-        .accessibilityElement(children: .contain)
     }
 
     private var contentTabs: some View {
