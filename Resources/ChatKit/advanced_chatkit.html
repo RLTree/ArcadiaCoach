@@ -49,7 +49,18 @@
       }
     }
 
-    const customWidget = decodeWidget(widgetBase64);
+    const widgetWrapper = decodeWidget(widgetBase64);
+    if (widgetWrapper?.encodedWidget) {
+      const decoded = decodeWidget(widgetWrapper.encodedWidget);
+      console.debug('[ArcadiaChatKit] Widget wrapper decoded; embedded widget metadata', {
+        widgetId: decoded?.id,
+        widgetName: decoded?.name
+      });
+    } else if (widgetWrapper) {
+      console.warn('[ArcadiaChatKit] Widget wrapper present without encodedWidget payload. Relying on streamed widgets.');
+    } else {
+      console.info('[ArcadiaChatKit] No bundled widget provided; waiting for server-streamed widgets.');
+    }
     const initialConfig = configBase64 ? JSON.parse(atob(configBase64)) : null;
     let chatkitInstance;
     let currentConfig = initialConfig;
@@ -131,6 +142,31 @@
       return agentId ? { id: agentId } : undefined;
     }
 
+    function attachDebugListeners(instance) {
+      if (!instance || window.__arcadiaChatKitDebugListenersInstalled) {
+        return;
+      }
+      window.__arcadiaChatKitDebugListenersInstalled = true;
+      try {
+        const events = instance.events;
+        if (events && typeof events.on === "function") {
+          events.on("thread.item.added", (event) => {
+            console.debug("[ArcadiaChatKit] thread.item.added", event);
+          });
+          events.on("thread.synced", (event) => {
+            console.debug("[ArcadiaChatKit] thread.synced", event);
+          });
+          events.on("error", (err) => {
+            console.error("[ArcadiaChatKit] ChatKit instance error event", err);
+          });
+        } else {
+          console.warn("[ArcadiaChatKit] ChatKit instance did not expose events.on for debugging hooks.");
+        }
+      } catch (err) {
+        console.error("[ArcadiaChatKit] Failed to attach debug listeners", err);
+      }
+    }
+
     async function handleWidgetAction(action, widgetItem) {
       if (!chatkitInstance || !action) {
         return;
@@ -201,22 +237,7 @@
           return;
         }
         console.debug('[ArcadiaChatKit] ChatKit instance ready', { hasWidgets: !!chatkitInstance?.widgets });
-        if (customWidget && chatkitInstance?.widgets?.register) {
-          try {
-            chatkitInstance.widgets.register(customWidget);
-            const maybeOpen = chatkitInstance.widgets?.open;
-            if (customWidget.id && typeof maybeOpen === "function") {
-              maybeOpen(customWidget.id, {
-                title: "Arcadia Coach",
-                status: "Online",
-                placeholder: "Ask Arcadia Coach anything…",
-                messages: [],
-              });
-            }
-          } catch (err) {
-            console.warn('[ArcadiaChatKit] Unable to register custom widget', err);
-          }
-        }
+        attachDebugListeners(chatkitInstance);
       } else {
         console.debug('[ArcadiaChatKit] updating ChatKit options');
         chatkitInstance.setOptions({

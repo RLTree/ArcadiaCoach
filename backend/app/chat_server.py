@@ -379,9 +379,34 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
     ) -> AsyncIterator[ThreadStreamEvent]:
         widget = await self._build_chatbot_widget(thread, context, prefs)
         if widget is None:
+            logger.debug("Widget builder returned None for thread %s; skipping stream.", thread.id)
             return
-        async for event in stream_widget(thread, widget):
-            yield event
+        logger.info(
+            "Streaming Arcadia chatbot widget (thread=%s, web_enabled=%s, reasoning=%s)",
+            thread.id,
+            prefs.web_enabled,
+            prefs.reasoning_level,
+        )
+        events_streamed = 0
+        try:
+            async for event in stream_widget(thread, widget):
+                events_streamed += 1
+                logger.debug(
+                    "Emitting widget event #%s for thread %s (%s)",
+                    events_streamed,
+                    thread.id,
+                    event.__class__.__name__,
+                )
+                yield event
+        except Exception:
+            logger.exception("Failed while streaming widget for thread %s", thread.id)
+            raise
+        finally:
+            logger.info(
+                "Completed widget stream for thread %s (events=%s)",
+                thread.id,
+                events_streamed,
+            )
 
     async def _build_chatbot_widget(
         self,

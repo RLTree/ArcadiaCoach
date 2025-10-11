@@ -114,7 +114,7 @@ struct AdvancedChatKitView: NSViewRepresentable {
         }
 
         if let html = loadHTML(widgetBase64: trimmedWidget, configuration: configuration) {
-            webView.loadHTMLString(html, baseURL: nil)
+            webView.loadHTMLString(html, baseURL: baseURL(for: configuration))
         } else {
             Self.logger.error("Failed to load ChatKit HTML template from bundle.")
         }
@@ -181,5 +181,12 @@ struct AdvancedChatKitView: NSViewRepresentable {
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "'", with: "\\'")
             .replacingOccurrences(of: "\n", with: "\\n")
+    }
+
+    private func baseURL(for configuration: AdvancedChatKitConfiguration) -> URL? {
+        if let api = configuration.apiURL, let url = URL(string: api) {
+            return URL(string: "\(url.scheme ?? "https")://\(url.host ?? "")")
+        }
+        return URL(string: "https://arcadiacoach.localhost")
     }
 }
