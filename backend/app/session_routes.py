@@ -10,6 +10,7 @@ from uuid import uuid4
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+import logging
 from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
 from pydantic import BaseModel, Field, ValidationError
@@ -23,6 +24,8 @@ from .memory_store import MemoryStore
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 T = TypeVar("T", bound=BaseModel)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,15 +96,24 @@ async def _run_structured(
             ),
         )
     except AuthenticationError as exc:
+        logger.error("OpenAI authentication error while running agent: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Arcadia backend is not authorized with OpenAI. Update OPENAI_API_KEY and try again.",
         ) from exc
     except OpenAIError as exc:
+        logger.error("OpenAI error while running agent: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Upstream OpenAI request failed: {exc}",
         ) from exc
+    logger.debug(
+        "Agent run complete (session_id=%s, message=%s, output_type=%s)",
+        session_id or "default",
+        message,
+        type(result.final_output).__name__,
+    )
+    logger.debug("Agent final output payload: %s", result.final_output)
     return _coerce_output(result.final_output, expecting)
 
 
@@ -118,6 +130,11 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
         try:
             return expecting.model_validate_json(payload)
         except ValidationError as exc:
+            logger.error(
+                "Failed to decode string payload into %s: %s",
+                expecting.__name__,
+                exc,
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Agent returned malformed payload for {expecting.__name__}",
@@ -125,6 +142,12 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
     try:
         return expecting.model_validate(payload)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - guardrail
+        logger.error(
+            "Failed to decode payload type %s into %s: %s",
+            type(payload).__name__,
+            expecting.__name__,
+            exc,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Agent returned unsupported payload for {expecting.__name__}",
