@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: arcadia-coach-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ARCADIA_MCP_URL
+        value: https://arcadia-coach-mcp.onrender.com/mcp
+      - key: ARCADIA_MCP_LABEL
+        value: Arcadia_Coach_Widgets
+      - key: ARCADIA_MCP_REQUIRE_APPROVAL
+        value: never
+  - type: web
+    name: arcadia-coach-mcp
+    env: python
+    rootDir: mcp_server
+    buildCommand: pip install .
+    startCommand: python -m server

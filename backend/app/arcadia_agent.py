@@ -10,6 +10,7 @@ from openai.types.shared.reasoning import Reasoning
 from pydantic import ConfigDict, Field
 
 from .constants import INSTRUCTIONS, MODEL
+from .config import get_settings
 from .memory_store import MemoryStore
 
 # Tool instances ---------------------------------------------------------------
@@ -23,11 +24,16 @@ web_search = WebSearchTool(
     user_location={"type": "approximate"},
 )
 
+settings = get_settings()
+_mcp_url = settings.arcadia_mcp_url
+_mcp_label = settings.arcadia_mcp_label
+_require_approval = settings.arcadia_mcp_require_approval
+
 mcp_widgets = HostedMCPTool(
     tool_config={
         "type": "mcp",
-        "server_label": "Arcadia_Coach_Widgets",
-        "server_url": "https://mcp.arcadiacoach.com/mcp",
+        "server_label": _mcp_label,
+        "server_url": _mcp_url,
         "server_description": (
             "Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach."
         ),
@@ -37,7 +43,7 @@ mcp_widgets = HostedMCPTool(
             "milestone_update",
             "focus_sprint",
         ],
-        "require_approval": "always",
+        "require_approval": _require_approval,
     }
 )
 

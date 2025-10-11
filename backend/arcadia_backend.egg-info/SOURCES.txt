@@ -3,7 +3,6 @@ pyproject.toml
 app/__init__.py
 app/arcadia_agent.py
 app/chat_server.py
-app/chatkit.py
 app/config.py
 app/constants.py
 app/guardrails.py

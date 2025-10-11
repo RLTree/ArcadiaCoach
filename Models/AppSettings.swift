@@ -9,8 +9,6 @@ final class AppSettings: ObservableObject {
     @AppStorage("muteSounds") var muteSounds: Bool = true
     @AppStorage("agentId") var agentId: String = ""      // paste your AGENT_ID at runtime
     @AppStorage("minimalMode") var minimalMode: Bool = false
-    @AppStorage("chatkitClientToken") var chatkitClientToken: String = ""
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
-    @AppStorage("chatkitDeviceId") var chatkitDeviceId: String = UUID().uuidString
     @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
 }

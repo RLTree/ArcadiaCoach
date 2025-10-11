@@ -30,6 +30,16 @@ struct WidgetMiniChatbotView: View {
         .onChange(of: props) { _ in
             Task { await syncMessagesIfNeeded(force: true) }
         }
+        .onChange(of: settings.agentId) { newAgent in
+            Task {
+                await AgentService.resetSession(agentId: newAgent, key: sessionKey)
+                await MainActor.run {
+                    sessionKey = UUID().uuidString
+                    messages = []
+                }
+                await syncMessagesIfNeeded(force: true)
+            }
+        }
     }
 
     private var canSend: Bool {

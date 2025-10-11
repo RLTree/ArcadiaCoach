@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import List, Optional
 
@@ -49,11 +50,19 @@ class WidgetEnvelope(BaseModel):
     citations: Optional[List[str]] = None
 
 
+def _resolve_port() -> int:
+    value = os.getenv("PORT") or os.getenv("MCP_PORT") or "8001"
+    try:
+        return int(value)
+    except ValueError:
+        return 8001
+
+
 mcp = FastMCP(
     name="Arcadia Coach Widgets",
     instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
     host="0.0.0.0",
-    port=8001,
+    port=_resolve_port(),
     mount_path="/mcp",
     sse_path="/sse",
 )

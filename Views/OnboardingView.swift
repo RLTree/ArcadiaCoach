@@ -12,8 +12,8 @@ struct OnboardingView: View {
                 .font(.title3)
             VStack(alignment: .leading, spacing: 10) {
                 Label("Paste your OpenAI API Key in Settings", systemImage: "key.fill")
-                Label("Add your Agent ID to link your Arcadia workflow", systemImage: "person.3.sequence")
-                Label("Optionally enter a ChatKit client token for live conversations", systemImage: "bubble.left.and.bubble.right.fill")
+                Label("Add your Agent ID to link your Arcadia agent", systemImage: "person.3.sequence")
+                Label("Set your ChatKit backend URL to reach the custom server", systemImage: "globe")
             }
             .font(.body)
             .padding(16)
