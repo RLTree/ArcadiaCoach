@@ -2,9 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
-    @State private var apiKey: String = KeychainHelper.get("OPENAI_API_KEY") ?? ""
-    @State private var backendURL: String = ""
-    @State private var domainKey: String = ""
+    @State private var apiKey: String = KeychainHelper.get("OPENAI_API_KEY") ?? "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"
+    @State private var backendURL: String = "https://arcadiacoach.onrender.com/"
+    @State private var domainKey: String = "domain_pk_68e9a8cac6808190bbd92778730ea51b0dd821b29e8e5cd0"
 
     var body: some View {
         Form {
