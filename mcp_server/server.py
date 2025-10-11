@@ -88,10 +88,13 @@ def _resolve_port() -> int:
 
 mcp = FastMCP(
     name="Arcadia Coach Widgets",
-    version="1.1.0",
-    description="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
+    instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
+    host=_resolve_host(),
+    port=_resolve_port(),
+    mount_path="/mcp",
+    sse_path="/sse",
+    streamable_http_path="/mcp",
 )
-mcp.settings.streamable_http_path = "/mcp"
 
 
 @mcp.custom_route("/health", methods=["GET"])
