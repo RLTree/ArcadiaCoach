@@ -198,7 +198,7 @@ def _fix_widget_props(data: dict) -> dict:
             continue
         if "props" not in widget or not isinstance(widget.get("props"), dict):
             props: dict[str, Any] = {}
-            for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot"):
+            for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot", "propsArcadiaChatbot"):
                 if isinstance(widget.get(key), dict):
                     props.update(widget[key])  # type: ignore[arg-type]
             if props:

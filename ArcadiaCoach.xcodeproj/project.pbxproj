@@ -34,11 +34,11 @@
 	AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
 AA00102129250AF500B8BEA0 /* ArcadiaChatbot.widget in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */; };
 	AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */; };
-	AA00101F29250A0000B8BEA0 /* MiniChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */; };
+		AA00101F29250A0000B8BEA0 /* ArcadiaChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */; };
 	AA00102029250A0000B8BEA0 /* AgentChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */; };
 	AA00102329250D0E00B8BEA0 /* WidgetResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */; };
 		AA00102429250E7400B8BEA0 /* AdvancedChatKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */; };
-		AA00103629250F8000B8BEA0 /* WidgetMiniChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00103729250F8000B8BEA0 /* WidgetMiniChatbotView.swift */; };
+		AA00103629250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00103729250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,7 +83,7 @@ AA00102129250AF500B8BEA0 /* ArcadiaChatbot.widget in Resources */ = {isa = PBXBu
 		AA001F1D2924FABF00B8BEA0 /* ArcadiaCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArcadiaCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA001F1E2924FAC500B8BEA0 /* ArcadiaCoachTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArcadiaCoachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 	AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChatViewModel.swift; sourceTree = "<group>"; };
-	AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniChatbotView.swift; sourceTree = "<group>"; };
+AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcadiaChatbotView.swift; sourceTree = "<group>"; };
 	AA001F2929250AF500B8BEA0 /* Resources */ = {isa = PBXGroup; children = (
 		AA001F2C29250B5C00B8BEA0 /* Widgets */,
 		AA001F2D29250B5C00B8BEA0 /* ChatKit */,
@@ -156,7 +156,7 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 		sourceTree = "<group>";
 	};
 		AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetResource.swift; sourceTree = "<group>"; };
-		AA00103729250F8000B8BEA0 /* WidgetMiniChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetMiniChatbotView.swift; sourceTree = "<group>"; };
+		AA00103729250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArcadiaChatbotView.swift; sourceTree = "<group>"; };
 	AA001F212924FB5F00B8BEA0 /* ViewModels */ = {
 		isa = PBXGroup;
 		children = (
@@ -200,8 +200,8 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 			AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */,
 			AA001F162924F97A00B8BEA0 /* GlassButton.swift */,
 			AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */,
-			AA001F2829250A0000B8BEA0 /* MiniChatbotView.swift */,
-			AA00103729250F8000B8BEA0 /* WidgetMiniChatbotView.swift */,
+			AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */,
+			AA00103729250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift */,
 			AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */,
 		);
 		path = Components;
@@ -323,7 +323,7 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 			AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
 			AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
 			AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */,
-			AA00103629250F8000B8BEA0 /* WidgetMiniChatbotView.swift in Sources */,
+			AA00103629250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift in Sources */,
 			AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */,
 			AA0010102924F97A00B8BEA0 /* MilestoneView.swift in Sources */,
 			AA00100F2924F97A00B8BEA0 /* QuizSummaryView.swift in Sources */,
@@ -331,7 +331,7 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 			AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */,
 			AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */,
 			AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */,
-			AA00101F29250A0000B8BEA0 /* MiniChatbotView.swift in Sources */,
+			AA00101F29250A0000B8BEA0 /* ArcadiaChatbotView.swift in Sources */,
 			AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */,
 			AA00102029250A0000B8BEA0 /* AgentChatViewModel.swift in Sources */,
 			AA00102429250E7400B8BEA0 /* AdvancedChatKitView.swift in Sources */,

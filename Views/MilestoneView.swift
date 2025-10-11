@@ -32,9 +32,9 @@ struct MilestoneView: View {
             if let props = widget.propsStat {
                 WidgetStatRowView(props: props).environmentObject(settings)
             }
-        case .MiniChatbot:
-            if let props = widget.propsMiniChatbot {
-                WidgetMiniChatbotView(props: props).environmentObject(settings)
+        case .ArcadiaChatbot, .MiniChatbot:
+            if let props = widget.propsArcadiaChatbot {
+                WidgetArcadiaChatbotView(props: props).environmentObject(settings)
             }
         }
     }

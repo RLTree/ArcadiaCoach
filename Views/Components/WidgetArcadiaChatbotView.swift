@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct WidgetMiniChatbotView: View {
-    let props: MiniChatbotProps
+struct WidgetArcadiaChatbotView: View {
+    let props: ArcadiaChatbotProps
 
     @EnvironmentObject private var settings: AppSettings
     @State private var messages: [ChatMessage] = []
@@ -11,13 +11,18 @@ struct WidgetMiniChatbotView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MiniChatbotView(
+            ArcadiaChatbotView(
                 title: props.title,
-                status: statusLabel,
-                placeholder: props.placeholder,
+                levelLabel: props.levelLabel,
                 messages: messages,
+                placeholder: props.placeholder ?? "Ask Arcadia Coach anything…",
+                status: statusLabel,
                 canSend: canSend,
                 isSending: isSending,
+                webEnabled: props.webEnabled,
+                showTonePicker: props.showTonePicker,
+                levels: props.levels,
+                selectedLevel: props.level,
                 onSubmit: send
             )
             if let errorText {
@@ -26,7 +31,7 @@ struct WidgetMiniChatbotView: View {
                     .foregroundStyle(Color.red)
             }
         }
-        .task { await syncMessagesIfNeeded() }
+        .task { await syncMessagesIfNeeded(force: true) }
         .onChange(of: props) { _ in
             Task { await syncMessagesIfNeeded(force: true) }
         }
@@ -47,9 +52,16 @@ struct WidgetMiniChatbotView: View {
     }
 
     private var statusLabel: String {
-        if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Offline" }
-        if isSending { return "Thinking…" }
-        return props.status.isEmpty ? "Online" : props.status
+        if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Offline"
+        }
+        if isSending {
+            return "Thinking…"
+        }
+        if let status = props.status, !status.isEmpty {
+            return status
+        }
+        return "Online"
     }
 
     @MainActor
@@ -94,8 +106,8 @@ struct WidgetMiniChatbotView: View {
                 message: text
             )
             await MainActor.run {
-                if let mini = envelope.widgets.first(where: { $0.type == .MiniChatbot })?.propsMiniChatbot {
-                    messages = mini.messages.map { message in
+                if let chat = envelope.widgets.first(where: { $0.type == .ArcadiaChatbot || $0.type == .MiniChatbot })?.propsArcadiaChatbot {
+                    messages = chat.messages.map { message in
                         let role = message.role.lowercased() == "user" ? ChatMessage.Role.user : .assistant
                         return ChatMessage(role: role, text: message.text)
                     }

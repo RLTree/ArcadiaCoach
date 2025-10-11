@@ -1,6 +1,6 @@
 import Foundation
 
-enum WidgetType: String, Codable { case Card, List, StatRow, MiniChatbot }
+enum WidgetType: String, Codable { case Card, List, StatRow, MiniChatbot, ArcadiaChatbot }
 
 struct WidgetCardSection: Codable, Hashable {
     var heading: String?
@@ -32,17 +32,94 @@ struct WidgetStatRowProps: Codable, Hashable {
     var items: [WidgetStatItem]
 }
 
-struct MiniChatbotMessage: Codable, Hashable {
+struct ArcadiaChatbotLevelOption: Codable, Hashable {
+    var value: String
+    var label: String
+}
+
+struct ArcadiaChatbotMessage: Codable, Hashable {
     var id: String
     var role: String
     var text: String
 }
 
-struct MiniChatbotProps: Codable, Hashable {
+struct ArcadiaChatbotProps: Codable, Hashable {
+    var title: String
+    var webEnabled: Bool
+    var showTonePicker: Bool
+    var level: String
+    var levelLabel: String
+    var levels: [ArcadiaChatbotLevelOption]
+    var messages: [ArcadiaChatbotMessage]
+    var placeholder: String?
+    var status: String?
+
+    init(
+        title: String,
+        webEnabled: Bool,
+        showTonePicker: Bool,
+        level: String,
+        levelLabel: String,
+        levels: [ArcadiaChatbotLevelOption],
+        messages: [ArcadiaChatbotMessage],
+        placeholder: String? = nil,
+        status: String? = nil
+    ) {
+        self.title = title
+        self.webEnabled = webEnabled
+        self.showTonePicker = showTonePicker
+        self.level = level
+        self.levelLabel = levelLabel
+        self.levels = levels
+        self.messages = messages
+        self.placeholder = placeholder
+        self.status = status
+    }
+
+    init(legacy: LegacyMiniChatbotProps) {
+        self.init(
+            title: legacy.title,
+            webEnabled: false,
+            showTonePicker: false,
+            level: "medium",
+            levelLabel: "Medium",
+            levels: ArcadiaChatbotProps.defaultLevels,
+            messages: legacy.messages.map { ArcadiaChatbotMessage(id: $0.id, role: $0.role, text: $0.text) },
+            placeholder: legacy.placeholder,
+            status: legacy.status.isEmpty ? nil : legacy.status
+        )
+    }
+
+    static var defaultLevels: [ArcadiaChatbotLevelOption] {
+        [
+            ArcadiaChatbotLevelOption(value: "minimal", label: "Minimal"),
+            ArcadiaChatbotLevelOption(value: "low", label: "Low"),
+            ArcadiaChatbotLevelOption(value: "medium", label: "Medium"),
+            ArcadiaChatbotLevelOption(value: "high", label: "High"),
+        ]
+    }
+
+    func legacyProps() -> LegacyMiniChatbotProps {
+        LegacyMiniChatbotProps(
+            title: title,
+            status: status ?? "",
+            placeholder: placeholder ?? "What should we explore?",
+            messages: messages.map { LegacyMiniChatbotMessage(id: $0.id, role: $0.role, text: $0.text) }
+        )
+    }
+}
+
+struct LegacyMiniChatbotMessage: Codable, Hashable {
+    var id: String
+    var role: String
+    var text: String
+}
+
+struct LegacyMiniChatbotProps: Codable, Hashable {
     var title: String
     var status: String
     var placeholder: String
-    var messages: [MiniChatbotMessage]
+    var messages: [LegacyMiniChatbotMessage]
 }
 
 struct Widget: Codable, Hashable {
@@ -50,7 +127,8 @@ struct Widget: Codable, Hashable {
     var propsCard: WidgetCardProps?
     var propsList: WidgetListProps?
     var propsStat: WidgetStatRowProps?
-    var propsMiniChatbot: MiniChatbotProps?
+    var propsArcadiaChatbot: ArcadiaChatbotProps?
+    private var legacyMiniChatbot: LegacyMiniChatbotProps?
 
     enum CodingKeys: String, CodingKey { case type, props }
 
@@ -65,7 +143,11 @@ struct Widget: Codable, Hashable {
         case .Card: propsCard = try JSONDecoder().decode(WidgetCardProps.self, from: data)
         case .List: propsList = try JSONDecoder().decode(WidgetListProps.self, from: data)
         case .StatRow: propsStat = try JSONDecoder().decode(WidgetStatRowProps.self, from: data)
-        case .MiniChatbot: propsMiniChatbot = try JSONDecoder().decode(MiniChatbotProps.self, from: data)
+        case .ArcadiaChatbot:
+            propsArcadiaChatbot = try JSONDecoder().decode(ArcadiaChatbotProps.self, from: data)
+        case .MiniChatbot:
+            legacyMiniChatbot = try JSONDecoder().decode(LegacyMiniChatbotProps.self, from: data)
+            propsArcadiaChatbot = legacyMiniChatbot.map(ArcadiaChatbotProps.init(legacy:))
         }
     }
 
@@ -77,7 +159,24 @@ struct Widget: Codable, Hashable {
         case .Card: props = propsCard ?? WidgetCardProps(title: "", sections: nil)
         case .List: props = propsList ?? WidgetListProps(title: nil, rows: [])
         case .StatRow: props = propsStat ?? WidgetStatRowProps(items: [])
-        case .MiniChatbot: props = propsMiniChatbot ?? MiniChatbotProps(title: "", status: "", placeholder: "", messages: [])
+        case .ArcadiaChatbot:
+            props = propsArcadiaChatbot ?? ArcadiaChatbotProps(
+                title: "Arcadia Coach",
+                webEnabled: false,
+                showTonePicker: false,
+                level: "medium",
+                levelLabel: "Medium",
+                levels: ArcadiaChatbotProps.defaultLevels,
+                messages: []
+            )
+        case .MiniChatbot:
+            let legacy = legacyMiniChatbot ?? propsArcadiaChatbot?.legacyProps() ?? LegacyMiniChatbotProps(
+                title: "Arcadia Coach",
+                status: "",
+                placeholder: "What should we explore?",
+                messages: []
+            )
+            props = legacy
         }
         let propsData = try JSONEncoder().encode(AnyCodableEncodable(props))
         let propsObj = try JSONSerialization.jsonObject(with: propsData)

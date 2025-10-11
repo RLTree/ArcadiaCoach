@@ -20,8 +20,8 @@ final class AgentChatViewModelTests: XCTestCase {
         XCTAssertTrue(reply.contains("Item 2"))
     }
 
-    func testExtractReplyMiniChatbot() throws {
-        let widget = try makeMiniChatWidget([
+    func testExtractReplyArcadiaChatbot() throws {
+        let widget = try makeChatWidget([
             ["id": "1", "role": "user", "text": "Hi"],
             ["id": "2", "role": "assistant", "text": "Hello!"],
         ])
@@ -44,14 +44,23 @@ final class AgentChatViewModelTests: XCTestCase {
         return try decodeWidget(type: .Card, props: props)
     }
 
-    private func makeMiniChatWidget(_ messages: [[String: Any]]) throws -> WidgetEnvelope {
+    private func makeChatWidget(_ messages: [[String: Any]]) throws -> WidgetEnvelope {
         let widget = try decodeWidget(
-            type: .MiniChatbot,
+            type: .ArcadiaChatbot,
             props: [
-                "title": "Mini",
-                "status": "Online",
-                "placeholder": "Say hi",
-                "messages": messages
+                "title": "Arcadia Coach",
+                "webEnabled": false,
+                "showTonePicker": false,
+                "level": "medium",
+                "levelLabel": "Medium",
+                "levels": [
+                    ["value": "minimal", "label": "Minimal"],
+                    ["value": "low", "label": "Low"],
+                    ["value": "medium", "label": "Medium"],
+                    ["value": "high", "label": "High"],
+                ],
+                "messages": messages,
+                "placeholder": "Say hi"
             ]
         )
         return WidgetEnvelope(display: nil, widgets: [widget], citations: nil)

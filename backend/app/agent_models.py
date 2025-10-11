@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class Widget(BaseModel):
-    type: Literal["Card", "List", "StatRow", "MiniChatbot"]
+    type: Literal["Card", "List", "StatRow", "MiniChatbot", "ArcadiaChatbot"]
     props: Dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
@@ -18,7 +18,7 @@ class Widget(BaseModel):
             return values
         if values.get("props"):
             return values
-        for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot"):
+        for key in ("propsCard", "propsList", "propsStat", "propsMiniChatbot", "propsArcadiaChatbot"):
             if key in values and values[key] is not None:
                 values["props"] = values[key]
                 break

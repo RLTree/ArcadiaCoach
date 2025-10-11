@@ -113,8 +113,8 @@ final class AgentChatViewModel: ObservableObject {
                     let items = stat.items.map { "\($0.label): \($0.value)" }
                     return items.joined(separator: ", ")
                 }
-            case .MiniChatbot:
-                if let chat = first.propsMiniChatbot {
+            case .ArcadiaChatbot, .MiniChatbot:
+                if let chat = first.propsArcadiaChatbot {
                     return chat.messages.last?.text ?? ""
                 }
             }

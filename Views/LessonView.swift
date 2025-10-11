@@ -55,9 +55,9 @@ struct LessonView: View {
                         WidgetStatRowView(props: props)
                             .environmentObject(settings)
                     }
-                case .MiniChatbot:
-                    if let props = widget.propsMiniChatbot {
-                        WidgetMiniChatbotView(props: props)
+                case .ArcadiaChatbot, .MiniChatbot:
+                    if let props = widget.propsArcadiaChatbot {
+                        WidgetArcadiaChatbotView(props: props)
                             .environmentObject(settings)
                     }
                 }

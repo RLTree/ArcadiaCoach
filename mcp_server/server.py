@@ -1,6 +1,8 @@
-import os
 import json
 import logging
+import os
+import re
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -69,7 +71,310 @@ class Widget(BaseModel):
     }
 
 
+@dataclass(frozen=True)
+class BlueprintSection:
+    heading: Optional[str]
+    items: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BlueprintTask:
+    label: str
+    href: Optional[str] = None
+    meta: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class BlueprintStat:
+    label: str
+    value: str
+
+
+@dataclass(frozen=True)
+class LessonBlueprint:
+    slug: str
+    match_terms: Tuple[str, ...]
+    title: str
+    display_template: str
+    sections: Tuple[BlueprintSection, ...]
+    tasks: Tuple[BlueprintTask, ...]
+    stats: Tuple[BlueprintStat, ...]
+    citations: Tuple[str, ...]
+    intent: str = "Lesson"
+
+    def render(self, topic: str) -> "WidgetEnvelope":
+        topic_title = topic.strip() or self.slug.replace("-", " ").title()
+        formatted_title = self.title.format(topic=topic_title)
+        display = self.display_template.format(topic=topic_title)
+        card_sections = [
+            WidgetCardSection(
+                heading=section.heading.format(topic=topic_title) if section.heading else None,
+                items=[item.format(topic=topic_title) for item in section.items],
+            )
+            for section in self.sections
+        ]
+        card = Widget(
+            type=WidgetType.CARD,
+            propsCard=WidgetCardProps(
+                title=formatted_title,
+                sections=card_sections,
+            ),
+        )
+        checklist = Widget(
+            type=WidgetType.LIST,
+            propsList=WidgetListProps(
+                title="Micro tasks",
+                rows=[
+                    WidgetListRow(
+                        label=task.label.format(topic=topic_title),
+                        href=task.href.format(topic=topic_title) if task.href else None,
+                        meta=task.meta.format(topic=topic_title) if task.meta else None,
+                    )
+                    for task in self.tasks
+                ],
+            ),
+        )
+        stat_row = Widget(
+            type=WidgetType.STAT_ROW,
+            propsStat=WidgetStatRowProps(
+                items=[
+                    WidgetStatItem(label=stat.label.format(topic=topic_title), value=stat.value.format(topic=topic_title))
+                    for stat in self.stats
+                ]
+            ),
+        )
+        return WidgetEnvelope(
+            intent=self.intent,
+            display=display,
+            widgets=[card, checklist, stat_row],
+            citations=[citation.format(topic=topic_title) for citation in self.citations],
+        )
+
+
+def _normalize_topic(topic: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9\\s]+", " ", topic.lower())
+    return " ".join(cleaned.split())
+
+
+TRANSFORMERS_BLUEPRINT = LessonBlueprint(
+    slug="transformers",
+    match_terms=("transformer", "attention", "self attention"),
+    title="Transformers: anchor the attention stack",
+    display_template="Today's dive on {topic} — start with the attention math, then trace a minimal forward pass.",
+    sections=(
+        BlueprintSection(
+            heading="Core building blocks",
+            items=(
+                "Sketch the flow from embeddings → multi-head self-attention → feed-forward and residual paths.",
+                "Write out attention(Q,K,V)=softmax(QKᵀ/√d_k)V and note where masking enters decoder-only models.",
+                "Contrast encoder-only (BERT), decoder-only (GPT), and encoder-decoder (T5) stacks; capture which problems each unlocks.",
+            ),
+        ),
+        BlueprintSection(
+            heading="Implementation watchpoints",
+            items=(
+                "Track tensor shapes at every projection (batch, sequence, heads, head_dim) to avoid silent broadcasting bugs.",
+                "Profile a single attention block in fp16 vs fp32—log memory usage and any stability issues.",
+                "Keep a failure log for vanishing gradients or NaNs and map them back to initialization or normalization choices.",
+            ),
+        ),
+    ),
+    tasks=(
+        BlueprintTask(
+            label="Annotate 'Attention Is All You Need' sections 2–4",
+            href="https://arxiv.org/pdf/1706.03762.pdf",
+            meta="30 min • highlight the Q/K/V math",
+        ),
+        BlueprintTask(
+            label="Step through The Annotated Transformer (PyTorch)",
+            href="https://nlp.seas.harvard.edu/annotated-transformer/",
+            meta="45 min • instrument attention weights",
+        ),
+        BlueprintTask(
+            label="Implement scaled dot-product attention from scratch",
+            meta="Validate masking + dimension checks in your framework",
+        ),
+    ),
+    stats=(
+        BlueprintStat(label="Focus chunks", value="4 × 12m"),
+        BlueprintStat(label="Build time", value="45m"),
+        BlueprintStat(label="Reflection", value="Capture 2 aha moments"),
+    ),
+    citations=(
+        "Vaswani et al., Attention Is All You Need (2017)",
+        "Harvard NLP, The Annotated Transformer",
+        "OpenAI Cookbook · Understand Attention Blocks",
+    ),
+)
+
+DIFFUSION_BLUEPRINT = LessonBlueprint(
+    slug="diffusion-models",
+    match_terms=("diffusion", "score model", "ddpm", "stable diffusion"),
+    title="Diffusion models: rehearse the denoise loop",
+    display_template="Today's dive on {topic} — map the forward noise process, then code the reverse sampler.",
+    sections=(
+        BlueprintSection(
+            heading="Key ideas",
+            items=(
+                "Describe the forward noising schedule q(x_t | x_{t-1}) and how β_t controls variance.",
+                "Derive the denoising objective ‖ε - ε_θ(x_t, t)‖² and why predicting noise works.",
+                "Explain classifier-free guidance and how scaling condition vectors alters samples.",
+            ),
+        ),
+        BlueprintSection(
+            heading="Build instincts",
+            items=(
+                "Visualize a batch of x_t samples at early, mid, and late timesteps to cement intuition.",
+                "Instrument inference time vs. quality when you vary the number of sampling steps.",
+                "Record failure modes (mode collapse, washed-out colors) and tie them to schedule choices.",
+            ),
+        ),
+    ),
+    tasks=(
+        BlueprintTask(
+            label="Skim Ho et al., Denoising Diffusion Probabilistic Models",
+            href="https://arxiv.org/abs/2006.11239",
+            meta="25 min • note the objective",
+        ),
+        BlueprintTask(
+            label="Replicate a minimal DDPM in PyTorch or JAX",
+            meta="Use 64×64 images; log loss and sample grids",
+        ),
+        BlueprintTask(
+            label="Experiment with classifier-free guidance scales",
+            meta="Compare FID or simple perceptual scores",
+        ),
+    ),
+    stats=(
+        BlueprintStat(label="Focus chunks", value="3 × 15m"),
+        BlueprintStat(label="Experiment window", value="60m"),
+        BlueprintStat(label="Energy check", value="Hydrate before coding sprint"),
+    ),
+    citations=(
+        "Ho et al., Denoising Diffusion Probabilistic Models (2020)",
+        "OpenAI Diffusion Engineering Notes",
+        "Stability AI, Stable Diffusion Technical Overview",
+    ),
+)
+
+RLHF_BLUEPRINT = LessonBlueprint(
+    slug="rlhf",
+    match_terms=("rlhf", "reinforcement learning from human feedback", "preference model"),
+    title="RLHF: connect preference data to policy updates",
+    display_template="Today's dive on {topic} — reconcile the supervised warm start with the PPO fine-tune loop.",
+    sections=(
+        BlueprintSection(
+            heading="Pipeline overview",
+            items=(
+                "Outline the three phases: supervised fine-tuning, reward modeling, and RL policy improvement.",
+                "Clarify how pairwise preference data trains the reward model and where label noise creeps in.",
+                "Track KL penalties that keep the policy near the supervised model during PPO updates.",
+            ),
+        ),
+        BlueprintSection(
+            heading="Operational guardrails",
+            items=(
+                "Document metrics to monitor (KL divergence, reward model drift, toxic output rate).",
+                "Design rapid evaluation tasks that can flag reward hacking examples early.",
+                "List interventions when humans disagree—escalate for relabeling vs. adjust sampling temperature.",
+            ),
+        ),
+    ),
+    tasks=(
+        BlueprintTask(
+            label="Read the InstructGPT RLHF training section",
+            href="https://openai.com/research/instructgpt",
+            meta="20 min • note reward shaping details",
+        ),
+        BlueprintTask(
+            label="Simulate PPO updates with a toy reward model",
+            meta="Track KL and reward per iteration",
+        ),
+        BlueprintTask(
+            label="Draft evaluation rubric for your deployment context",
+            meta="Include safety & user-impact checks",
+        ),
+    ),
+    stats=(
+        BlueprintStat(label="Focus chunks", value="3 × 10m"),
+        BlueprintStat(label="Review window", value="35m"),
+        BlueprintStat(label="Next action", value="Sync with safety reviewer"),
+    ),
+    citations=(
+        "Ouyang et al., Training language models to follow instructions (2022)",
+        "OpenAI Alignment Handbook",
+        "Anthropic, RLHF Lessons Learned (2024)",
+    ),
+)
+
+DEFAULT_BLUEPRINT = LessonBlueprint(
+    slug="general",
+    match_terms=tuple(),
+    title="{topic}: build a deliberate practice loop",
+    display_template="Today's dive on {topic} — clarify the why, then build a small artifact to test your understanding.",
+    sections=(
+        BlueprintSection(
+            heading="Orient",
+            items=(
+                "Write down what success with {topic} looks like for this week.",
+                "List the top 3 unknown terms or steps you need to clarify.",
+                "Identify one example or case study that shows {topic} in action.",
+            ),
+        ),
+        BlueprintSection(
+            heading="Deepen",
+            items=(
+                "Pair a primary reference with a hands-on notebook; note surprises.",
+                "Generate at least two questions you would ask a mentor about {topic}.",
+                "Capture sensory anchors (visuals, sounds, tactile cues) that help you recall the idea quickly.",
+            ),
+        ),
+    ),
+    tasks=(
+        BlueprintTask(
+            label="Skim a trusted reference on {topic}",
+            meta="Highlight 3 insights worth teaching forward",
+        ),
+        BlueprintTask(
+            label="Draft a small demo or outline applying {topic}",
+            meta="Keep it <25 minutes end-to-end",
+        ),
+        BlueprintTask(
+            label="Summarize the key takeaway for a peer",
+            meta="1 paragraph or short Loom",
+        ),
+    ),
+    stats=(
+        BlueprintStat(label="Focus chunks", value="3 × 10m"),
+        BlueprintStat(label="Review cadence", value="End with a quick reflection"),
+        BlueprintStat(label="Energy check", value="Stretch + hydrate"),
+    ),
+    citations=(
+        "Arcadia Coach Playbook, 2025",
+    ),
+)
+
+LESSON_BLUEPRINTS: Tuple[LessonBlueprint, ...] = (
+    TRANSFORMERS_BLUEPRINT,
+    DIFFUSION_BLUEPRINT,
+    RLHF_BLUEPRINT,
+)
+
+
+def _select_blueprint(topic: str) -> LessonBlueprint:
+    normalized = _normalize_topic(topic)
+    for blueprint in LESSON_BLUEPRINTS:
+        if blueprint.slug in normalized:
+            return blueprint
+        if any(term in normalized for term in blueprint.match_terms):
+            return blueprint
+    return DEFAULT_BLUEPRINT
+
 class WidgetEnvelope(BaseModel):
+    intent: Optional[str] = Field(
+        default=None,
+        description="Optional intent label consumed by legacy Arcadia Coach clients.",
+    )
     display: Optional[str] = None
     widgets: List[Widget]
     citations: Optional[List[str]] = Field(
@@ -125,62 +430,8 @@ async def scoped_health_route(_request):
 @mcp.tool()
 def lesson_catalog(topic: str) -> WidgetEnvelope:
     """Generate a widget envelope for a requested lesson topic."""
-    card = Widget(
-        type=WidgetType.CARD,
-        propsCard=WidgetCardProps(
-            title=f"Core ideas of {topic.title()}",
-            sections=[
-                WidgetCardSection(
-                    heading="What to notice",
-                    items=[
-                        "Chunk concepts into no-more-than-3 bullet summaries",
-                        "Pair terminology with a concrete code snippet",
-                        "Highlight sensory anchors (color, sound, or tactile cues) to aid recall",
-                    ],
-                ),
-                WidgetCardSection(
-                    heading="Mindful debugging",
-                    items=[
-                        "Write down the expected flow before running code",
-                        "Use sticky-note style checkpoints after each block",
-                    ],
-                ),
-            ],
-        ),
-    )
-    checklist = Widget(
-        type=WidgetType.LIST,
-        propsList=WidgetListProps(
-            title="Micro tasks",
-            rows=[
-                WidgetListRow(label="Skim reference implementation",
-                              href="https://platform.openai.com/docs"),
-                WidgetListRow(
-                    label="Re-type core loop from memory", meta="10 minutes"),
-                WidgetListRow(label="Explain to rubber duck",
-                              meta="Verbalise outcome"),
-            ],
-        ),
-    )
-    stats = Widget(
-        type=WidgetType.STAT_ROW,
-        propsStat=WidgetStatRowProps(
-            items=[
-                WidgetStatItem(label="Focus chunks", value="3"),
-                WidgetStatItem(label="Est. time", value="25m"),
-                WidgetStatItem(label="Energy check", value="Snack/Water"),
-            ]
-        ),
-    )
-    return WidgetEnvelope(
-        intent="Lesson",
-        display=f"Today's dive on {topic.title()} — take it in two passes and pause after each chunk.",
-        widgets=[card, checklist, stats],
-        citations=[
-            "Arcadia Coach Playbook, 2025",
-            "OpenAI Docs"
-        ],
-    )
+    blueprint = _select_blueprint(topic)
+    return blueprint.render(topic)
 
 
 @mcp.tool()
