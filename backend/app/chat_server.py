@@ -11,16 +11,20 @@ from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.agents import ThreadItemConverter, stream_agent_response
-from chatkit.server import ChatKitServer, ThreadItemDoneEvent, stream_widget
+from chatkit.server import ChatKitServer, StreamingReq, ThreadItemDoneEvent, stream_widget
 from chatkit.types import (
     Attachment,
     AssistantMessageItem,
     ClientToolCallItem,
     HiddenContextItem,
+    Page,
+    Thread,
+    ThreadCreatedEvent,
     ThreadItem,
     ThreadMetadata,
     ThreadStreamEvent,
     UserMessageItem,
+    ThreadsCreateReq,
 )
 from chatkit.widgets import (
     ActionConfig,
@@ -128,6 +132,34 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         self._preferences: dict[str, ChatPreferences] = {}
         self._uploaded_files: dict[str, UploadedFileRef] = {}
         self._openai = AsyncOpenAI()
+
+    async def _process_streaming_impl(
+        self,
+        request: StreamingReq,
+        context: dict[str, Any],
+    ) -> AsyncIterator[ThreadStreamEvent]:
+        if isinstance(request, ThreadsCreateReq):
+            input_payload = getattr(request.params, "input", None)
+            content = getattr(input_payload, "content", None) if input_payload else None
+            if content:
+                async for event in super()._process_streaming_impl(request, context):
+                    yield event
+                return
+
+            thread = Thread(
+                id=self.store.generate_thread_id(context),
+                created_at=datetime.utcnow(),
+                items=Page(),
+            )
+            await self.store.save_thread(thread, context=context)
+            yield ThreadCreatedEvent(thread=self._to_thread_response(thread))
+            prefs = self._get_preferences(thread.id)
+            async for event in self._emit_widget(thread, context, prefs):
+                yield event
+            return
+
+        async for event in super()._process_streaming_impl(request, context):
+            yield event
 
     async def respond(
         self,
