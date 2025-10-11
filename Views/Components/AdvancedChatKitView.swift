@@ -108,6 +108,7 @@ struct AdvancedChatKitView: NSViewRepresentable {
         if #available(macOS 13.3, *) {
             webView.isInspectable = true
         }
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 
         let trimmedWidget = widgetBase64.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedWidget.isEmpty {
