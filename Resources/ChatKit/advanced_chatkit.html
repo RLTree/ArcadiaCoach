@@ -25,18 +25,69 @@
   <div id="chatkit-root"></div>
   <script type="module">
     console.debug("[ArcadiaChatKit] bootstrap starting");
-    let ChatKitModule;
-    try {
-      ChatKitModule = await import("https://cdn.openai.com/chatkit/latest/chatkit.js");
-    } catch (error) {
-      console.error("[ArcadiaChatKit] Failed to import ChatKit module", error);
-      window.arcadiaChatKitMount = () => {};
-      throw error;
+
+    async function injectScript(src) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.crossOrigin = "anonymous";
+        script.addEventListener("load", resolve);
+        script.addEventListener("error", (event) => {
+          reject(new Error(`Failed to load script ${src}: ${event?.message ?? "unknown error"}`));
+        });
+        document.head.appendChild(script);
+      });
     }
-    const { ChatKit } = ChatKitModule ?? {};
+
+    async function loadChatKitLibrary() {
+      const moduleCandidates = [
+        "https://cdn.platform.openai.com/deployments/chatkit/chatkit.mjs",
+        "https://cdn.openai.com/chatkit/latest/chatkit.mjs",
+        "https://cdn.openai.com/chatkit/latest/chatkit.js"
+      ];
+      for (const url of moduleCandidates) {
+        try {
+          console.debug("[ArcadiaChatKit] attempting module import", url);
+          const module = await import(url);
+          if (module?.ChatKit) {
+            return module.ChatKit;
+          }
+          if (module?.default?.ChatKit) {
+            return module.default.ChatKit;
+          }
+          console.warn("[ArcadiaChatKit] Module import succeeded without ChatKit export", url);
+        } catch (error) {
+          console.warn("[ArcadiaChatKit] Module import failed", { url, error });
+        }
+      }
+
+      const scriptCandidates = [
+        "https://cdn.platform.openai.com/deployments/chatkit/chatkit.js",
+        "https://cdn.openai.com/chatkit/latest/chatkit.js"
+      ];
+      for (const url of scriptCandidates) {
+        try {
+          console.debug("[ArcadiaChatKit] attempting script injection", url);
+          await injectScript(url);
+          if (window.ChatKit) {
+            return window.ChatKit;
+          }
+          console.warn("[ArcadiaChatKit] Script loaded but window.ChatKit missing", url);
+        } catch (error) {
+          console.warn("[ArcadiaChatKit] Script injection failed", { url, error });
+        }
+      }
+      return undefined;
+    }
+
+    const ChatKit = await loadChatKitLibrary();
     if (!ChatKit) {
-      console.error("[ArcadiaChatKit] ChatKit export missing from module", ChatKitModule);
+      console.error("[ArcadiaChatKit] Unable to load ChatKit from any known CDN endpoints.");
+      window.arcadiaChatKitMount = () => {};
+      throw new Error("ChatKit library failed to load.");
     }
+
     const widgetBase64Raw = "%WIDGET_BASE64%";
     const widgetBase64 = widgetBase64Raw ? widgetBase64Raw.replace(/\s+/g, "") : "";
     const configBase64Raw = "%CHATKIT_CONFIG_BASE64%";
