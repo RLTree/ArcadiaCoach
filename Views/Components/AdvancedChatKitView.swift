@@ -161,6 +161,8 @@ struct AdvancedChatKitView: NSViewRepresentable {
         let configBase64 = (try? configurationData(configuration).base64EncodedString()) ?? ""
         let sanitizedConfig = configBase64.replacingOccurrences(of: "\n", with: "")
         html = html.replacingOccurrences(of: "%CHATKIT_CONFIG_BASE64%", with: sanitizedConfig)
+        let inlineModule = ChatKitResource.inlineModuleBase64().replacingOccurrences(of: "\n", with: "")
+        html = html.replacingOccurrences(of: "%CHATKIT_INLINE_MODULE%", with: inlineModule)
         if let bootstrap = try? configurationScript(configuration) {
             html += "\n<script>\(bootstrap)</script>"
         }

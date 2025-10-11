@@ -379,8 +379,10 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
     ) -> AsyncIterator[ThreadStreamEvent]:
         widget = await self._build_chatbot_widget(thread, context, prefs)
         if widget is None:
-            logger.debug("Widget builder returned None for thread %s; skipping stream.", thread.id)
-            return
+            logger.warning(
+                "Widget builder returned None for thread %s; streaming fallback widget.", thread.id
+            )
+            widget = self._fallback_widget(thread, prefs)
         logger.info(
             "Streaming Arcadia chatbot widget (thread=%s, web_enabled=%s, reasoning=%s)",
             thread.id,
@@ -628,6 +630,92 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             return None
 
         return card
+
+    def _fallback_widget(self, thread: ThreadMetadata, prefs: ChatPreferences) -> Card:
+        logger.debug(
+            "Building fallback widget for thread %s (web_enabled=%s, reasoning=%s).",
+            thread.id,
+            prefs.web_enabled,
+            prefs.reasoning_level,
+        )
+        return Card(
+            id="arcadia_chatbot_fallback",
+            size="md",
+            padding=0,
+            children=[
+                Col(
+                    gap=0,
+                    children=[
+                        Row(
+                            align="center",
+                            padding={"x": 4, "y": 3},
+                            children=[
+                                Icon(name="sparkle", color="primary"),
+                                Title(value="Arcadia Coach", size="sm"),
+                                Spacer(),
+                                Badge(label=prefs.level_label, color="info"),
+                            ],
+                        ),
+                        Divider(flush=True),
+                        Col(
+                            padding=4,
+                            gap=2,
+                            minHeight="120px",
+                            children=[
+                                Row(
+                                    justify="start",
+                                    children=[
+                                        Box(
+                                            children=[
+                                                Markdown(
+                                                    value=(
+                                                        "Arcadia Coach is ready. "
+                                                        "Start the conversation to see lesson, quiz, "
+                                                        "and milestone widgets here."
+                                                    )
+                                                )
+                                            ],
+                                            maxWidth="80%",
+                                            padding=3,
+                                            radius="xl",
+                                            background="surface-elevated-secondary",
+                                            border=Borders(size=1),
+                                        )
+                                    ],
+                                )
+                            ],
+                        ),
+                        Divider(flush=True),
+                        Row(
+                            align="center",
+                            background="surface-elevated-secondary",
+                            padding=4,
+                            gap=2,
+                            children=[
+                                Button(
+                                    iconStart="globe",
+                                    uniform=True,
+                                    size="lg",
+                                    variant="solid" if prefs.web_enabled else "outline",
+                                    color="info" if prefs.web_enabled else "secondary",
+                                    onClickAction=ActionConfig(type="chat.toggleWeb"),
+                                ),
+                                Button(
+                                    iconStart="lightbulb",
+                                    uniform=True,
+                                    size="lg",
+                                    variant="outline",
+                                    color="secondary",
+                                    onClickAction=ActionConfig(type="chat.toggleTone"),
+                                ),
+                                Spacer(),
+                                Caption(value="Waiting for your first question…", color="secondary"),
+                            ],
+                        ),
+                    ],
+                )
+            ],
+        )
 
     def _assistant_message_text(self, item: AssistantMessageItem) -> str:
         parts: list[str] = []

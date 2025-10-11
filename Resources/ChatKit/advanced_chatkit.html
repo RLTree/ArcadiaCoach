@@ -25,6 +25,7 @@
   <div id="chatkit-root"></div>
   <script type="module">
     console.debug("[ArcadiaChatKit] bootstrap starting");
+    const inlineModuleBase64 = "%CHATKIT_INLINE_MODULE%";
 
     async function injectScript(src) {
       await new Promise((resolve, reject) => {
@@ -39,6 +40,10 @@
         document.head.appendChild(script);
       });
     }
+
+    let runtimeMode = "unknown";
+    let moduleChatKit = null;
+    let webComponentElement = null;
 
     async function loadChatKitLibrary() {
       const moduleCandidates = [
@@ -81,11 +86,77 @@
       return undefined;
     }
 
-    const ChatKit = await loadChatKitLibrary();
-    if (!ChatKit) {
-      console.error("[ArcadiaChatKit] Unable to load ChatKit from any known CDN endpoints.");
-      window.arcadiaChatKitMount = () => {};
-      throw new Error("ChatKit library failed to load.");
+    async function loadInlineModule() {
+      if (!inlineModuleBase64) {
+        return undefined;
+      }
+      try {
+        const decoded = atob(inlineModuleBase64);
+        const blob = new Blob([decoded], { type: "text/javascript" });
+        const objectUrl = URL.createObjectURL(blob);
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = objectUrl;
+          script.async = true;
+          script.onload = () => {
+            resolve();
+            URL.revokeObjectURL(objectUrl);
+            script.remove();
+          };
+          script.onerror = (event) => {
+            reject(new Error(`Inline ChatKit script failed to load: ${event?.message ?? "unknown error"}`));
+            URL.revokeObjectURL(objectUrl);
+            script.remove();
+          };
+            document.head.appendChild(script);
+        });
+        if (window.ChatKit) {
+          console.debug("[ArcadiaChatKit] Loaded ChatKit from inline script fallback.");
+          return window.ChatKit;
+        }
+        if (customElements.get("openai-chatkit")) {
+          console.debug("[ArcadiaChatKit] Inline script registered <openai-chatkit> web component.");
+          return "component";
+        }
+        console.warn("[ArcadiaChatKit] Inline script executed but window.ChatKit is missing.");
+      } catch (error) {
+        console.error("[ArcadiaChatKit] Failed to load inline ChatKit module fallback", error);
+      }
+      return undefined;
+    }
+
+    async function discoverChatKitRuntime() {
+      if (runtimeMode !== "unknown") {
+        return runtimeMode;
+      }
+      const moduleRuntime = await loadChatKitLibrary();
+      if (moduleRuntime) {
+        runtimeMode = "module";
+        moduleChatKit = moduleRuntime;
+        return runtimeMode;
+      }
+      const inlineRuntime = await loadInlineModule();
+      if (inlineRuntime && inlineRuntime !== "component") {
+        runtimeMode = "module";
+        moduleChatKit = inlineRuntime;
+        return runtimeMode;
+      }
+      if (inlineRuntime === "component" || customElements.get("openai-chatkit")) {
+        runtimeMode = "component";
+        return runtimeMode;
+      }
+      runtimeMode = "none";
+      return runtimeMode;
+    }
+
+    async function ensureRuntime() {
+      const mode = await discoverChatKitRuntime();
+      if (mode === "none") {
+        console.error("[ArcadiaChatKit] Unable to load ChatKit from any known CDN endpoints.");
+        window.arcadiaChatKitMount = () => {};
+        throw new Error("ChatKit library failed to load.");
+      }
+      return mode;
     }
 
     const widgetBase64Raw = "%WIDGET_BASE64%";
@@ -222,7 +293,22 @@
             console.error("[ArcadiaChatKit] ChatKit instance error event", err);
           });
         } else {
-          console.warn("[ArcadiaChatKit] ChatKit instance did not expose events.on for debugging hooks.");
+          if (instance instanceof HTMLElement) {
+            instance.addEventListener("chatkit.error", (event) => {
+              console.error("[ArcadiaChatKit] ChatKit web component error", event.detail);
+            });
+            instance.addEventListener("chatkit.log", (event) => {
+              console.debug("[ArcadiaChatKit] ChatKit web component log", event.detail);
+            });
+            instance.addEventListener("chatkit.threadItemAdded", (event) => {
+              console.debug("[ArcadiaChatKit] thread.item.added", event.detail);
+            });
+            instance.addEventListener("chatkit.threadSynced", (event) => {
+              console.debug("[ArcadiaChatKit] thread.synced", event.detail);
+            });
+          } else {
+            console.warn("[ArcadiaChatKit] ChatKit instance did not expose events.on for debugging hooks.");
+          }
         }
       } catch (err) {
         console.error("[ArcadiaChatKit] Failed to attach debug listeners", err);
@@ -271,44 +357,69 @@
         console.warn('[ArcadiaChatKit] ChatKit configuration missing api options');
         return;
       }
-      if (!chatkitInstance) {
-        console.debug('[ArcadiaChatKit] creating ChatKit instance', { apiOptions, agent });
-        try {
-          chatkitInstance = await ChatKit.create({
-            element,
-            api: apiOptions,
-            agent,
-            layout: {
-              position: 'inline',
-              autoFocus: false,
-              showComposer: false
-            },
-            header: { enabled: false },
-            history: { enabled: false },
-            widgets: {
-              onAction: handleWidgetAction,
-            },
-            theme: {
-              mode: 'system',
-              fontSize: 'md',
-              borderRadius: 'xl'
-            }
-          });
-        } catch (err) {
-          console.error('[ArcadiaChatKit] Failed to create ChatKit instance', err);
+      const mode = await ensureRuntime();
+      const options = {
+        api: apiOptions,
+        agent,
+        layout: {
+          position: 'inline',
+          autoFocus: false,
+          showComposer: false
+        },
+        header: { enabled: false },
+        history: { enabled: false },
+        widgets: {
+          onAction: handleWidgetAction,
+        },
+        theme: {
+          mode: 'system',
+          fontSize: 'md',
+          borderRadius: 'xl'
+        }
+      };
+
+      if (mode === "module") {
+        const ChatKit = moduleChatKit;
+        if (!ChatKit) {
+          console.error('[ArcadiaChatKit] Module runtime missing ChatKit export.');
           return;
         }
-        console.debug('[ArcadiaChatKit] ChatKit instance ready', { hasWidgets: !!chatkitInstance?.widgets });
-        attachDebugListeners(chatkitInstance);
-      } else {
-        console.debug('[ArcadiaChatKit] updating ChatKit options');
-        chatkitInstance.setOptions({
-          api: apiOptions,
-          agent,
-          widgets: {
-            onAction: handleWidgetAction,
-          },
-        });
+        if (!chatkitInstance) {
+          console.debug('[ArcadiaChatKit] creating ChatKit instance', { apiOptions, agent });
+          try {
+            chatkitInstance = await ChatKit.create({
+              element,
+              ...options,
+            });
+          } catch (err) {
+            console.error('[ArcadiaChatKit] Failed to create ChatKit instance', err);
+            return;
+          }
+          console.debug('[ArcadiaChatKit] ChatKit instance ready', { hasWidgets: !!chatkitInstance?.widgets });
+          attachDebugListeners(chatkitInstance);
+        } else {
+          console.debug('[ArcadiaChatKit] updating ChatKit options');
+          chatkitInstance.setOptions(options);
+        }
+      } else if (mode === "component") {
+        if (!webComponentElement) {
+          console.debug('[ArcadiaChatKit] mounting <openai-chatkit> component');
+          webComponentElement = document.createElement('openai-chatkit');
+          webComponentElement.style.display = 'block';
+          webComponentElement.style.height = '100%';
+          element.innerHTML = '';
+          element.appendChild(webComponentElement);
+          attachDebugListeners(webComponentElement);
+        }
+        try {
+          if (!customElements.get('openai-chatkit')) {
+            await customElements.whenDefined('openai-chatkit');
+          }
+          webComponentElement.setOptions(options);
+          chatkitInstance = webComponentElement;
+        } catch (err) {
+          console.error('[ArcadiaChatKit] Failed to set options on web component', err);
+        }
       }
     }
 

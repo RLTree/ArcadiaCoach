@@ -9,4 +9,3 @@ node_modules/
 .DS_Store
 mcp_server/uv.lock
 backend/uv.lock
-chatkit-js/

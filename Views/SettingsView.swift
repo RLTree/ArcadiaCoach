@@ -166,27 +166,48 @@ final class ChatKitDiagnosticsViewModel: ObservableObject {
             )
         }
 
-        if let widgetDiagnostics = WidgetResource.arcadiaChatbotWidgetDiagnostics() {
-            let status: Status = widgetDiagnostics.hasEncodedWidget ? .success : .warning
-            let message: String
-            if widgetDiagnostics.hasEncodedWidget {
-                message = "Bundled widget includes encoded payload (size \(widgetDiagnostics.byteCount) bytes)."
-            } else {
-                message = "Bundled widget is missing an encoded payload. Compile it with `chatkit bundle` or ensure the backend streams widgets."
-            }
+        if WidgetResource.isArcadiaWidgetBundled {
             newResults.append(
                 DiagnosticResult(
-                    title: widgetDiagnostics.name ?? "ArcadiaChatbot.widget",
-                    message: message,
-                    status: status
+                    title: "ArcadiaChatbot Widget",
+                    message: "Bundled widget detected. Verify it stays in sync with the backend stream.",
+                    status: .warning
                 )
             )
         } else {
             newResults.append(
                 DiagnosticResult(
-                    title: "ArcadiaChatbot.widget",
-                    message: "Widget bundle not found in the app resources.",
-                    status: .failure
+                    title: "ArcadiaChatbot Widget",
+                    message: "No bundled widget found — the backend will stream the Arcadia chatbot UI on demand.",
+                    status: .success
+                )
+            )
+        }
+
+        if let inlineDiagnostics = ChatKitResource.inlineModuleDiagnostics() {
+            if inlineDiagnostics.isFallbackStub {
+                newResults.append(
+                    DiagnosticResult(
+                        title: "ChatKit Inline Fallback",
+                        message: "Inline module stub detected (size \(inlineDiagnostics.byteCount) bytes). Replace `Resources/ChatKit/chatkit.inline.mjs` with the official ChatKit bundle to run offline or behind strict firewalls.",
+                        status: .warning
+                    )
+                )
+            } else {
+                newResults.append(
+                    DiagnosticResult(
+                        title: "ChatKit Inline Fallback",
+                        message: "Inline module ready (size \(inlineDiagnostics.byteCount) bytes). ChatKit will load locally if CDN access fails.",
+                        status: .success
+                    )
+                )
+            }
+        } else {
+            newResults.append(
+                DiagnosticResult(
+                    title: "ChatKit Inline Fallback",
+                    message: "No inline ChatKit bundle found. Provide `Resources/ChatKit/chatkit.inline.mjs` when CDN access is blocked.",
+                    status: .warning
                 )
             )
         }
