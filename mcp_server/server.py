@@ -173,6 +173,7 @@ def lesson_catalog(topic: str) -> WidgetEnvelope:
         ),
     )
     return WidgetEnvelope(
+        intent="Lesson",
         display=f"Today's dive on {topic.title()} — take it in two passes and pause after each chunk.",
         widgets=[card, checklist, stats],
         citations=[
@@ -236,6 +237,7 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
         ),
     )
     return WidgetEnvelope(
+        intent="Quiz",
         display=f"Quiz stats for {topic} — focus on highlighted review items.",
         widgets=[recap, stat_row, drill_list],
         citations=None,
@@ -283,6 +285,7 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
         ),
     )
     return WidgetEnvelope(
+        intent="Milestone",
         display=summary or "You crossed a milestone — notice what worked and plan a gentle next sprint.",
         widgets=[celebration, next_steps],
         citations=None,
@@ -318,6 +321,7 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
         ),
     )
     return WidgetEnvelope(
+        intent="FocusSprint",
         display="Focus sprint deck — keep cues visible and celebrate micro wins.",
         widgets=[checklist, stats],
         citations=None,
