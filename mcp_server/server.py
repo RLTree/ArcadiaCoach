@@ -305,11 +305,7 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
 
 
 def main() -> None:
-    mcp.run(
-        transport="streamable-http",
-        host=_resolve_host(),
-        port=_resolve_port(),
-    )
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
