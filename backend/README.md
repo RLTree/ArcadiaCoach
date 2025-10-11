@@ -11,7 +11,7 @@ This FastAPI service hosts Arcadia Coach’s custom ChatKit integration. It moun
 ## Requirements
 
 - Python 3.10+
-- An OpenAI API key (stored in `OPENAI_API_KEY`) so the server can call the OpenAI Responses API.
+- An OpenAI API key (stored in `OPENAI_API_KEY`) so the server can call OpenAI models through the Agents SDK.
 
 ## Setup
 
@@ -40,7 +40,6 @@ ARCADIA_MCP_REQUIRE_APPROVAL=never
 - `ARCADIA_MCP_URL` – Fully-qualified MCP endpoint (e.g. `https://<your-mcp-service>/mcp`).
 - `ARCADIA_MCP_LABEL` – Friendly label passed to the MCP tool configuration.
 - `ARCADIA_MCP_REQUIRE_APPROVAL` – Guardrail approval strategy (e.g. `never`).
-- `ARCADIA_AGENT_ID` / other agent identifiers – if your deployment references specific agent IDs, set them here as well.
 - `CHATKIT_DOMAIN_KEY` (client-side) – make sure the macOS app stores the domain key returned from the OpenAI domain allow-list so ChatKit trusts your Render domain.
 
 ## Run the service

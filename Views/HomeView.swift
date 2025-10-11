@@ -27,7 +27,7 @@ struct HomeView: View {
             }
             .padding(24)
             .onAppear {
-                showOnboarding = settings.agentId.isEmpty
+                showOnboarding = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
             if showOnboarding {
                 Color.black.opacity(0.4).ignoresSafeArea()
@@ -49,9 +49,9 @@ struct HomeView: View {
         .onReceive(session.$milestone.compactMap { $0 }) { milestone in
             appVM.lastEnvelope = .init(display: milestone.display, widgets: milestone.widgets, citations: nil)
         }
-        .onChange(of: settings.agentId) { newValue in
+        .onChange(of: settings.chatkitBackendURL) { newValue in
             Task { await session.reset(for: newValue) }
-            if !newValue.isEmpty {
+            if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 showOnboarding = false
             }
         }
@@ -96,7 +96,7 @@ struct HomeView: View {
                     isBusy: session.activeAction == .lesson,
                     isDisabled: session.activeAction != nil && session.activeAction != .lesson
                 ) {
-                    Task { await session.loadLesson(agentId: settings.agentId, topic: "transformers") }
+                    Task { await session.loadLesson(backendURL: settings.chatkitBackendURL, topic: "transformers") }
                 }
                 GlassButton(
                     title: "Start Quiz",
@@ -104,7 +104,7 @@ struct HomeView: View {
                     isBusy: session.activeAction == .quiz,
                     isDisabled: session.activeAction != nil && session.activeAction != .quiz
                 ) {
-                    Task { await session.loadQuiz(agentId: settings.agentId, topic: "pytorch") }
+                    Task { await session.loadQuiz(backendURL: settings.chatkitBackendURL, topic: "pytorch") }
                 }
                 GlassButton(
                     title: "Milestone",
@@ -112,7 +112,7 @@ struct HomeView: View {
                     isBusy: session.activeAction == .milestone,
                     isDisabled: session.activeAction != nil && session.activeAction != .milestone
                 ) {
-                    Task { await session.loadMilestone(agentId: settings.agentId, topic: "roadmap") }
+                    Task { await session.loadMilestone(backendURL: settings.chatkitBackendURL, topic: "roadmap") }
                 }
                 if settings.minimalMode {
                     GlassButton(title: "Focus", systemName: "timer") {
@@ -120,7 +120,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .disabled(settings.agentId.isEmpty)
+            .disabled(settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityElement(children: .contain)
 
             if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {

@@ -30,9 +30,9 @@ struct WidgetMiniChatbotView: View {
         .onChange(of: props) { _ in
             Task { await syncMessagesIfNeeded(force: true) }
         }
-        .onChange(of: settings.agentId) { newAgent in
+        .onChange(of: settings.chatkitBackendURL) { newBackend in
             Task {
-                await AgentService.resetSession(agentId: newAgent, key: sessionKey)
+                await BackendService.resetSession(baseURL: newBackend, sessionId: sessionKey)
                 await MainActor.run {
                     sessionKey = UUID().uuidString
                     messages = []
@@ -43,11 +43,11 @@ struct WidgetMiniChatbotView: View {
     }
 
     private var canSend: Bool {
-        !settings.agentId.isEmpty && !isSending
+        !settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
     }
 
     private var statusLabel: String {
-        if settings.agentId.isEmpty { return "Offline" }
+        if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Offline" }
         if isSending { return "Thinking…" }
         return props.status.isEmpty ? "Online" : props.status
     }
@@ -68,9 +68,10 @@ struct WidgetMiniChatbotView: View {
     }
 
     private func send(_ text: String) async {
-        guard !settings.agentId.isEmpty else {
+        let backend = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !backend.isEmpty else {
             await MainActor.run {
-                appendAssistantMessage("Add an Agent ID in Settings to continue.")
+                appendAssistantMessage("Set the ChatKit backend URL in Settings to continue.")
             }
             return
         }
@@ -80,12 +81,17 @@ struct WidgetMiniChatbotView: View {
             errorText = nil
         }
         do {
-            let envelope: WidgetEnvelope = try await AgentService.send(
-                agentId: settings.agentId,
-                model: "",
-                message: text,
+            let history = messages.dropLast().map { message in
+                BackendChatTurn(
+                    role: message.role == .user ? "user" : "assistant",
+                    text: message.text
+                )
+            }
+            let envelope = try await BackendService.sendChat(
+                baseURL: backend,
                 sessionId: sessionKey,
-                expecting: WidgetEnvelope.self
+                history: history,
+                message: text
             )
             await MainActor.run {
                 if let mini = envelope.widgets.first(where: { $0.type == .MiniChatbot })?.propsMiniChatbot {

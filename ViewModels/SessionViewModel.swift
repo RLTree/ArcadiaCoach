@@ -13,54 +13,48 @@ final class SessionViewModel: ObservableObject {
 
     private static let logger = Logger(subsystem: "com.arcadiacoach.app", category: "SessionViewModel")
 
-    func reset(for agentId: String) async {
+    func reset(for backendURL: String) async {
         let cacheKey = sessionId ?? "default"
-        await AgentService.resetSession(agentId: agentId, key: cacheKey)
+        await BackendService.resetSession(baseURL: backendURL, sessionId: cacheKey)
         sessionId = UUID().uuidString
         lesson = nil
         quiz = nil
         milestone = nil
         lastError = nil
         lastEventDescription = "Session reset at \(Date().formatted(date: .omitted, time: .standard))"
-        Self.logger.info("Reset session cache for agent \(agentId, privacy: .public)")
+        Self.logger.info("Reset session cache for backend \(backendURL, privacy: .public)")
     }
 
-    func loadLesson(agentId: String, topic: String) async {
-        await perform(action: .lesson, agentId: agentId, topic: topic) {
-            let output: EndLearn = try await AgentService.send(
-                agentId: agentId,
-                model: "gpt-5",
-                message: "learn \(topic)",
+    func loadLesson(backendURL: String, topic: String) async {
+        await perform(action: .lesson, backendURL: backendURL, topic: topic) {
+            let output = try await BackendService.loadLesson(
+                baseURL: backendURL,
                 sessionId: sessionId,
-                expecting: EndLearn.self
+                topic: topic
             )
             lesson = output
             lastEventDescription = "Loaded lesson envelope (\(output.widgets.count) widgets)."
         }
     }
 
-    func loadQuiz(agentId: String, topic: String) async {
-        await perform(action: .quiz, agentId: agentId, topic: topic) {
-            let output: EndQuiz = try await AgentService.send(
-                agentId: agentId,
-                model: "gpt-5-codex",
-                message: "quiz \(topic)",
+    func loadQuiz(backendURL: String, topic: String) async {
+        await perform(action: .quiz, backendURL: backendURL, topic: topic) {
+            let output = try await BackendService.loadQuiz(
+                baseURL: backendURL,
                 sessionId: sessionId,
-                expecting: EndQuiz.self
+                topic: topic
             )
             quiz = output
             lastEventDescription = "Loaded quiz results (ELO keys: \(output.elo.keys.joined(separator: ", ")))."
         }
     }
 
-    func loadMilestone(agentId: String, topic: String) async {
-        await perform(action: .milestone, agentId: agentId, topic: topic) {
-            let output: EndMilestone = try await AgentService.send(
-                agentId: agentId,
-                model: "gpt-5",
-                message: "milestone \(topic)",
+    func loadMilestone(backendURL: String, topic: String) async {
+        await perform(action: .milestone, backendURL: backendURL, topic: topic) {
+            let output = try await BackendService.loadMilestone(
+                baseURL: backendURL,
                 sessionId: sessionId,
-                expecting: EndMilestone.self
+                topic: topic
             )
             milestone = output
             lastEventDescription = "Loaded milestone update (\(output.widgets.count) widgets)."
@@ -69,20 +63,20 @@ final class SessionViewModel: ObservableObject {
 
     private func perform(
         action: SessionAction,
-        agentId: String,
+        backendURL: String,
         topic: String,
         block: () async throws -> Void
     ) async {
         do {
-            guard !agentId.isEmpty else {
+            guard !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw SessionActionError(
                     action: action,
-                    message: "Add an Agent ID on the Settings tab before launching a \(action.rawValue.lowercased()) flow."
+                    message: "Set the ChatKit backend URL in Settings before launching a \(action.rawValue.lowercased()) flow."
                 )
             }
             activeAction = action
             lastError = nil
-            Self.logger.debug("Starting \(action.rawValue) action (agent=\(agentId, privacy: .public), topic=\(topic, privacy: .public))")
+            Self.logger.debug("Starting \(action.rawValue) action (backend=\(backendURL, privacy: .public), topic=\(topic, privacy: .public))")
             try await block()
             Self.logger.info("\(action.rawValue) action completed successfully.")
         } catch {

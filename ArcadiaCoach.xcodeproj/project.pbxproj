@@ -13,8 +13,7 @@
 		AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F032924F97A00B8BEA0 /* WidgetModels.swift */; };
 		AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F042924F97A00B8BEA0 /* AppSettings.swift */; };
 		AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F052924F97A00B8BEA0 /* GameState.swift */; };
-		AA0010062924F97A00B8BEA0 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */; };
-		AA0010072924F97A00B8BEA0 /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F072924F97A00B8BEA0 /* AgentService.swift */; };
+		AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F072924F97A00B8BEA0 /* BackendService.swift */; };
 		AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F082924F97A00B8BEA0 /* MCPTypes.swift */; };
 		AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F092924F97A00B8BEA0 /* AppViewModel.swift */; };
 		AA00100A2924F97A00B8BEA0 /* SessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */; };
@@ -59,8 +58,7 @@ AA00102129250AF500B8BEA0 /* ArcadiaChatbot.widget in Resources */ = {isa = PBXBu
 		AA001F032924F97A00B8BEA0 /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModels.swift; sourceTree = "<group>"; };
 		AA001F042924F97A00B8BEA0 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AA001F052924F97A00B8BEA0 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
-		AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
-		AA001F072924F97A00B8BEA0 /* AgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
+		AA001F072924F97A00B8BEA0 /* BackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendService.swift; sourceTree = "<group>"; };
 		AA001F082924F97A00B8BEA0 /* MCPTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTypes.swift; sourceTree = "<group>"; };
 		AA001F092924F97A00B8BEA0 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		AA001F0A2924F97A00B8BEA0 /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
@@ -150,8 +148,7 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 	AA001F202924FB5F00B8BEA0 /* Services */ = {
 		isa = PBXGroup;
 		children = (
-			AA001F062924F97A00B8BEA0 /* KeychainHelper.swift */,
-			AA001F072924F97A00B8BEA0 /* AgentService.swift */,
+			AA001F072924F97A00B8BEA0 /* BackendService.swift */,
 			AA001F082924F97A00B8BEA0 /* MCPTypes.swift */,
 			AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */,
 		);
@@ -341,8 +338,7 @@ AA001F2A29250AF500B8BEA0 /* ArcadiaChatbot.widget */ = {isa = PBXFileReference; 
 			AA00102329250D0E00B8BEA0 /* WidgetResource.swift in Sources */,
 			AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */,
 				AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */,
-				AA0010072924F97A00B8BEA0 /* AgentService.swift in Sources */,
-				AA0010062924F97A00B8BEA0 /* KeychainHelper.swift in Sources */,
+				AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */,
 				AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
 				AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */,
 				AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */,

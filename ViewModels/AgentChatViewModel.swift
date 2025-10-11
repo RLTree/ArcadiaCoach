@@ -15,45 +15,58 @@ final class AgentChatViewModel: ObservableObject {
 
     private var welcomed = false
     private var sessionKey = UUID().uuidString
+    private var backendURL: String = ""
 
-    func prepareWelcomeMessage(agentId: String) {
+    func prepareWelcomeMessage(isBackendReady: Bool) {
         guard !welcomed else { return }
         welcomed = true
-        if agentId.isEmpty {
-            messages = [ChatMessage(role: .assistant, text: "Add an Agent ID in Settings to start chatting.")]
+        if !isBackendReady {
+            messages = [ChatMessage(role: .assistant, text: "Set the ChatKit backend URL in Settings to start chatting.")]
         } else {
             messages = [ChatMessage(role: .assistant, text: "Hi! I’m your Arcadia Coach. What would you like to explore today?")]
         }
     }
 
-    func handleAgentChange(agentId: String) {
+    func handleBackendChange(_ url: String) {
+        backendURL = url
         welcomed = false
         messages.removeAll()
         let previousKey = sessionKey
         Task {
-            await AgentService.resetSession(agentId: agentId, key: previousKey)
+            await BackendService.resetSession(baseURL: url, sessionId: previousKey)
         }
         sessionKey = UUID().uuidString
-        prepareWelcomeMessage(agentId: agentId)
+        prepareWelcomeMessage(isBackendReady: !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    func statusLabel(for agentId: String) -> String {
-        if agentId.isEmpty { return "Offline" }
+    func statusLabel() -> String {
+        if backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Offline" }
         return isSending ? "Thinking…" : "Online"
     }
 
-    func canSend(agentId: String) -> Bool {
-        !agentId.isEmpty && !isSending
+    func canSend() -> Bool {
+        !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
     }
 
-    func send(agentId: String, message: String) async {
+    func send(message: String) async {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !agentId.isEmpty else { return }
+        guard !trimmed.isEmpty, !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
         messages.append(ChatMessage(role: .user, text: trimmed))
         isSending = true
         do {
-            let envelope: WidgetEnvelope = try await AgentService.send(agentId: agentId, model: "gpt-5", message: trimmed, sessionId: sessionKey, expecting: WidgetEnvelope.self)
+            let history = messages.dropLast().map { message in
+                BackendChatTurn(
+                    role: message.role == .user ? "user" : "assistant",
+                    text: message.text
+                )
+            }
+            let envelope = try await BackendService.sendChat(
+                baseURL: backendURL,
+                sessionId: sessionKey,
+                history: history,
+                message: trimmed
+            )
             let reply = Self.extractReply(from: envelope)
             messages.append(ChatMessage(role: .assistant, text: reply))
             lastError = nil

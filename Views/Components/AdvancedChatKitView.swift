@@ -3,7 +3,7 @@ import WebKit
 import OSLog
 
 struct AdvancedChatKitConfiguration: Codable, Equatable {
-    var agentId: String
+    var agentId: String?
     var token: String?
     var apiURL: String?
     var domainKey: String?

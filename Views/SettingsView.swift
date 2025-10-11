@@ -2,23 +2,14 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
-    @State private var apiKey: String = KeychainHelper.get("OPENAI_API_KEY") ?? "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"
-    @State private var backendURL: String = "https://arcadiacoach.onrender.com/"
-    @State private var domainKey: String = "domain_pk_68e9a8cac6808190bbd92778730ea51b0dd821b29e8e5cd0"
+    @State private var backendURL: String = ""
+    @State private var domainKey: String = ""
 
     var body: some View {
         Form {
-            Section("Accounts") {
-                SecureField("OpenAI API Key", text: $apiKey)
-                    .textContentType(.password)
-                    .accessibilityLabel("OpenAI API Key")
-                Button("Save Key") {
-                    KeychainHelper.set(apiKey, for: "OPENAI_API_KEY")
-                }
-                TextField("Agent ID", text: $settings.agentId)
-            }
             Section("ChatKit Backend") {
                 TextField("Backend base URL", text: $backendURL)
+                    .disableAutocorrection(true)
                 SecureField("Domain key (optional)", text: $domainKey)
                 Button("Save Backend Settings") {
                     settings.chatkitBackendURL = backendURL
@@ -40,11 +31,10 @@ struct SettingsView: View {
                 Stepper("Tasks per chunk: \(settings.focusChunks)", value: $settings.focusChunks, in: 1...6)
             }
             Section("Diagnostics") {
-                if settings.agentId.isEmpty {
-                    Text("Add an Agent ID to unlock lesson and quiz requests.").foregroundStyle(.secondary)
-                }
-                if settings.chatkitBackendURL.isEmpty {
+                if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("Configure a ChatKit backend URL to fetch domain-backed sessions.").foregroundStyle(.secondary)
+                } else {
+                    Text("Backend URL saved. Restart sessions from Home to apply changes.").foregroundStyle(.secondary)
                 }
             }
         }

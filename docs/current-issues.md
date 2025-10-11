@@ -29,27 +29,25 @@ This note captures the problems we are still investigating in the Arcadia Coach 
 - No alerts or spinners were visible prior to instrumentation.
 
 ### Fixes/Instrumentation Attempted
-- Extended `SessionViewModel` with `activeAction`, `lastEventDescription`, and `lastError`. Buttons now show a spinner via `GlassButton` and display alerts when `AgentService.send()` fails.
-- Added detailed `OSLog` traces in `SessionViewModel` and `AgentService` reporting message payloads, missing API keys, HTTP failures, and session updates.
+- Extended `SessionViewModel` with `activeAction`, `lastEventDescription`, and `lastError`. Buttons now show a spinner via `GlassButton` and display alerts when backend calls fail.
+- Added detailed `OSLog` traces in `SessionViewModel` and the new `BackendService` reporting message payloads, missing backend URLs, HTTP failures, and session updates.
 - `HomeView` now prints the last successful action beneath the button row for quick visual confirmation.
 
 ### Current Status
-- UI provides feedback, but buttons remain non-functional against the Render deployment. Must confirm the macOS app is pointing at the Render backend, that `OPENAI_API_KEY` and agent IDs are set on the server, and inspect `AgentService` logs for HTTP failures.
+- UI provides feedback, but buttons remain non-functional against the Render deployment. Must confirm the macOS app saved the new ChatKit backend URL, ensure `OPENAI_API_KEY` is set on the server, and inspect FastAPI session-route logs for HTTP failures.
 
 ---
 
 ## 3. Backend ChatKit + Agents integration reliability
 
 ### Symptoms
-- Without proper logs, it was difficult to tell if session creation failed, if Responses API returned 4xx, or if Guardrails blocked requests.
+- Without proper logs, it was difficult to tell if agent runs failed, if model calls returned 4xx, or if guardrails blocked requests.
 
-### Fixes/Instrumentation Attempted
-- Added logging to `AgentService` for session resets, request/response sizes, non-2xx status codes, and decode failures.
+- Added logging around the `/api/session/*` routes for request payloads, non-2xx status codes, and decode failures.
 - Guardrails now degrade gracefully: if `OPENAI_API_KEY` is absent the server logs a warning and skips guardrail checks instead of crashing.
 - `docs/sdk-integration.md` rewritten to reference the official ChatKit Python server docs and Agents SDK quickstarts, clarifying the expected deployment steps.
 
-### Current Status
-- Render backend redeployed successfully, but we haven’t yet validated that environment variables (`OPENAI_API_KEY`, `ARCADIA_MCP_URL`, agent configuration) are populated. Missing or incorrect values would explain both the widget and button failures despite new logging.
+- Render backend redeployed successfully, but we haven’t yet validated that environment variables (`OPENAI_API_KEY`, `ARCADIA_AGENT_MODEL`, `ARCADIA_MCP_URL`) are populated. Missing or incorrect values would explain both the widget and button failures despite new logging.
 
 ---
 

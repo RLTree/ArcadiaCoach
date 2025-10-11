@@ -10,11 +10,7 @@ struct ChatPanel: View {
             Text("Agent Chat")
                 .font(.title2)
                 .bold()
-            if settings.agentId.isEmpty {
-                Text("Add an Agent ID in Settings to enable the advanced ChatKit experience.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            } else if let message = configurationMessage {
+            if let message = configurationMessage {
                 Text(message)
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -51,7 +47,7 @@ struct ChatPanel: View {
     private var advancedConfiguration: AdvancedChatKitConfiguration? {
         guard let apiURL = normalizedChatkitURL else { return nil }
         return AdvancedChatKitConfiguration(
-            agentId: settings.agentId,
+            agentId: nil,
             token: nil,
             apiURL: apiURL.absoluteString,
             domainKey: settings.chatkitDomainKey.isEmpty ? nil : settings.chatkitDomainKey,
