@@ -10,6 +10,7 @@ from uuid import uuid4
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
 from pydantic import BaseModel, Field, ValidationError
 
@@ -77,19 +78,30 @@ async def _run_structured(
         reasoning_level=settings.arcadia_agent_reasoning,
         attachments=[],
     )
-    result = await Runner.run(
-        agent,
-        message,
-        context=context,
-        run_config=RunConfig(
-            model_settings=ModelSettings(
-                reasoning=Reasoning(
-                    effort=_effort(settings.arcadia_agent_reasoning),
-                    summary="auto",
-                ),
-            )
-        ),
-    )
+    try:
+        result = await Runner.run(
+            agent,
+            message,
+            context=context,
+            run_config=RunConfig(
+                model_settings=ModelSettings(
+                    reasoning=Reasoning(
+                        effort=_effort(settings.arcadia_agent_reasoning),
+                        summary="auto",
+                    ),
+                )
+            ),
+        )
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Arcadia backend is not authorized with OpenAI. Update OPENAI_API_KEY and try again.",
+        ) from exc
+    except OpenAIError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Upstream OpenAI request failed: {exc}",
+        ) from exc
     return _coerce_output(result.final_output, expecting)
 
 

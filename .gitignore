@@ -7,3 +7,4 @@ AGENTS.md
 .venv/
 node_modules/
 .DS_Store
+mcp_server/uv.lock

@@ -1,11 +1,15 @@
 import os
+import json
+import logging
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
+from starlette.types import Message, Scope, Receive, Send
 
 
 class WidgetType(str, Enum):
@@ -90,8 +94,22 @@ mcp = FastMCP(
     name="Arcadia Coach Widgets",
     instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
 )
-mcp.settings.streamable_http_path = "/mcp"
+mcp.settings.streamable_http_path = "/mcp_internal"
 mcp.settings.message_path = "/messages/"
+mcp.settings.stateless_http = True
+mcp.settings.json_response = True
+
+
+class _AppLifespan:
+    def __init__(self, app):
+        self.app = app
+        self._context = app.router.lifespan_context(app)
+
+    async def __aenter__(self) -> None:
+        await self._context.__aenter__()
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self._context.__aexit__(exc_type, exc, tb)
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -314,13 +332,136 @@ def main() -> None:
     host = _resolve_host()
     port = _resolve_port()
     logger.info("Starting MCP server on %s:%s (mount=/mcp)", host, port)
+    mcp.settings.host = host
+    mcp.settings.port = port
 
-    mcp.run(
-        transport="http",
-        host=host,
-        port=port,
-        mount_path="/mcp",
-    )
+    inner_app = mcp.streamable_http_app()
+    proxy_app = create_proxy_app(inner_app)
+
+    import uvicorn
+
+    uvicorn.run(proxy_app, host=host, port=port, log_level="info")
+
+
+def create_proxy_app(inner_app) -> FastAPI:
+    app = FastAPI()
+    logger = logging.getLogger("arcadia.mcp.proxy")
+    lifespan_manager: _AppLifespan | None = None
+
+    @app.on_event("startup")
+    async def startup() -> None:
+        nonlocal lifespan_manager
+        lifespan_manager = _AppLifespan(inner_app)
+        await lifespan_manager.__aenter__()
+
+    @app.on_event("shutdown")
+    async def shutdown() -> None:
+        nonlocal lifespan_manager
+        if lifespan_manager is not None:
+            await lifespan_manager.__aexit__(None, None, None)
+
+    @app.get("/health")
+    async def health() -> Dict[str, str]:
+        return {"status": "ok", "service": "arcadia-mcp"}
+
+    @app.get("/mcp/health")
+    async def scoped_health() -> Dict[str, str]:
+        return {"status": "ok", "service": "arcadia-mcp"}
+
+    @app.post("/mcp")
+    async def proxy(request: Request) -> Response:
+        body = await request.body()
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            logger.warning("Received non-JSON payload on /mcp")
+            payload = None
+        else:
+            if isinstance(payload, dict):
+                method = payload.get("method")
+                if isinstance(method, str) and "." in method:
+                    payload["method"] = method.replace(".", "/")
+                    method = payload["method"]
+
+                if method == "initialize":
+                    params = payload.setdefault("params", {})
+                    if "clientInfo" not in params:
+                        client_info = params.get("client")
+                        if isinstance(client_info, dict):
+                            params["clientInfo"] = client_info
+                        else:
+                            params["clientInfo"] = {"name": "HostedMCPTool", "version": "1.0"}
+                    params.setdefault(
+                        "protocolVersion",
+                        request.headers.get("mcp-protocol-version", "2025-06-18"),
+                    )
+                    params.setdefault("capabilities", {})
+                    params.pop("client", None)
+
+                body = json.dumps(payload).encode("utf-8")
+            else:
+                logger.debug("Unexpected payload type for /mcp: %s", type(payload))
+
+        quoted_headers = _prepare_headers(request.scope["headers"], body)
+
+        scope = dict(request.scope)
+        scope["path"] = mcp.settings.streamable_http_path
+        scope["headers"] = quoted_headers
+
+        try:
+            status, headers, content = await _call_inner_app(inner_app, scope, body)
+        except Exception:  # noqa: BLE001
+            logger.exception("Unhandled exception proxying MCP request")
+            return Response(content="Internal Server Error", status_code=500)
+
+        if status >= 400:
+            logger.warning(
+                "MCP inner app returned %s for method %s: %s",
+                status,
+                payload.get("method") if isinstance(payload, dict) else "<unknown>",
+                content.decode(errors="ignore"),
+            )
+
+        return Response(
+            content=content,
+            status_code=status,
+            headers={k.decode(): v.decode() for k, v in headers},
+            media_type=None,
+        )
+
+    return app
+
+
+def _prepare_headers(headers: Iterable[Tuple[bytes, bytes]], body: bytes) -> list[tuple[bytes, bytes]]:
+    filtered = [(k, v) for k, v in headers if k not in {b"content-length", b"accept"}]
+    filtered.append((b"content-length", str(len(body)).encode()))
+    filtered.append((b"accept", b"application/json, text/event-stream"))
+    return filtered
+
+
+async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tuple[bytes, bytes]], bytes]:
+    response_body = bytearray()
+    response_headers: list[Tuple[bytes, bytes]] = []
+    status_code = 500
+
+    async def receive() -> Message:
+        nonlocal body
+        if body is not None:
+            chunk = body
+            body = None
+            return {"type": "http.request", "body": chunk, "more_body": False}
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        nonlocal status_code, response_headers, response_body
+        if message["type"] == "http.response.start":
+            status_code = message["status"]
+            response_headers = message.get("headers", [])
+        elif message["type"] == "http.response.body":
+            response_body.extend(message.get("body", b""))
+
+    await app(scope, receive, send)
+    return status_code, response_headers, bytes(response_body)
 
 
 if __name__ == "__main__":
