@@ -30,10 +30,14 @@ struct SettingsView: View {
                     .disableAutocorrection(true)
                 SecureField("Domain key (optional)", text: $domainKey)
                 Button("Save Backend Settings") {
-                    settings.chatkitBackendURL = backendURL
-                    settings.chatkitDomainKey = domainKey
+                    let trimmedBackend = backendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmedDomain = domainKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    settings.chatkitBackendURL = trimmedBackend
+                    settings.chatkitDomainKey = trimmedDomain
+                    backendURL = trimmedBackend
+                    domainKey = trimmedDomain
                 }
-                Text("Arcadia Coach connects directly to your ChatKit Python server. Provide a domain key only if your backend requires it.")
+                Text("Arcadia Coach connects directly to your ChatKit server. Add the domain key from the ChatKit dashboard so custom backends render correctly.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

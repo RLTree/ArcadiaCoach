@@ -105,6 +105,9 @@ struct AdvancedChatKitView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: webConfiguration)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
+        if #available(macOS 13.3, *) {
+            webView.isInspectable = true
+        }
 
         let trimmedWidget = widgetBase64.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedWidget.isEmpty {

@@ -35,55 +35,85 @@ struct ChatPanel: View {
     }
 
     private var configurationMessage: String? {
-        if settings.chatkitBackendURL.isEmpty {
+        if trimmedBackendURL.isEmpty {
             return "Set your ChatKit backend URL in Settings to enable the custom server."
         }
         if normalizedChatkitURL == nil {
             return "Backend URL looks invalid. Use a full URL like https://localhost:8000/chatkit."
+        }
+        if trimmedDomainKey.isEmpty {
+            return "Add your ChatKit domain key in Settings. ChatKit blocks custom backends until the domain is allow-listed."
         }
         return nil
     }
 
     private var advancedConfiguration: AdvancedChatKitConfiguration? {
         guard let apiURL = normalizedChatkitURL else { return nil }
+        let domainKey = trimmedDomainKey
         return AdvancedChatKitConfiguration(
             agentId: nil,
             token: nil,
             apiURL: apiURL.absoluteString,
-            domainKey: settings.chatkitDomainKey.isEmpty ? nil : settings.chatkitDomainKey,
+            domainKey: domainKey.isEmpty ? nil : domainKey,
             uploadURL: normalizedUploadURL
         )
     }
 
     private var normalizedChatkitURL: URL? {
-        normalizedChatkitURL(from: settings.chatkitBackendURL)
+        normalizedChatkitURL(from: trimmedBackendURL)
     }
 
     private var normalizedUploadURL: String? {
-        normalizedUploadURL(from: settings.chatkitBackendURL)
+        normalizedUploadURL(from: trimmedBackendURL)
+    }
+
+    private var trimmedBackendURL: String {
+        settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedDomainKey: String {
+        settings.chatkitDomainKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func normalizedChatkitURL(from value: String) -> URL? {
         guard !value.isEmpty, var components = URLComponents(string: value) else { return nil }
-        var path = components.path
-        if path.isEmpty || path == "/" {
-            path = "/chatkit"
-        } else if !path.hasSuffix("/chatkit") {
-            path = path.hasSuffix("/") ? path + "chatkit" : path + "/chatkit"
-        }
-        components.path = path
+        var segments = pathSegments(from: components.path)
+        segments = ensureSuffix(segments, suffix: ["chatkit"])
+        components.path = buildPath(from: segments)
         return components.url
     }
 
     private func normalizedUploadURL(from value: String) -> String? {
         guard !value.isEmpty, var components = URLComponents(string: value) else { return nil }
-        var path = components.path
-        if path.isEmpty || path == "/" {
-            path = "/api/chatkit/upload"
-        } else if !path.hasSuffix("/api/chatkit/upload") {
-            path = path.hasSuffix("/") ? path + "api/chatkit/upload" : path + "/api/chatkit/upload"
-        }
-        components.path = path
+        var segments = pathSegments(from: components.path)
+        segments = ensureSuffix(segments, suffix: ["api", "chatkit", "upload"])
+        components.path = buildPath(from: segments)
         return components.url?.absoluteString
+    }
+
+    private func pathSegments(from path: String) -> [String] {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !trimmed.isEmpty else { return [] }
+        return trimmed.split(separator: "/").map(String.init)
+    }
+
+    private func ensureSuffix(_ segments: [String], suffix: [String]) -> [String] {
+        var current = segments
+        var matchCount = min(current.count, suffix.count)
+        while matchCount > 0 {
+            let tail = Array(current.suffix(matchCount))
+            let expected = Array(suffix.prefix(matchCount))
+            if tail == expected {
+                break
+            }
+            matchCount -= 1
+        }
+        current.append(contentsOf: suffix.dropFirst(matchCount))
+        return current
+    }
+
+    private func buildPath(from segments: [String]) -> String {
+        guard !segments.isEmpty else { return "/chatkit" } // default path when no base provided
+        return "/" + segments.joined(separator: "/")
     }
 }
