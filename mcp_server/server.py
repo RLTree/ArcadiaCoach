@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import Enum
 from typing import List, Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -7,20 +8,26 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
 
+class WidgetType(str, Enum):
+    CARD = "Card"
+    LIST = "List"
+    STAT_ROW = "StatRow"
+
+
 class WidgetCardSection(BaseModel):
     heading: Optional[str] = None
-    items: List[str] = Field(default_factory=list)
+    items: List[str] = Field(default_factory=list, max_length=8)
 
 
 class WidgetCardProps(BaseModel):
     title: str
-    sections: Optional[List[WidgetCardSection]] = None
+    sections: Optional[List[WidgetCardSection]] = Field(default_factory=list)
 
 
 class WidgetListRow(BaseModel):
     label: str
-    href: Optional[str] = None
-    meta: Optional[str] = None
+    href: Optional[str] = Field(default=None, description="Optional deep link to supporting material.")
+    meta: Optional[str] = Field(default=None, description="Short annotation for the row.")
 
 
 class WidgetListProps(BaseModel):
@@ -38,16 +45,37 @@ class WidgetStatRowProps(BaseModel):
 
 
 class Widget(BaseModel):
-    type: str
+    type: WidgetType
     propsCard: Optional[WidgetCardProps] = None
     propsList: Optional[WidgetListProps] = None
     propsStat: Optional[WidgetStatRowProps] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "type": "Card",
+                    "propsCard": {
+                        "title": "Sample Widget",
+                        "sections": [{"heading": "Overview", "items": ["Point A", "Point B"]}],
+                    },
+                }
+            ]
+        }
+    }
 
 
 class WidgetEnvelope(BaseModel):
     display: Optional[str] = None
     widgets: List[Widget]
-    citations: Optional[List[str]] = None
+    citations: Optional[List[str]] = Field(
+        default=None,
+        description="Optional supporting citations to display alongside the widget content.",
+    )
+
+
+def _resolve_host() -> str:
+    return os.getenv("HOST", os.getenv("MCP_HOST", "0.0.0.0"))
 
 
 def _resolve_port() -> int:
@@ -60,12 +88,10 @@ def _resolve_port() -> int:
 
 mcp = FastMCP(
     name="Arcadia Coach Widgets",
-    instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
-    host="0.0.0.0",
-    port=_resolve_port(),
-    mount_path="/mcp",
-    sse_path="/sse",
+    version="1.1.0",
+    description="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
 )
+mcp.settings.streamable_http_path = "/mcp"
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -77,7 +103,7 @@ async def health_route(_request):
 def lesson_catalog(topic: str) -> WidgetEnvelope:
     """Generate a widget envelope for a requested lesson topic."""
     card = Widget(
-        type="Card",
+        type=WidgetType.CARD,
         propsCard=WidgetCardProps(
             title=f"Core ideas of {topic.title()}",
             sections=[
@@ -100,7 +126,7 @@ def lesson_catalog(topic: str) -> WidgetEnvelope:
         ),
     )
     checklist = Widget(
-        type="List",
+        type=WidgetType.LIST,
         propsList=WidgetListProps(
             title="Micro tasks",
             rows=[
@@ -114,7 +140,7 @@ def lesson_catalog(topic: str) -> WidgetEnvelope:
         ),
     )
     stats = Widget(
-        type="StatRow",
+        type=WidgetType.STAT_ROW,
         propsStat=WidgetStatRowProps(
             items=[
                 WidgetStatItem(label="Focus chunks", value="3"),
@@ -138,7 +164,7 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
     """Return quiz recap widgets, including Elo deltas."""
     score_percent = int((correct / max(total, 1)) * 100)
     recap = Widget(
-        type="Card",
+        type=WidgetType.CARD,
         propsCard=WidgetCardProps(
             title=f"Quiz recap • {topic.title()}",
             sections=[
@@ -160,18 +186,20 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
         ),
     )
     stat_row = Widget(
-        type="StatRow",
+        type=WidgetType.STAT_ROW,
         propsStat=WidgetStatRowProps(
             items=[
                 WidgetStatItem(label="Δ Coding Elo", value="+18"),
                 WidgetStatItem(label="Δ MATH", value="+9"),
-                WidgetStatItem(label="Focus streak",
-                               value=f"{datetime.utcnow().strftime('%j')}d"),
+                WidgetStatItem(
+                    label="Focus streak",
+                    value=f"{datetime.now(timezone.utc).timetuple().tm_yday}d",
+                ),
             ]
         ),
     )
     drill_list = Widget(
-        type="List",
+        type=WidgetType.LIST,
         propsList=WidgetListProps(
             title="Next drills",
             rows=[
@@ -195,7 +223,7 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
 def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope:
     """Celebrate a milestone and propose next steps."""
     celebration = Widget(
-        type="Card",
+        type=WidgetType.CARD,
         propsCard=WidgetCardProps(
             title=f"Milestone: {name}",
             sections=[
@@ -218,7 +246,7 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
         ),
     )
     next_steps = Widget(
-        type="List",
+        type=WidgetType.LIST,
         propsList=WidgetListProps(
             title="Suggested quests",
             rows=[
@@ -242,7 +270,7 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
 def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
     """Provide a focus sprint checklist tailored to the preferred chunk size."""
     checklist = Widget(
-        type="List",
+        type=WidgetType.LIST,
         propsList=WidgetListProps(
             title=f"Focus sprint ({duration_minutes} min)",
             rows=[
@@ -256,7 +284,7 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
         ),
     )
     stats = Widget(
-        type="StatRow",
+        type=WidgetType.STAT_ROW,
         propsStat=WidgetStatRowProps(
             items=[
                 WidgetStatItem(label="Chunk length",
@@ -274,7 +302,11 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
 
 
 def main() -> None:
-    mcp.run(transport="streamable-http", mount_path="/mcp")
+    mcp.run(
+        transport="streamable-http",
+        host=_resolve_host(),
+        port=_resolve_port(),
+    )
 
 
 if __name__ == "__main__":
