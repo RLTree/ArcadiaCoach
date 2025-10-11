@@ -89,16 +89,18 @@ def _resolve_port() -> int:
 mcp = FastMCP(
     name="Arcadia Coach Widgets",
     instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
-    host=_resolve_host(),
-    port=_resolve_port(),
-    mount_path="/mcp",
-    sse_path="/sse",
-    streamable_http_path="/mcp",
 )
+mcp.settings.streamable_http_path = "/mcp"
+mcp.settings.message_path = "/messages/"
 
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health_route(_request):
+    return JSONResponse({"status": "ok", "service": "arcadia-mcp"})
+
+
+@mcp.custom_route("/mcp/health", methods=["GET"])
+async def scoped_health_route(_request):
     return JSONResponse({"status": "ok", "service": "arcadia-mcp"})
 
 
@@ -305,7 +307,20 @@ def focus_sprint(duration_minutes: int = 25) -> WidgetEnvelope:
 
 
 def main() -> None:
-    mcp.run(transport="streamable-http")
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    host = _resolve_host()
+    port = _resolve_port()
+    logger.info("Starting MCP server on %s:%s (mount=/mcp)", host, port)
+
+    mcp.run(
+        transport="http",
+        host=host,
+        port=port,
+        mount_path="/mcp",
+    )
 
 
 if __name__ == "__main__":

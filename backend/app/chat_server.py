@@ -272,6 +272,30 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                         "Uploaded files received:\n" + "\n".join(summaries),
                     )
                 )
+        elif action_type == "start_lesson":
+            topic = payload.get("topic") or "general topic"
+            yield ThreadItemDoneEvent(
+                item=self._assistant_message(
+                    thread,
+                    f"Starting lesson on {topic}. Let me prepare the materials...",
+                )
+            )
+        elif action_type == "start_quiz":
+            topic = payload.get("topic") or "general topic"
+            yield ThreadItemDoneEvent(
+                item=self._assistant_message(
+                    thread,
+                    f"Preparing quiz on {topic}...",
+                )
+            )
+        elif action_type == "milestone":
+            milestone_name = payload.get("name") or "Achievement"
+            yield ThreadItemDoneEvent(
+                item=self._assistant_message(
+                    thread,
+                    f"Recording milestone: {milestone_name}",
+                )
+            )
         else:
             return
 
@@ -536,36 +560,6 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 ]
             )
 
-        if prefs.uploaded_files:
-            attachment_rows = []
-            for ref in prefs.uploaded_files:
-                preview_text = ref.preview if ref.preview else f"{ref.mime_type}, {ref.size} bytes"
-                attachment_rows.append(
-                    Row(
-                        key=f"file_{ref.storage_id}",
-                        align="center",
-                        gap=2,
-                        children=[
-                            Icon(name="document", color="secondary"),
-                            Markdown(
-                                value=f"**{ref.name}** ({ref.mime_type}, {ref.size} bytes)\\n{preview_text}"
-                            ),
-                        ],
-                    )
-                )
-            body_children.extend(
-                [
-                    Divider(),
-                    Col(
-                        gap=2,
-                        children=[
-                            Caption(value="Attached files", color="secondary"),
-                            Col(gap=1, children=attachment_rows),
-                        ],
-                    ),
-                ]
-            )
-
         body = Col(
             padding=4,
             gap=2,
@@ -601,6 +595,13 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 )
             ],
         )
+        try:
+            card_json = card.model_dump_json()
+            logger.info("Widget card built successfully (bytes=%s)", len(card_json))
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Widget card serialization failed: %s", exc)
+            return None
+
         return card
 
     def _assistant_message_text(self, item: AssistantMessageItem) -> str:

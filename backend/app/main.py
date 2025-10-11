@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, Optional
 
 from chatkit.server import StreamingResult
@@ -8,8 +9,11 @@ from starlette.responses import JSONResponse
 
 from .chat_server import ArcadiaChatServer, create_chat_server
 from .config import Settings, get_settings
+from .logging_config import configure_logging
 
 
+configure_logging()
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Arcadia Coach Backend", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+settings_snapshot = get_settings()
+logger.info("Backend starting with MCP URL: %s", settings_snapshot.arcadia_mcp_url)
+logger.info("OpenAI API key configured: %s", bool(settings_snapshot.openai_api_key))
 
 
 _chat_server: Optional[ArcadiaChatServer] = None
