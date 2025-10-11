@@ -24,8 +24,19 @@
 <body>
   <div id="chatkit-root"></div>
   <script type="module">
-    import { ChatKit } from "https://cdn.openai.com/chatkit/latest/chatkit.js";
-
+    console.debug("[ArcadiaChatKit] bootstrap starting");
+    let ChatKitModule;
+    try {
+      ChatKitModule = await import("https://cdn.openai.com/chatkit/latest/chatkit.js");
+    } catch (error) {
+      console.error("[ArcadiaChatKit] Failed to import ChatKit module", error);
+      window.arcadiaChatKitMount = () => {};
+      throw error;
+    }
+    const { ChatKit } = ChatKitModule ?? {};
+    if (!ChatKit) {
+      console.error("[ArcadiaChatKit] ChatKit export missing from module", ChatKitModule);
+    }
     const widgetBase64Raw = "%WIDGET_BASE64%";
     const widgetBase64 = widgetBase64Raw ? widgetBase64Raw.replace(/\s+/g, "") : "";
     const configBase64Raw = "%CHATKIT_CONFIG_BASE64%";
