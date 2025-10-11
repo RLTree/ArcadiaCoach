@@ -10,4 +10,5 @@ final class AppSettings: ObservableObject {
     @AppStorage("minimalMode") var minimalMode: Bool = false
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
     @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
+    @AppStorage("openaiApiKey") var openaiApiKey: String = ""
 }

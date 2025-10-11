@@ -2,11 +2,29 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @State private var apiKey: String = ""
     @State private var backendURL: String = ""
     @State private var domainKey: String = ""
 
     var body: some View {
         Form {
+            Section("OpenAI API") {
+                SecureField("OPENAI_API_KEY", text: $apiKey)
+                    .textContentType(.password)
+                    .autocorrectionDisabled(true)
+                Button("Save API Key") {
+                    settings.openaiApiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                if settings.openaiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Add your OpenAI API key so the Arcadia backend can authenticate with OpenAI.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("API key saved locally. Update the backend if needed.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section("ChatKit Backend") {
                 TextField("Backend base URL", text: $backendURL)
                     .disableAutocorrection(true)
@@ -40,6 +58,7 @@ struct SettingsView: View {
         }
         .padding()
         .onAppear {
+            apiKey = settings.openaiApiKey
             backendURL = settings.chatkitBackendURL
             domainKey = settings.chatkitDomainKey
         }

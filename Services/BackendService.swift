@@ -147,8 +147,25 @@ final class BackendService {
         }
     }
 
-    private static func endpoint(baseURL: String, path: String) -> URL? {
+    static func endpoint(baseURL: String, path: String) -> URL? {
         guard let base = URL(string: baseURL) else { return nil }
         return base.appendingPathComponent(path, isDirectory: false)
+    }
+}
+
+extension BackendServiceError: Equatable {
+    static func == (lhs: BackendServiceError, rhs: BackendServiceError) -> Bool {
+        switch (lhs, rhs) {
+        case (.missingBackend, .missingBackend):
+            return true
+        case (.invalidURL, .invalidURL):
+            return true
+        case let (.transportFailure(ls, lb), .transportFailure(rs, rb)):
+            return ls == rs && lb == rb
+        case let (.decodingFailure(le), .decodingFailure(re)):
+            return le == re
+        default:
+            return false
+        }
     }
 }

@@ -10,6 +10,7 @@ from uuid import uuid4
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+import json
 import logging
 from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
@@ -147,10 +148,10 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
         return expecting.model_validate({"widgets": payload})
     if isinstance(payload, str):
         try:
-            return expecting.model_validate_json(payload)
-        except ValidationError as exc:
+            data = json.loads(payload)
+        except json.JSONDecodeError as exc:
             logger.error(
-                "Failed to decode string payload into %s: %s",
+                "Failed to decode JSON string payload into %s: %s",
                 expecting.__name__,
                 exc,
             )
@@ -158,6 +159,16 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Agent returned malformed payload for {expecting.__name__}",
             ) from exc
+        if isinstance(data, dict) and expecting in (EndLearn, EndQuiz, EndMilestone) and "intent" not in data:
+            if expecting == EndLearn:
+                data["intent"] = "lesson"
+            elif expecting == EndQuiz:
+                data["intent"] = "quiz"
+                data.setdefault("elo", {})
+                data.setdefault("last_quiz", None)
+            elif expecting == EndMilestone:
+                data["intent"] = "milestone"
+        return expecting.model_validate(data)
     try:
         return expecting.model_validate(payload)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - guardrail
