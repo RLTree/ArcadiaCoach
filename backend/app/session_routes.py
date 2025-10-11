@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, Type, TypeVar, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 import logging
 from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
+from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import BaseModel, Field, ValidationError
 
 from .agent_models import EndLearn, EndMilestone, EndQuiz, WidgetEnvelope
@@ -45,13 +46,8 @@ def _effort(reasoning: str) -> str:
 def _session_state(session_id: Optional[str]) -> SessionState:
     key = session_id or "default"
     if key not in _session_states:
-        thread = ThreadMetadata(
+        thread = ThreadMetadata.model_construct(
             id=f"session-{key}-{uuid4().hex[:8]}",
-            created_at=datetime.now(UTC),
-            metadata={},
-            name=f"Arcadia Session {key}",
-            summary=None,
-            updated_at=datetime.now(UTC),
         )
         _session_states[key] = SessionState(store=MemoryStore(), thread=thread)
     return _session_states[key]
@@ -71,8 +67,9 @@ async def _run_structured(
     expecting: Type[T],
 ) -> T:
     state = _session_state(session_id)
-    agent = get_arcadia_agent(settings.arcadia_agent_model, settings.arcadia_agent_enable_web)
-    context = ArcadiaAgentContext(
+    agent = get_arcadia_agent(
+        settings.arcadia_agent_model, settings.arcadia_agent_enable_web)
+    context = ArcadiaAgentContext.model_construct(
         thread=state.thread,
         store=state.store,
         request_context={},
@@ -89,14 +86,16 @@ async def _run_structured(
             run_config=RunConfig(
                 model_settings=ModelSettings(
                     reasoning=Reasoning(
-                        effort=_effort(settings.arcadia_agent_reasoning),
+                        effort=cast(ReasoningEffort, _effort(
+                            settings.arcadia_agent_reasoning)),
                         summary="auto",
                     ),
                 )
             ),
         )
     except AuthenticationError as exc:
-        logger.error("OpenAI authentication error while running agent: %s", exc)
+        logger.error(
+            "OpenAI authentication error while running agent: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Arcadia backend is not authorized with OpenAI. Update OPENAI_API_KEY and try again.",
@@ -121,8 +120,28 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
     if isinstance(payload, expecting):
         return payload
     if isinstance(payload, BaseModel):
+        if isinstance(payload, WidgetEnvelope) and expecting in (EndLearn, EndQuiz, EndMilestone):
+            data = payload.model_dump()
+            if expecting == EndLearn:
+                data["intent"] = "lesson"
+            elif expecting == EndQuiz:
+                data["intent"] = "quiz"
+                data.setdefault("elo", {})
+                data.setdefault("last_quiz", None)
+            elif expecting == EndMilestone:
+                data["intent"] = "milestone"
+            return expecting.model_validate(data)
         return expecting.model_validate(payload.model_dump())
     if isinstance(payload, dict):
+        if expecting in (EndLearn, EndQuiz, EndMilestone) and "intent" not in payload:
+            if expecting == EndLearn:
+                payload["intent"] = "lesson"
+            elif expecting == EndQuiz:
+                payload["intent"] = "quiz"
+                payload.setdefault("elo", {})
+                payload.setdefault("last_quiz", None)
+            elif expecting == EndMilestone:
+                payload["intent"] = "milestone"
         return expecting.model_validate(payload)
     if isinstance(payload, list):
         return expecting.model_validate({"widgets": payload})

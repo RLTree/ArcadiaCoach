@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     arcadia_mcp_require_approval: str = Field("never", alias="ARCADIA_MCP_REQUIRE_APPROVAL")
     debug_endpoints: bool = Field(False, alias="ARCADIA_DEBUG_ENDPOINTS")
     arcadia_agent_model: str = Field("gpt-5", alias="ARCADIA_AGENT_MODEL")
-    arcadia_agent_reasoning: str = Field("medium", alias="ARCADIA_AGENT_REASONING")
+    arcadia_agent_reasoning: Literal["minimal", "low", "medium", "high"] = Field("medium", alias="ARCADIA_AGENT_REASONING")
     arcadia_agent_enable_web: bool = Field(False, alias="ARCADIA_AGENT_ENABLE_WEB")
 
     class Config:
