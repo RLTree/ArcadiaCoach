@@ -90,7 +90,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.logger = logging.getLogger("arcadia.mcp.auth")
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ("/health", "/mcp/health", "/"):
+        if request.method == "OPTIONS" or request.url.path in ("/health", "/mcp/health", "/"):
             return await call_next(request)
 
         expected_token = os.getenv("MCP_API_TOKEN")
@@ -881,3 +881,13 @@ async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tup
 
 if __name__ == "__main__":
     main()
+    @app.options("/mcp")
+    async def mcp_options() -> Response:
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+            },
+        )
