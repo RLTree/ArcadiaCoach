@@ -888,6 +888,17 @@ if __name__ == "__main__":
             headers={
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Methods": "POST, OPTIONS, HEAD",
+            },
+        )
+
+    @app.head("/mcp")
+    async def mcp_head() -> Response:
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Methods": "POST, OPTIONS, HEAD",
             },
         )
