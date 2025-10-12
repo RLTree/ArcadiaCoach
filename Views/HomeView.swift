@@ -139,6 +139,16 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if !showOnboarding {
+                Button {
+                    showOnboarding = true
+                } label: {
+                    Label("Run Onboarding", systemImage: "person.crop.circle.badge.plus")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Re-run onboarding setup")
+            }
             if !settings.minimalMode {
                 VStack(alignment: .trailing, spacing: 6) {
                     Text("Chunks per session: \(settings.focusChunks)")

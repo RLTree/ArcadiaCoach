@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
@@ -46,7 +46,7 @@ class OnboardingPlanResult(BaseModel):
 def _reasoning_effort(value: str) -> ReasoningEffort:
     allowed = {"minimal", "low", "medium", "high"}
     effort = value if value in allowed else "medium"
-    return ReasoningEffort(effort)  # type: ignore[arg-type]
+    return cast(ReasoningEffort, effort)
 
 
 def _slugify(value: str, fallback: str) -> str:

@@ -135,78 +135,78 @@ struct OnboardingAssessmentFlow: View {
     @ViewBuilder
     private func taskDetail(for assessment: OnboardingAssessment) -> some View {
         let tasks = assessment.tasks
-        guard !tasks.isEmpty else {
+        if tasks.isEmpty {
             Text("No tasks to display.")
                 .foregroundStyle(.secondary)
-            return
-        }
-        let index = min(activeIndex, tasks.count - 1)
-        let task = tasks[index]
-        let response = Binding(
-            get: { appVM.response(for: task.taskId) },
-            set: { appVM.setResponse($0, for: task.taskId) }
-        )
+        } else {
+            let index = min(activeIndex, tasks.count - 1)
+            let task = tasks[index]
+            let response = Binding(
+                get: { appVM.response(for: task.taskId) },
+                set: { appVM.setResponse($0, for: task.taskId) }
+            )
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(task.title)
-                        .font(.title2)
-                        .bold()
-                    Spacer()
-                    Text("Expected \(task.expectedMinutes) min")
-                        .font(.footnote)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(task.title)
+                            .font(.title2)
+                            .bold()
+                        Spacer()
+                        Text("Expected \(task.expectedMinutes) min")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(categoryLabel(for: task.categoryKey))
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
-                }
-                Text(categoryLabel(for: task.categoryKey))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(task.prompt)
-                    .font(.body)
-                if !task.guidance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(task.guidance)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                if !task.rubric.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Rubric checkpoints")
-                            .font(.headline)
-                        ForEach(task.rubric, id: \.self) { item in
-                            Text("• \(item)")
-                                .font(.footnote)
+                    Text(task.prompt)
+                        .font(.body)
+                    if !task.guidance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(task.guidance)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !task.rubric.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Rubric checkpoints")
+                                .font(.headline)
+                            ForEach(task.rubric, id: \.self) { item in
+                                Text("• \(item)")
+                                    .font(.footnote)
+                            }
+                        }
+                    }
+
+                    if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
+                        Button("Insert starter code") {
+                            appVM.insertStarter(for: task)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                    }
+
+                    TextEditor(text: response)
+                        .font(task.taskType == .code ? .system(.body, design: .monospaced) : .body)
+                        .frame(minHeight: task.taskType == .code ? 220 : 160)
+                        .padding(10)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.secondary.opacity(0.25))
+                        )
+
+                    if task.taskType == .code, let answer = task.answerKey, !answer.isEmpty {
+                        DisclosureGroup("Agent reference solution") {
+                            Text(answer)
+                                .font(.system(.footnote, design: .monospaced))
+                                .padding(12)
+                                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
                         }
                     }
                 }
-
-                if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
-                    Button("Insert starter code") {
-                        appVM.insertStarter(for: task)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-                }
-
-                TextEditor(text: response)
-                    .font(task.taskType == .code ? .system(.body, design: .monospaced) : .body)
-                    .frame(minHeight: task.taskType == .code ? 220 : 160)
-                    .padding(10)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.25))
-                    )
-
-                if task.taskType == .code, let answer = task.answerKey, !answer.isEmpty {
-                    DisclosureGroup("Agent reference solution") {
-                        Text(answer)
-                            .font(.system(.footnote, design: .monospaced))
-                            .padding(12)
-                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
         }
     }
 
