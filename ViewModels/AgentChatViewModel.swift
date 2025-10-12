@@ -21,22 +21,28 @@ final class AgentChatViewModel: ObservableObject {
         guard !welcomed else { return }
         welcomed = true
         if !isBackendReady {
-            messages = [ChatMessage(role: .assistant, text: "Set the ChatKit backend URL in Settings to start chatting.")]
+            messages = [ChatMessage(role: .assistant, text: "Set your Arcadia backend URL in Settings to start chatting.")]
         } else {
             messages = [ChatMessage(role: .assistant, text: "Hi! I’m your Arcadia Coach. What would you like to explore today?")]
         }
     }
 
     func handleBackendChange(_ url: String) {
-        backendURL = url
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let alreadyConfigured = trimmed == backendURL
+        backendURL = trimmed
+        prepareWelcomeMessage(isBackendReady: !trimmed.isEmpty)
+        if alreadyConfigured {
+            return
+        }
         welcomed = false
         messages.removeAll()
         let previousKey = sessionKey
         Task {
-            await BackendService.resetSession(baseURL: url, sessionId: previousKey)
+            await BackendService.resetSession(baseURL: trimmed, sessionId: previousKey)
         }
         sessionKey = UUID().uuidString
-        prepareWelcomeMessage(isBackendReady: !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        prepareWelcomeMessage(isBackendReady: !trimmed.isEmpty)
     }
 
     func statusLabel() -> String {

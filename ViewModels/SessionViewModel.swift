@@ -71,7 +71,7 @@ final class SessionViewModel: ObservableObject {
             guard !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw SessionActionError(
                     action: action,
-                    message: "Set the ChatKit backend URL in Settings before launching a \(action.rawValue.lowercased()) flow."
+                    message: "Set your Arcadia backend URL in Settings before launching a \(action.rawValue.lowercased()) flow."
                 )
             }
             activeAction = action

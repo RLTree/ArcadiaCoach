@@ -15,9 +15,9 @@ enum BackendServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingBackend:
-            return "Configure the ChatKit backend URL in Settings before starting a session."
+            return "Configure the Arcadia backend URL in Settings before starting a session."
         case .invalidURL:
-            return "The ChatKit backend URL looks invalid. Double-check the value in Settings."
+            return "The Arcadia backend URL looks invalid. Double-check the value in Settings."
         case let .transportFailure(status, body):
             let snippet = body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280)
             return "The Arcadia backend returned status \(status). \(snippet)"

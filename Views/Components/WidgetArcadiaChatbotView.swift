@@ -83,7 +83,7 @@ struct WidgetArcadiaChatbotView: View {
         let backend = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !backend.isEmpty else {
             await MainActor.run {
-                appendAssistantMessage("Set the ChatKit backend URL in Settings to continue.")
+                appendAssistantMessage("Set your Arcadia backend URL in Settings to continue.")
             }
             return
         }

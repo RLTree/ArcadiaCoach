@@ -11,8 +11,8 @@ struct OnboardingView: View {
             Text("A calm, game-inspired workspace tuned for AuDHD learning.")
                 .font(.title3)
             VStack(alignment: .leading, spacing: 10) {
-                Label("Set your ChatKit backend URL to reach the Arcadia server", systemImage: "globe")
-                Label("Add the optional domain key if your backend requires it", systemImage: "lock.shield")
+                Label("Set your Arcadia backend URL so the app can reach your server", systemImage: "globe")
+                Label("Add the optional domain key if you still embed ChatKit in the browser view", systemImage: "lock.shield")
                 Label("Confirm your accessibility preferences (motion, contrast, audio)", systemImage: "eye")
             }
             .font(.body)
