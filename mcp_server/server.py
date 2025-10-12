@@ -15,7 +15,6 @@ from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import StreamableHTTPServerTransport
 from pydantic import BaseModel, Field
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope, Receive, Send
 
@@ -81,29 +80,6 @@ class ProductionErrorMiddleware(BaseHTTPMiddleware):
                 status_code=500,
             )
 
-
-class AuthMiddleware(BaseHTTPMiddleware):
-    """Simple bearer token authentication for production deployments."""
-
-    def __init__(self, app):
-        super().__init__(app)
-        self.logger = logging.getLogger("arcadia.mcp.auth")
-
-    async def dispatch(self, request: Request, call_next):
-        if request.method == "OPTIONS" or request.url.path in ("/health", "/mcp/health", "/"):
-            return await call_next(request)
-
-        expected_token = os.getenv("MCP_API_TOKEN")
-        if not expected_token:
-            return await call_next(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[len("Bearer ") :].strip()
-            if provided == expected_token:
-                return await call_next(request)
-
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
 _original_handle_post_request = StreamableHTTPServerTransport._handle_post_request
 
@@ -756,7 +732,6 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
     lifespan_manager: _AppLifespan | None = None
 
     app.add_middleware(ProductionErrorMiddleware, include_traceback=include_traceback)
-    app.add_middleware(AuthMiddleware)
 
     @app.on_event("startup")
     async def startup() -> None:
