@@ -125,6 +125,32 @@ struct DeveloperSubmissionDashboard: View {
                 .padding(10)
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
             }
+            if let grading = submission.grading {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Automated grading")
+                        .font(.subheadline.bold())
+                    Text(grading.overallFeedback)
+                        .font(.footnote)
+                    if !grading.categoryOutcomes.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(grading.categoryOutcomes) { outcome in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(outcome.categoryKey)
+                                        .font(.caption.bold())
+                                    Text("Rating \(outcome.initialRating)")
+                                        .font(.caption2)
+                                    Text("Avg score \(Int(outcome.averageScore * 100))%")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

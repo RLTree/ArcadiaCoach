@@ -235,28 +235,44 @@ struct HomeView: View {
     }
 
     private var dashboardTab: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(spacing: 18) {
-                header
-                if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
-                    assessmentBanner(status: bundle.status)
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+                .ignoresSafeArea()
+
+            if appVM.awaitingAssessmentResults {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Waiting for assessment results…")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
                 }
-                if !settings.minimalMode && !allEloItems.isEmpty {
-                    WidgetStatRowView(props: .init(items: allEloItems))
-                        .environmentObject(settings)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 18) {
+                        header
+                        if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
+                            assessmentBanner(status: bundle.status)
+                        }
+                        if !settings.minimalMode && !allEloItems.isEmpty {
+                            WidgetStatRowView(props: .init(items: allEloItems))
+                                .environmentObject(settings)
+                        }
+                        if let plan = appVM.eloPlan, !plan.categories.isEmpty {
+                            EloPlanSummaryView(plan: plan)
+                                .transition(.opacity)
+                        }
+                        if let curriculum = appVM.curriculumPlan {
+                            CurriculumOutlineView(plan: curriculum)
+                                .transition(.opacity)
+                        }
+                        sessionControls
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(24)
                 }
-                if let plan = appVM.eloPlan, !plan.categories.isEmpty {
-                    EloPlanSummaryView(plan: plan)
-                        .transition(.opacity)
-                }
-                if let curriculum = appVM.curriculumPlan {
-                    CurriculumOutlineView(plan: curriculum)
-                        .transition(.opacity)
-                }
-                sessionControls
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
         }
     }
 

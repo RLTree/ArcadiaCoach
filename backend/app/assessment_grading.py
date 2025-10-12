@@ -7,7 +7,7 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from statistics import mean
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
 
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
@@ -61,7 +61,7 @@ class GradingAgentResponse(BaseModel):
 def _reasoning_effort(value: str) -> ReasoningEffort:
     allowed = {"minimal", "low", "medium", "high"}
     effort = value if value in allowed else "medium"
-    return ReasoningEffort(effort)  # type: ignore[return-value]
+    return cast(ReasoningEffort, effort)
 
 
 def _coerce_agent_response(payload: Any) -> GradingAgentResponse:

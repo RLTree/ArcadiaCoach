@@ -8,11 +8,16 @@
 - `LearnerProfileStore.apply_assessment_result` persists the latest grading report, marks the onboarding assessment as completed, and seeds `elo_snapshot` with per-category ratings computed from task scores.
 - New endpoint `GET /api/onboarding/{username}/assessment/result` returns the stored grading payload so the macOS client can render a post-assessment briefing.
 - `LearnerProfilePayload` / `LearnerProfile` now expose `onboarding_assessment_result`; agent profile tools inherit the same snapshot for follow-up coaching.
+- Normalised OpenAI reasoning effort inputs to avoid `typing.Union` instantiation errors during grading runs.
 
 ## API / Data Shapes
 - `POST /api/onboarding/{username}/assessment/submissions` now returns the enriched submission payload (agent feedback, strengths/gaps, category outcomes) after the grading run completes.
 - Developer submissions feed (`GET /api/developer/submissions`) includes the same grading bundle for quick inspection.
 - `AssessmentGradingPayload` introduces `task_results[]` (score, strengths, improvements, rubric notes) and `category_outcomes[]` (average score, initial rating, rationale).
+
+## macOS Client
+- Added `AssessmentGradingResult` models, plumbed through `BackendService` and `AppViewModel`, and taught the dashboard to block ELO stats with a centered “Waiting for assessment results…” spinner until grading completes.
+- Developer Submissions dashboard now shows the agent’s overall feedback and per-category outcomes for each stored submission.
 
 ## Testing
 - Added grading-aware coverage to `backend/tests/test_assessment_submission_store.py` (store persistence + FastAPI endpoints). Agent grading is monkeypatched to deterministic results; asserts cover ELO snapshot seeding and the new `/assessment/result` endpoint.

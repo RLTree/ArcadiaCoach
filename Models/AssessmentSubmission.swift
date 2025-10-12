@@ -23,6 +23,7 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
     var submittedAt: Date
     var responses: [AssessmentTaskSubmission]
     var metadata: [String:String]
+    var grading: AssessmentGradingResult?
 
     var id: String { submissionId }
 

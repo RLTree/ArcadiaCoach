@@ -35,4 +35,5 @@ struct LearnerProfileSnapshot: Codable {
     var eloCategoryPlan: EloCategoryPlan?
     var curriculumPlan: OnboardingCurriculumPlan?
     var onboardingAssessment: OnboardingAssessment?
+    var onboardingAssessmentResult: AssessmentGradingResult?
 }

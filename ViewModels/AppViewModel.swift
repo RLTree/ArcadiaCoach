@@ -9,6 +9,7 @@ final class AppViewModel: ObservableObject {
     @Published var eloPlan: EloCategoryPlan?
     @Published var curriculumPlan: OnboardingCurriculumPlan?
     @Published var onboardingAssessment: OnboardingAssessment?
+    @Published var assessmentResult: AssessmentGradingResult?
     @Published var assessmentResponses: [String:String] = [:]
     @Published var showingAssessmentFlow: Bool = false
 
@@ -33,6 +34,7 @@ final class AppViewModel: ObservableObject {
                 eloPlan = nil
                 curriculumPlan = nil
                 onboardingAssessment = nil
+                assessmentResult = nil
                 error = nil
             } else {
                 error = serviceError.localizedDescription
@@ -124,12 +126,13 @@ final class AppViewModel: ObservableObject {
         }
         error = nil
         do {
-            _ = try await BackendService.submitAssessmentResponses(
+            let submission = try await BackendService.submitAssessmentResponses(
                 baseURL: baseURL,
                 username: username,
                 responses: responses,
                 metadata: submissionMetadata()
             )
+            assessmentResult = submission.grading
             let updated = try await BackendService.updateOnboardingAssessmentStatus(
                 baseURL: baseURL,
                 username: username,
@@ -138,6 +141,7 @@ final class AppViewModel: ObservableObject {
             onboardingAssessment = updated
             assessmentResponses.removeAll()
             showingAssessmentFlow = false
+            await loadProfile(baseURL: baseURL, username: username)
             error = nil
             return true
         } catch {
@@ -163,6 +167,7 @@ final class AppViewModel: ObservableObject {
         eloPlan = nil
         curriculumPlan = nil
         onboardingAssessment = nil
+        assessmentResult = nil
         assessmentResponses.removeAll()
         showingAssessmentFlow = false
     }
@@ -170,6 +175,14 @@ final class AppViewModel: ObservableObject {
     var requiresAssessment: Bool {
         guard let bundle = onboardingAssessment else { return false }
         return bundle.status != .completed
+    }
+
+    var awaitingAssessmentResults: Bool {
+        guard let bundle = onboardingAssessment else { return false }
+        if bundle.status == .completed {
+            return assessmentResult == nil
+        }
+        return false
     }
 
     private func alignEloSnapshotWithPlan() {
@@ -187,6 +200,7 @@ final class AppViewModel: ObservableObject {
         eloPlan = snapshot.eloCategoryPlan
         curriculumPlan = snapshot.curriculumPlan
         onboardingAssessment = snapshot.onboardingAssessment
+        assessmentResult = snapshot.onboardingAssessmentResult
         alignEloSnapshotWithPlan()
         pruneAssessmentResponses()
     }
