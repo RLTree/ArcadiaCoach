@@ -130,7 +130,7 @@ def _payload_for_agent(
         "categories": categories,
         "submission": {
             "submission_id": submission.submission_id,
-            "submitted_at": submission.submitted_at,
+            "submitted_at": submission.submitted_at.isoformat(),
             "metadata": submission.metadata,
         },
         "responses": responses,
