@@ -524,8 +524,6 @@ mcp.settings.stateless_http = True
 mcp.settings.json_response = True
 
 _include_traceback = os.getenv("DEBUG", "false").lower() == "true"
-mcp._app.add_middleware(ProductionErrorMiddleware, include_traceback=_include_traceback)
-mcp._app.add_middleware(AuthMiddleware)
 
 
 class _AppLifespan:
@@ -738,7 +736,7 @@ def main() -> None:
     mcp.settings.port = port
 
     inner_app = mcp.streamable_http_app()
-    proxy_app = create_proxy_app(inner_app)
+    proxy_app = create_proxy_app(inner_app, include_traceback=_include_traceback)
 
     import uvicorn
 
@@ -752,10 +750,13 @@ def main() -> None:
     )
 
 
-def create_proxy_app(inner_app) -> FastAPI:
+def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
     app = FastAPI()
     logger = logging.getLogger("arcadia.mcp.proxy")
     lifespan_manager: _AppLifespan | None = None
+
+    app.add_middleware(ProductionErrorMiddleware, include_traceback=include_traceback)
+    app.add_middleware(AuthMiddleware)
 
     @app.on_event("startup")
     async def startup() -> None:
