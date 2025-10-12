@@ -15,6 +15,7 @@ final class SessionViewModel: ObservableObject {
     private var currentUsername: String = ""
     private var profileGoal: String = ""
     private var profileUseCase: String = ""
+    private var profileStrengths: String = ""
 
     func reset(for backendURL: String) async {
         let cacheKey = sessionId ?? "default"
@@ -136,12 +137,16 @@ final class SessionViewModel: ObservableObject {
         if !profileUseCase.isEmpty {
             metadata["use_case"] = profileUseCase
         }
+        if !profileStrengths.isEmpty {
+            metadata["strengths"] = profileStrengths
+        }
         return metadata
     }
 
-    func updateProfile(goal: String, useCase: String) {
+    func updateProfile(goal: String, useCase: String, strengths: String) {
         profileGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         profileUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        profileStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func describe(error: Error) -> String {

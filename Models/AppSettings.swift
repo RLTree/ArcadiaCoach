@@ -14,4 +14,5 @@ final class AppSettings: ObservableObject {
     @AppStorage("arcadiaUsername") var arcadiaUsername: String = ""
     @AppStorage("learnerGoal") var learnerGoal: String = ""
     @AppStorage("learnerUseCase") var learnerUseCase: String = ""
+    @AppStorage("learnerStrengths") var learnerStrengths: String = ""
 }

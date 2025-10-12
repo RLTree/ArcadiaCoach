@@ -51,7 +51,8 @@ struct ChatPanel: View {
         .onAppear {
             viewModel.updateProfile(
                 goal: settings.learnerGoal,
-                useCase: settings.learnerUseCase
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths
             )
             viewModel.updateUser(settings.arcadiaUsername)
             viewModel.handleBackendChange(backend)
@@ -65,13 +66,22 @@ struct ChatPanel: View {
         .onChange(of: settings.learnerGoal) { newValue in
             viewModel.updateProfile(
                 goal: newValue,
-                useCase: settings.learnerUseCase
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths
             )
         }
         .onChange(of: settings.learnerUseCase) { newValue in
             viewModel.updateProfile(
                 goal: settings.learnerGoal,
-                useCase: newValue
+                useCase: newValue,
+                strengths: settings.learnerStrengths
+            )
+        }
+        .onChange(of: settings.learnerStrengths) { newValue in
+            viewModel.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: settings.learnerUseCase,
+                strengths: newValue
             )
         }
     }

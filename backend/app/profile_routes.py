@@ -5,10 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from .agent_models import (
+    CurriculumModulePayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
     LearnerProfilePayload,
+    OnboardingAssessmentPayload,
+    OnboardingAssessmentTaskPayload,
+    OnboardingCurriculumPayload,
     SkillRatingPayload,
 )
 from .learner_profile import LearnerProfile, profile_store
@@ -41,6 +45,49 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for category in plan.categories
             ],
         )
+    curriculum_payload: OnboardingCurriculumPayload | None = None
+    if profile.curriculum_plan:
+        curriculum = profile.curriculum_plan
+        curriculum_payload = OnboardingCurriculumPayload(
+            generated_at=curriculum.generated_at,
+            overview=curriculum.overview,
+            success_criteria=list(curriculum.success_criteria),
+            modules=[
+                CurriculumModulePayload(
+                    module_id=module.module_id,
+                    category_key=module.category_key,
+                    title=module.title,
+                    summary=module.summary,
+                    objectives=list(module.objectives),
+                    activities=list(module.activities),
+                    deliverables=list(module.deliverables),
+                    estimated_minutes=module.estimated_minutes,
+                )
+                for module in curriculum.modules
+            ],
+        )
+    assessment_payload: OnboardingAssessmentPayload | None = None
+    if profile.onboarding_assessment:
+        assessment = profile.onboarding_assessment
+        assessment_payload = OnboardingAssessmentPayload(
+            generated_at=assessment.generated_at,
+            status=assessment.status,
+            tasks=[
+                OnboardingAssessmentTaskPayload(
+                    task_id=task.task_id,
+                    category_key=task.category_key,
+                    title=task.title,
+                    task_type=task.task_type,
+                    prompt=task.prompt,
+                    guidance=task.guidance,
+                    rubric=list(task.rubric),
+                    expected_minutes=task.expected_minutes,
+                    starter_code=task.starter_code,
+                    answer_key=task.answer_key,
+                )
+                for task in assessment.tasks
+            ],
+        )
     return LearnerProfilePayload(
         username=profile.username,
         goal=profile.goal,
@@ -56,6 +103,8 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         memory_index_id=profile.memory_index_id,
         last_updated=profile.last_updated,
         elo_category_plan=plan_payload,
+        curriculum_plan=curriculum_payload,
+        onboarding_assessment=assessment_payload,
     )
 
 

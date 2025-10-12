@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -87,6 +87,50 @@ class EloCategoryPlanPayload(BaseModel):
     categories: List[EloCategoryDefinitionPayload] = Field(default_factory=list)
 
 
+class CurriculumModulePayload(BaseModel):
+    module_id: str
+    category_key: str
+    title: str
+    summary: str
+    objectives: List[str] = Field(default_factory=list)
+    activities: List[str] = Field(default_factory=list)
+    deliverables: List[str] = Field(default_factory=list)
+    estimated_minutes: Optional[int] = None
+
+
+class OnboardingCurriculumPayload(BaseModel):
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    overview: str
+    success_criteria: List[str] = Field(default_factory=list)
+    modules: List[CurriculumModulePayload] = Field(default_factory=list)
+
+
+class OnboardingAssessmentTaskPayload(BaseModel):
+    task_id: str
+    category_key: str
+    title: str
+    task_type: Literal["concept_check", "code"]
+    prompt: str
+    guidance: str
+    rubric: List[str] = Field(default_factory=list)
+    expected_minutes: int = Field(default=20, ge=1)
+    starter_code: Optional[str] = None
+    answer_key: Optional[str] = None
+
+
+class OnboardingAssessmentPayload(BaseModel):
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+    tasks: List[OnboardingAssessmentTaskPayload] = Field(default_factory=list)
+
+
+class OnboardingPlanPayload(BaseModel):
+    profile_summary: str
+    curriculum: OnboardingCurriculumPayload
+    categories: List[EloCategoryDefinitionPayload] = Field(default_factory=list)
+    assessment: List[OnboardingAssessmentTaskPayload] = Field(default_factory=list)
+
+
 class SkillRatingPayload(BaseModel):
     category: str
     rating: int
@@ -104,6 +148,8 @@ class LearnerProfilePayload(BaseModel):
     memory_index_id: str
     last_updated: datetime
     elo_category_plan: Optional[EloCategoryPlanPayload] = None
+    curriculum_plan: Optional[OnboardingCurriculumPayload] = None
+    onboarding_assessment: Optional[OnboardingAssessmentPayload] = None
 
 
 class LearnerProfileGetResponse(BaseModel):

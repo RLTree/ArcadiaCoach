@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -55,6 +55,47 @@ class EloCategoryPlan(BaseModel):
     categories: List[EloCategoryDefinition] = Field(default_factory=list)
 
 
+class CurriculumModule(BaseModel):
+    """Single module within the onboarding curriculum outline."""
+    module_id: str
+    category_key: str
+    title: str
+    summary: str
+    objectives: List[str] = Field(default_factory=list)
+    activities: List[str] = Field(default_factory=list)
+    deliverables: List[str] = Field(default_factory=list)
+    estimated_minutes: Optional[int] = None
+
+
+class CurriculumPlan(BaseModel):
+    """Curriculum outline generated during onboarding."""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    overview: str = ""
+    success_criteria: List[str] = Field(default_factory=list)
+    modules: List[CurriculumModule] = Field(default_factory=list)
+
+
+class AssessmentTask(BaseModel):
+    """Assessment task delivered during onboarding assessment."""
+    task_id: str
+    category_key: str
+    title: str
+    task_type: Literal["concept_check", "code"]
+    prompt: str
+    guidance: str
+    rubric: List[str] = Field(default_factory=list)
+    expected_minutes: int = Field(default=20, ge=1)
+    starter_code: Optional[str] = None
+    answer_key: Optional[str] = None
+
+
+class OnboardingAssessment(BaseModel):
+    """Personalised assessment bundle generated for onboarding."""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+    tasks: List[AssessmentTask] = Field(default_factory=list)
+
+
 class LearnerProfile(BaseModel):
     username: str
     goal: str = ""
@@ -66,6 +107,8 @@ class LearnerProfile(BaseModel):
     memory_index_id: str = Field(default=DEFAULT_VECTOR_STORE_ID)
     elo_snapshot: Dict[str, int] = Field(default_factory=dict)
     elo_category_plan: Optional[EloCategoryPlan] = None
+    curriculum_plan: Optional[CurriculumPlan] = None
+    onboarding_assessment: Optional[OnboardingAssessment] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -188,6 +231,41 @@ class LearnerProfileStore:
             self._persist_locked()
             return self._profiles[normalized].model_copy(deep=True)
 
+    def set_curriculum_and_assessment(
+        self,
+        username: str,
+        curriculum: CurriculumPlan,
+        assessment: OnboardingAssessment,
+    ) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                profile = LearnerProfile(username=username)
+            profile.curriculum_plan = curriculum.model_copy(deep=True)
+            profile.onboarding_assessment = assessment.model_copy(deep=True)
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
+    def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
+        normalized = username.lower()
+        allowed = {"pending", "in_progress", "completed"}
+        if status not in allowed:
+            raise ValueError(f"Unsupported onboarding assessment status: {status}")
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                raise LookupError(f"Learner profile '{username}' does not exist.")
+            if profile.onboarding_assessment is None:
+                raise LookupError(f"Assessment for '{username}' has not been generated.")
+            profile.onboarding_assessment.status = status  # type: ignore[assignment]
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
     def _set_if_changed(self, profile: LearnerProfile, attr: str, raw_value: Any) -> bool:
         if not isinstance(raw_value, str):
             return False
@@ -235,11 +313,15 @@ class LearnerProfileStore:
 profile_store = LearnerProfileStore(DATA_PATH)
 
 __all__ = [
+    "AssessmentTask",
+    "CurriculumModule",
+    "CurriculumPlan",
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
     "LearnerProfile",
     "LearnerProfileStore",
+    "OnboardingAssessment",
     "MemoryRecord",
     "profile_store",
 ]

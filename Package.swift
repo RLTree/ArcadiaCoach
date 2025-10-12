@@ -45,6 +45,7 @@ let package = Package(
             sources: [
                 "Models/EloEngine.swift",
                 "Models/EloPlan.swift",
+                "Models/OnboardingAssessment.swift",
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",
                 "Services/BackendService.swift",

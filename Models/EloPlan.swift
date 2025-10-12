@@ -33,4 +33,6 @@ struct LearnerProfileSnapshot: Codable {
     var username: String
     var skillRatings: [SkillRating]
     var eloCategoryPlan: EloCategoryPlan?
+    var curriculumPlan: OnboardingCurriculumPlan?
+    var onboardingAssessment: OnboardingAssessment?
 }

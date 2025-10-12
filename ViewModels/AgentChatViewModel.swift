@@ -19,6 +19,7 @@ final class AgentChatViewModel: ObservableObject {
     private var username: String = ""
     private var learnerGoal: String = ""
     private var learnerUseCase: String = ""
+    private var learnerStrengths: String = ""
 
     func prepareWelcomeMessage(isBackendReady: Bool) {
         guard !welcomed else { return }
@@ -75,9 +76,10 @@ final class AgentChatViewModel: ObservableObject {
         !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
     }
 
-    func updateProfile(goal: String, useCase: String) {
+    func updateProfile(goal: String, useCase: String, strengths: String) {
         learnerGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         learnerUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        learnerStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func send(message: String) async {
@@ -127,6 +129,9 @@ final class AgentChatViewModel: ObservableObject {
         }
         if !learnerUseCase.isEmpty {
             metadata["use_case"] = learnerUseCase
+        }
+        if !learnerStrengths.isEmpty {
+            metadata["strengths"] = learnerStrengths
         }
         return metadata
     }

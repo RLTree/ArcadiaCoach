@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 
-from . import profile_routes, session_routes
+from . import onboarding_routes, profile_routes, session_routes
 from .chat_server import ArcadiaChatServer, create_chat_server
 from .config import Settings, get_settings
 from .logging_config import configure_logging
@@ -62,5 +62,6 @@ async def upload_chatkit_file(
     return await server.handle_file_upload(file)
 
 
+app.include_router(onboarding_routes.router)
 app.include_router(session_routes.router)
 app.include_router(profile_routes.router)

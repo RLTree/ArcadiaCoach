@@ -19,6 +19,8 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
     var memoryRecords: [LearnerMemoryRecord]
     var memoryIndexId: String
     var eloSnapshot: [String:Int]
+    var curriculumPlan: OnboardingCurriculumPlan?
+    var onboardingAssessment: OnboardingAssessment?
     var lastUpdated: Date
 
     var id: String { username }
@@ -33,6 +35,8 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
         memoryRecords: [],
         memoryIndexId: "",
         eloSnapshot: [:],
+        curriculumPlan: nil,
+        onboardingAssessment: nil,
         lastUpdated: .distantPast
     )
 }

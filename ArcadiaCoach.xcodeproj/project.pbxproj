@@ -11,6 +11,9 @@
 		AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
 		AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
 		AA0010032924F97A00B8BEA0 /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F032924F97A00B8BEA0 /* WidgetModels.swift */; };
+		AA10A0112B925F0000B8BEA0 /* OnboardingAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10A0012B925F0000B8BEA0 /* OnboardingAssessment.swift */; };
+		AA10A0122B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10A0022B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift */; };
+		AA10A0132B925F0000B8BEA0 /* CurriculumOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10A0032B925F0000B8BEA0 /* CurriculumOutlineView.swift */; };
 		AA0010042924F97A00B8BEA0 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F042924F97A00B8BEA0 /* AppSettings.swift */; };
 		AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F052924F97A00B8BEA0 /* GameState.swift */; };
 		AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F072924F97A00B8BEA0 /* BackendService.swift */; };
@@ -59,6 +62,9 @@
 		AA001F012924F97A00B8BEA0 /* EloEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloEngine.swift; sourceTree = "<group>"; };
 		AA001F022924F97A00B8BEA0 /* AgentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModels.swift; sourceTree = "<group>"; };
 		AA001F032924F97A00B8BEA0 /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModels.swift; sourceTree = "<group>"; };
+		AA10A0012B925F0000B8BEA0 /* OnboardingAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAssessment.swift; sourceTree = "<group>"; };
+		AA10A0022B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAssessmentFlow.swift; sourceTree = "<group>"; };
+		AA10A0032B925F0000B8BEA0 /* CurriculumOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumOutlineView.swift; sourceTree = "<group>"; };
 		AA001F042924F97A00B8BEA0 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AA001F052924F97A00B8BEA0 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
 		76B27837E18E79D5DF33F3BC /* EloPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlan.swift; sourceTree = "<group>"; };
@@ -137,19 +143,20 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			);
 			sourceTree = "<group>";
 		};
-		AA001F1F2924FB5F00B8BEA0 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				AA001F012924F97A00B8BEA0 /* EloEngine.swift */,
-				AA001F022924F97A00B8BEA0 /* AgentModels.swift */,
-				AA001F032924F97A00B8BEA0 /* WidgetModels.swift */,
-				AA001F042924F97A00B8BEA0 /* AppSettings.swift */,
-				AA001F052924F97A00B8BEA0 /* GameState.swift */,
-				76B27837E18E79D5DF33F3BC /* EloPlan.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
+	AA001F1F2924FB5F00B8BEA0 /* Models */ = {
+		isa = PBXGroup;
+		children = (
+			AA001F012924F97A00B8BEA0 /* EloEngine.swift */,
+			AA001F022924F97A00B8BEA0 /* AgentModels.swift */,
+			AA001F032924F97A00B8BEA0 /* WidgetModels.swift */,
+			AA001F042924F97A00B8BEA0 /* AppSettings.swift */,
+			AA001F052924F97A00B8BEA0 /* GameState.swift */,
+			76B27837E18E79D5DF33F3BC /* EloPlan.swift */,
+			AA10A0012B925F0000B8BEA0 /* OnboardingAssessment.swift */,
+		);
+		path = Models;
+		sourceTree = "<group>";
+	};
 	AA001F202924FB5F00B8BEA0 /* Services */ = {
 		isa = PBXGroup;
 		children = (
@@ -178,19 +185,21 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA001F222924FB5F00B8BEA0 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */,
-				AA001F0C2924F97A00B8BEA0 /* HomeView.swift */,
-				AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */,
-				AA001F0E2924F97A00B8BEA0 /* LessonView.swift */,
-				AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */,
-				AA001F102924F97A00B8BEA0 /* MilestoneView.swift */,
-				AA001F112924F97A00B8BEA0 /* AssignmentView.swift */,
-				AA001F122924F97A00B8BEA0 /* SettingsView.swift */,
-				AA001F242924FB9500B8BEA0 /* Components */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
+		AA001F0B2924F97A00B8BEA0 /* OnboardingView.swift */,
+		AA001F0C2924F97A00B8BEA0 /* HomeView.swift */,
+		AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */,
+		AA001F0E2924F97A00B8BEA0 /* LessonView.swift */,
+		AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */,
+		AA001F102924F97A00B8BEA0 /* MilestoneView.swift */,
+		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */,
+		AA001F122924F97A00B8BEA0 /* SettingsView.swift */,
+		AA10A0032B925F0000B8BEA0 /* CurriculumOutlineView.swift */,
+		AA10A0022B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift */,
+		AA001F242924FB9500B8BEA0 /* Components */,
+	);
+	path = Views;
+	sourceTree = "<group>";
+	};
 		AA001F232924FB5F00B8BEA0 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
@@ -325,12 +334,13 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA00101F2924F8C300B8BEA0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */,
-				AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */,
-			AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,
-			AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
-			AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
+		files = (
+			AA10A0122B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift in Sources */,
+			AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */,
+			AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */,
+		AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,
+		AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
+		AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
 			AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */,
 			AA00103629250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift in Sources */,
 			AA0010112924F97A00B8BEA0 /* AssignmentView.swift in Sources */,
@@ -357,7 +367,9 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */,
 			AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */,
 			AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */,
-			);
+			AA10A0112B925F0000B8BEA0 /* OnboardingAssessment.swift in Sources */,
+			AA10A0132B925F0000B8BEA0 /* CurriculumOutlineView.swift in Sources */,
+		);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AA0010272924FA0400B8BEA0 /* Sources */ = {

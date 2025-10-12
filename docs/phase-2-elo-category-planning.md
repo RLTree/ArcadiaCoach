@@ -11,6 +11,10 @@ This phase equips Arcadia Coach with dynamic, learner-aligned ELO categories and
 - **Swift client sync:** `BackendService.fetchProfile` pulls the new plan + ratings, `AppViewModel` caches them, and `HomeView` renders an `EloPlanSummaryView` (with weight percentages, focus areas, and rubric bands) before the learner launches an assessment.
 - **UI labelling:** Quiz and dashboard stat rows now map Elo keys to the friendly labels supplied in the plan, preventing slug identifiers from leaking into the UI.
 
+## Operational Notes
+
+- The MCP server is hosted at `https://mcp.arcadiacoach.com` (entry point `/mcp`), and we cannot proxy it via localhost because OpenAI requires pre-approved domains. Use the hosted endpoints when running smoke tests.
+
 ## New Endpoints & Tools
 
 | Type | Identifier | Notes |
@@ -47,5 +51,10 @@ struct EloCategoryPlan: Codable, Hashable {
 ## Validation
 
 - `swift test` (Oct 12, 2025) to confirm Swift additions compile via the package target.
+- MCP transport smoke tests (Oct 12, 2025):
+  - `curl https://mcp.arcadiacoach.com/health`
+  - `curl -X POST https://mcp.arcadiacoach.com/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'`
+  - `curl -X POST https://mcp.arcadiacoach.com/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"lesson_catalog","arguments":{"topic":"transformers"}}}'`
+- Backend proxy check (Oct 12, 2025): `curl -X POST https://chat.arcadiacoach.com/api/session/lesson -H "Content-Type: application/json" -d '{"topic":"transformers","sessionId":"test","metadata":{"username":"test-user"}}'` returns an `EndLearn` payload without 502/424 errors.
 
 With categories now persisted and surfaced, Phase 3 can focus on generating personalised assessment content keyed to these weights and rubrics.

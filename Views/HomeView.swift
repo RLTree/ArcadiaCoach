@@ -24,12 +24,19 @@ struct HomeView: View {
         ZStack {
             VStack(spacing: 18) {
                 header
+                if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
+                    assessmentBanner(status: bundle.status)
+                }
                 if !settings.minimalMode {
                     WidgetStatRowView(props: .init(items: topElo))
                         .environmentObject(settings)
                 }
                 if let plan = appVM.eloPlan, !plan.categories.isEmpty {
                     EloPlanSummaryView(plan: plan)
+                        .transition(.opacity)
+                }
+                if let curriculum = appVM.curriculumPlan {
+                    CurriculumOutlineView(plan: curriculum)
                         .transition(.opacity)
                 }
                 sessionControls
@@ -54,6 +61,14 @@ struct HomeView: View {
                 .frame(maxWidth: 520)
                 .background(.bar, in: RoundedRectangle(cornerRadius: 18))
                 .padding(40)
+            }
+            if appVM.showingAssessmentFlow, appVM.requiresAssessment {
+                Color.black.opacity(0.45).ignoresSafeArea()
+                OnboardingAssessmentFlow()
+                    .environmentObject(settings)
+                    .environmentObject(appVM)
+                    .background(.bar, in: RoundedRectangle(cornerRadius: 20))
+                    .padding(32)
             }
         }
         .onReceive(session.$lesson.compactMap { $0 }) { lesson in
@@ -93,6 +108,9 @@ struct HomeView: View {
             refreshLearnerProfile()
         }
         .onChange(of: settings.learnerUseCase) { _ in
+            refreshLearnerProfile()
+        }
+        .onChange(of: settings.learnerStrengths) { _ in
             refreshLearnerProfile()
         }
         .alert(item: $session.lastError) { error in
@@ -139,7 +157,7 @@ struct HomeView: View {
                     title: "Start Lesson",
                     systemName: "book.fill",
                     isBusy: session.activeAction == .lesson,
-                    isDisabled: session.activeAction != nil && session.activeAction != .lesson
+                    isDisabled: (session.activeAction != nil && session.activeAction != .lesson) || appVM.requiresAssessment
                 ) {
                     Task { await session.loadLesson(backendURL: settings.chatkitBackendURL, topic: "transformers") }
                 }
@@ -147,7 +165,7 @@ struct HomeView: View {
                     title: "Start Quiz",
                     systemName: "gamecontroller.fill",
                     isBusy: session.activeAction == .quiz,
-                    isDisabled: session.activeAction != nil && session.activeAction != .quiz
+                    isDisabled: (session.activeAction != nil && session.activeAction != .quiz) || appVM.requiresAssessment
                 ) {
                     Task { await session.loadQuiz(backendURL: settings.chatkitBackendURL, topic: "pytorch") }
                 }
@@ -155,7 +173,7 @@ struct HomeView: View {
                     title: "Milestone",
                     systemName: "flag.checkered",
                     isBusy: session.activeAction == .milestone,
-                    isDisabled: session.activeAction != nil && session.activeAction != .milestone
+                    isDisabled: (session.activeAction != nil && session.activeAction != .milestone) || appVM.requiresAssessment
                 ) {
                     Task { await session.loadMilestone(backendURL: settings.chatkitBackendURL, topic: "roadmap") }
                 }
@@ -173,6 +191,11 @@ struct HomeView: View {
 
             if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
                 Text(lastEvent)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if appVM.requiresAssessment {
+                Text("Complete the onboarding assessment to unlock lessons, quizzes, and milestones.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -234,7 +257,8 @@ struct HomeView: View {
     private func refreshLearnerProfile() {
         session.updateProfile(
             goal: settings.learnerGoal,
-            useCase: settings.learnerUseCase
+            useCase: settings.learnerUseCase,
+            strengths: settings.learnerStrengths
         )
         Task {
             await appVM.loadProfile(
@@ -242,5 +266,25 @@ struct HomeView: View {
                 username: settings.arcadiaUsername
             )
         }
+    }
+
+    @ViewBuilder
+    private func assessmentBanner(status: OnboardingAssessment.Status) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Onboarding assessment pending")
+                    .font(.headline)
+                Text(status == .inProgress ? "Pick up where you left off to finish calibration." : "Complete the initial assessment so Arcadia can calibrate your curriculum.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Resume") {
+                appVM.openAssessmentFlow()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 }

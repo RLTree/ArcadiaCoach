@@ -47,6 +47,25 @@ final class BackendService {
         var sessionId: String?
     }
 
+    private struct OnboardingPlanPayload: Encodable {
+        var username: String
+        var goal: String
+        var useCase: String?
+        var strengths: String?
+        var force: Bool?
+    }
+
+    private struct AssessmentStatusPayload: Encodable {
+        var status: String
+    }
+
+    struct OnboardingStatusSnapshot: Decodable {
+        var username: String
+        var planReady: Bool
+        var assessmentReady: Bool
+        var generatedAt: Date?
+    }
+
     private static let logger = Logger(subsystem: "com.arcadiacoach.app", category: "BackendService")
     private static let requestTimeout: TimeInterval = 1800
     private static let decoder: JSONDecoder = {
@@ -161,6 +180,95 @@ final class BackendService {
                 metadata: metadata.isEmpty ? nil : metadata
             ),
             expecting: EndMilestone.self
+        )
+    }
+
+    static func ensureOnboardingPlan(
+        baseURL: String,
+        username: String,
+        goal: String,
+        useCase: String,
+        strengths: String,
+        force: Bool = false
+    ) async throws -> LearnerProfileSnapshot {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty, !trimmedGoal.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let trimmedUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = OnboardingPlanPayload(
+            username: trimmedUsername,
+            goal: trimmedGoal,
+            useCase: trimmedUseCase.isEmpty ? nil : trimmedUseCase,
+            strengths: trimmedStrengths.isEmpty ? nil : trimmedStrengths,
+            force: force ? true : nil
+        )
+        return try await post(
+            baseURL: trimmedBase,
+            path: "api/onboarding/plan",
+            body: payload,
+            expecting: LearnerProfileSnapshot.self
+        )
+    }
+
+    static func fetchOnboardingStatus(baseURL: String, username: String) async throws -> OnboardingStatusSnapshot {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/onboarding/\(encodedUsername)/status") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
+
+        logger.debug("GET \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode(OnboardingStatusSnapshot.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func updateOnboardingAssessmentStatus(
+        baseURL: String,
+        username: String,
+        status: OnboardingAssessment.Status
+    ) async throws -> OnboardingAssessment {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        return try await post(
+            baseURL: trimmedBase,
+            path: "api/onboarding/\(encodedUsername)/assessment/status",
+            body: AssessmentStatusPayload(status: status.rawValue),
+            expecting: OnboardingAssessment.self
         )
     }
 

@@ -2,11 +2,15 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var appVM: AppViewModel
     @State private var username: String = ""
     @State private var backendURL: String = ""
     @State private var apiKey: String = ""
     @State private var learningGoal: String = ""
     @State private var learningUseCase: String = ""
+    @State private var learningStrengths: String = ""
+    @State private var isGeneratingPlan: Bool = false
+    @State private var planningError: String?
     @FocusState private var focusedField: Field?
 
     var onContinue: () -> Void
@@ -69,16 +73,21 @@ struct OnboardingView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Shape your learning path")
                             .font(.headline)
-                    labeledTextEditor(
-                        title: "Long-term learning goal",
-                        text: $learningGoal,
-                        placeholder: "Example: Become a staff-level ML engineer within 18 months by mastering production RAG systems and evaluation."
-                    )
-                    labeledTextEditor(
-                        title: "How you’ll use coding",
-                        text: $learningUseCase,
-                        placeholder: "Example: Apply Python + PyTorch to build accessibility-focused co-pilots for neurodivergent students."
-                    )
+                        labeledTextEditor(
+                            title: "Long-term learning goal",
+                            text: $learningGoal,
+                            placeholder: "Example: Become a staff-level ML engineer within 18 months by mastering production RAG systems and evaluation."
+                        )
+                        labeledTextEditor(
+                            title: "How you’ll use coding",
+                            text: $learningUseCase,
+                            placeholder: "Example: Apply Python + PyTorch to build accessibility-focused co-pilots for neurodivergent students."
+                        )
+                        labeledTextEditor(
+                            title: "Current strengths & experience",
+                            text: $learningStrengths,
+                            placeholder: "Example: 3 years of SwiftUI + Combine, strong at accessibility reviews, rebuilding Python fundamentals."
+                        )
                         Text("Arcadia combines this profile with spaced refreshers and memory prompts tuned for AuDHD-friendly pacing.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -100,11 +109,20 @@ struct OnboardingView: View {
                     GlassButton(
                         title: "Enter Arcadia",
                         systemName: "arrow.right.circle.fill",
-                        isBusy: false,
+                        isBusy: isGeneratingPlan,
                         isDisabled: !canContinue,
                         action: saveAndContinue
                     )
                     Spacer()
+                }
+
+                if let planningError {
+                    Text(planningError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                } else if isGeneratingPlan {
+                    ProgressView("Arcadia is preparing your onboarding plan…")
+                        .padding(.top, 8)
                 }
             }
             .padding(28)
@@ -128,6 +146,7 @@ struct OnboardingView: View {
         apiKey = settings.openaiApiKey
         learningGoal = settings.learnerGoal
         learningUseCase = settings.learnerUseCase
+        learningStrengths = settings.learnerStrengths
         if settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             focusedField = Field.username
         } else if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -143,7 +162,38 @@ struct OnboardingView: View {
         settings.openaiApiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.learnerGoal = learningGoal.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.learnerUseCase = learningUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
-        onContinue()
+        settings.learnerStrengths = learningStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let username = settings.arcadiaUsername
+        let backend = settings.chatkitBackendURL
+        let goal = settings.learnerGoal
+        let useCase = settings.learnerUseCase
+        let strengths = settings.learnerStrengths
+
+        isGeneratingPlan = true
+        planningError = nil
+        Task {
+            do {
+                try await appVM.ensureOnboardingPlan(
+                    baseURL: backend,
+                    username: username,
+                    goal: goal,
+                    useCase: useCase,
+                    strengths: strengths
+                )
+                onContinue()
+            } catch {
+                let nsError = error as NSError
+                if let serviceError = error as? BackendServiceError {
+                    planningError = serviceError.localizedDescription
+                } else if !nsError.localizedDescription.isEmpty {
+                    planningError = nsError.localizedDescription
+                } else {
+                    planningError = String(describing: error)
+                }
+            }
+            isGeneratingPlan = false
+        }
     }
 
     @ViewBuilder
