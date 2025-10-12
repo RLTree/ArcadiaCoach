@@ -8,30 +8,48 @@ struct OnboardingAssessmentFlow: View {
 
     var body: some View {
         NavigationStack {
-            if let assessment = appVM.onboardingAssessment, let curriculum = appVM.curriculumPlan {
-                VStack(alignment: .leading, spacing: 22) {
-                    curriculumSummary(plan: curriculum)
-                    taskPicker(for: assessment)
-                    Divider()
-                    taskDetail(for: assessment)
-                    Divider()
-                    footerControls(for: assessment)
-                }
-                .padding(24)
-                .navigationTitle("Onboarding Assessment")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") {
-                            appVM.closeAssessmentFlow()
+            GeometryReader { proxy in
+                if let assessment = appVM.onboardingAssessment,
+                   let curriculum = appVM.curriculumPlan {
+                    let contentWidth = min(proxy.size.width, 980)
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 22) {
+                            curriculumSummary(plan: curriculum)
+                            taskPicker(for: assessment)
+                            Divider()
+                            taskDetail(for: assessment)
                         }
+                        .frame(maxWidth: contentWidth, alignment: .leading)
+                        .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
+                        .padding(24)
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        VStack(spacing: 0) {
+                            Divider()
+                            footerControls(for: assessment)
+                                .frame(maxWidth: contentWidth, alignment: .leading)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
+                        }
+                        .background(.ultraThinMaterial)
+                        .shadow(color: .black.opacity(0.15), radius: 8, y: -2)
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                } else {
+                    ProgressView("Loading assessment…")
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+                }
+            }
+            .frame(minWidth: 780, minHeight: 580)
+            .navigationTitle("Onboarding Assessment")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        appVM.closeAssessmentFlow()
                     }
                 }
-            } else {
-                ProgressView("Loading assessment…")
-                    .padding()
             }
         }
-        .frame(minWidth: 780, minHeight: 580)
         .task {
             await startAssessmentIfNeeded()
         }

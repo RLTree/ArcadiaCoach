@@ -71,6 +71,23 @@ final class BackendService {
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            if let date = iso8601WithFractional.date(from: value) {
+                return date
+            }
+            if let date = iso8601Basic.date(from: value) {
+                return date
+            }
+            if let seconds = TimeInterval(value) {
+                return Date(timeIntervalSince1970: seconds)
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unrecognised date format: \(value)"
+            )
+        }
         return decoder
     }()
 
@@ -78,6 +95,18 @@ final class BackendService {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
+    }()
+
+    private static let iso8601WithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let iso8601Basic: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
     }()
 
     static func resetSession(baseURL: String, sessionId: String?) async {

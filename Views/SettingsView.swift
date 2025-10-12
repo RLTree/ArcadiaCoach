@@ -10,123 +10,131 @@ struct SettingsView: View {
     @State private var learnerUseCase: String = ""
 
     var body: some View {
-        Form {
-            Section("OpenAI API") {
-                SecureField("OPENAI_API_KEY", text: $apiKey)
-                    .textContentType(.password)
-                    .autocorrectionDisabled(true)
-                Button("Save API Key") {
-                    settings.openaiApiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                SettingsSection(title: "OpenAI API") {
+                    SecureField("OPENAI_API_KEY", text: $apiKey)
+                        .textContentType(.password)
+                        .autocorrectionDisabled(true)
+                    Button("Save API Key") {
+                        settings.openaiApiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    if settings.openaiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Add your OpenAI API key so the Arcadia backend can authenticate with OpenAI.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("API key saved locally. Update the backend if needed.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                if settings.openaiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Add your OpenAI API key so the Arcadia backend can authenticate with OpenAI.")
+
+                SettingsSection(title: "ChatKit Backend") {
+                    TextField("Backend base URL", text: $backendURL)
+                        .disableAutocorrection(true)
+                    SecureField("Domain key (optional)", text: $domainKey)
+                    Button("Save Backend Settings") {
+                        let trimmedBackend = backendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedDomain = domainKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                        settings.chatkitBackendURL = trimmedBackend
+                        settings.chatkitDomainKey = trimmedDomain
+                        backendURL = trimmedBackend
+                        domainKey = trimmedDomain
+                    }
+                    Text("Arcadia Coach connects directly to your ChatKit server. Add the domain key from the ChatKit dashboard so custom backends render correctly.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                } else {
-                    Text("API key saved locally. Update the backend if needed.")
+                }
+
+                SettingsSection(title: "Learner Profile") {
+                    TextEditor(text: $learnerGoal)
+                        .frame(minHeight: 100)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.2))
+                        )
+                        .overlay(alignment: .topLeading) {
+                            if learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Long-term learning goal")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(6)
+                            }
+                        }
+                    TextEditor(text: $learnerUseCase)
+                        .frame(minHeight: 80)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.2))
+                        )
+                        .overlay(alignment: .topLeading) {
+                            if learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("How you plan to use coding (domain, projects, context)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(6)
+                            }
+                        }
+                    Button("Save Learner Profile") {
+                        settings.learnerGoal = learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines)
+                        settings.learnerUseCase = learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    Text("Arcadia personalises lessons, quizzes, and refreshers using this profile.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-            }
-            Section("ChatKit Backend") {
-                TextField("Backend base URL", text: $backendURL)
-                    .disableAutocorrection(true)
-                SecureField("Domain key (optional)", text: $domainKey)
-                Button("Save Backend Settings") {
-                    let trimmedBackend = backendURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let trimmedDomain = domainKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                    settings.chatkitBackendURL = trimmedBackend
-                    settings.chatkitDomainKey = trimmedDomain
-                    backendURL = trimmedBackend
-                    domainKey = trimmedDomain
+
+                SettingsSection(title: "Accessibility") {
+                    Toggle("Reduce motion", isOn: $settings.reduceMotion)
+                    Toggle("High contrast", isOn: $settings.highContrast)
+                    Toggle("Mute sounds", isOn: $settings.muteSounds)
+                    Toggle("Minimal mode", isOn: $settings.minimalMode)
+                    Stepper("Font scale: \(String(format: "%.2f", settings.fontScale))×", value: $settings.fontScale, in: 0.9...1.6, step: 0.05)
                 }
-                Text("Arcadia Coach connects directly to your ChatKit server. Add the domain key from the ChatKit dashboard so custom backends render correctly.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Learner Profile") {
-                TextEditor(text: $learnerGoal)
-                    .frame(minHeight: 100)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2))
-                    )
-                    .overlay(alignment: .topLeading) {
-                        if learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Long-term learning goal")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(6)
+
+                SettingsSection(title: "Focus mode") {
+                    Stepper("Session minutes: \(settings.sessionMinutes)", value: $settings.sessionMinutes, in: 10...60, step: 5)
+                    Stepper("Tasks per chunk: \(settings.focusChunks)", value: $settings.focusChunks, in: 1...6)
+                }
+
+                SettingsSection(title: "Diagnostics") {
+                    if diagnostics.isRunning {
+                        ProgressView("Running ChatKit diagnostics…")
+                    }
+                    ForEach(diagnostics.results) { result in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: result.iconName)
+                                .foregroundStyle(result.tintColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.title).bold()
+                                Text(result.message)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    if let lastRun = diagnostics.lastRunAt {
+                        Text("Last run on \(lastRun.formatted(date: .numeric, time: .standard)).")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Run ChatKit Diagnostics") {
+                        Task {
+                            await diagnostics.run(with: settings)
                         }
                     }
-                TextEditor(text: $learnerUseCase)
-                    .frame(minHeight: 80)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2))
-                    )
-                    .overlay(alignment: .topLeading) {
-                        if learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("How you plan to use coding (domain, projects, context)")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(6)
-                        }
-                    }
-                Button("Save Learner Profile") {
-                    settings.learnerGoal = learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines)
-                    settings.learnerUseCase = learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                Text("Arcadia personalises lessons, quizzes, and refreshers using this profile.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Accessibility") {
-                Toggle("Reduce motion", isOn: $settings.reduceMotion)
-                Toggle("High contrast", isOn: $settings.highContrast)
-                Toggle("Mute sounds", isOn: $settings.muteSounds)
-                Toggle("Minimal mode", isOn: $settings.minimalMode)
-                Stepper("Font scale: \(String(format: "%.2f", settings.fontScale))×", value: $settings.fontScale, in: 0.9...1.6, step: 0.05)
-            }
-            Section("Focus mode") {
-                Stepper("Session minutes: \(settings.sessionMinutes)", value: $settings.sessionMinutes, in: 10...60, step: 5)
-                Stepper("Tasks per chunk: \(settings.focusChunks)", value: $settings.focusChunks, in: 1...6)
-            }
-            Section("Diagnostics") {
-                if diagnostics.isRunning {
-                    ProgressView("Running ChatKit diagnostics…")
-                }
-                ForEach(diagnostics.results) { result in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: result.iconName)
-                            .foregroundStyle(result.tintColor)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(result.title).bold()
-                            Text(result.message)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                if let lastRun = diagnostics.lastRunAt {
-                    Text("Last run on \(lastRun.formatted(date: .numeric, time: .standard)).")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Button("Run ChatKit Diagnostics") {
-                    Task {
-                        await diagnostics.run(with: settings)
+                    if diagnostics.results.isEmpty {
+                        Text("Run diagnostics to validate your backend URL, domain key, and widget bundle before launching ChatKit.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                if diagnostics.results.isEmpty {
-                    Text("Run diagnostics to validate your backend URL, domain key, and widget bundle before launching ChatKit.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
+            .frame(maxWidth: 640, alignment: .leading)
+            .padding(24)
         }
-        .padding()
         .onAppear {
             apiKey = settings.openaiApiKey
             backendURL = settings.chatkitBackendURL
@@ -408,5 +416,23 @@ final class ChatKitDiagnosticsViewModel: ObservableObject {
     private func buildPath(from segments: [String]) -> String {
         guard !segments.isEmpty else { return "/chatkit" }
         return "/" + segments.joined(separator: "/")
+    }
+}
+
+private struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.title3)
+                .bold()
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+            .padding(16)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 }
