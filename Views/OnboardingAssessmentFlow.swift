@@ -6,49 +6,79 @@ struct OnboardingAssessmentFlow: View {
     @State private var activeIndex: Int = 0
     @State private var finishingAssessment = false
 
+    private let cornerRadius: CGFloat = 26
+    private let maxContentWidth: CGFloat = 980
+    private let minModalWidth: CGFloat = 640
+    private let desiredModalHeight: CGFloat = 720
+    private let minModalHeight: CGFloat = 460
+    private let verticalSafeInset: CGFloat = 140
+
     var body: some View {
-        NavigationStack {
-            GeometryReader { proxy in
-                if let assessment = appVM.onboardingAssessment,
-                   let curriculum = appVM.curriculumPlan {
-                    let contentWidth = min(proxy.size.width, 980)
+        GeometryReader { proxy in
+            let availableWidth = max(proxy.size.width - 120, minModalWidth)
+            let modalWidth = min(maxContentWidth, availableWidth)
+
+            let availableHeight = max(proxy.size.height - verticalSafeInset, minModalHeight)
+            let modalHeight = min(desiredModalHeight, availableHeight)
+
+            ZStack {
+                Color.clear
+                    .contentShape(Rectangle())
+
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(0.28), radius: 30, y: 16)
+                    .frame(width: modalWidth, height: modalHeight)
+
+                VStack(spacing: 0) {
+                    header
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 28)
+                        .padding(.bottom, 18)
+
+                    Divider()
+
                     ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 22) {
-                            curriculumSummary(plan: curriculum)
-                            taskPicker(for: assessment)
-                            Divider()
-                            taskDetail(for: assessment)
+                        VStack(alignment: .leading, spacing: 28) {
+                            if let curriculum = appVM.curriculumPlan {
+                                curriculumSummary(plan: curriculum)
+                            }
+                            if let assessment = appVM.onboardingAssessment {
+                                taskPicker(for: assessment)
+                                Divider()
+                                taskDetail(for: assessment)
+                            } else {
+                                ProgressView("Preparing your personalised assessment…")
+                                    .controlSize(.large)
+                                    .padding(.vertical, 80)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
                         }
-                        .frame(maxWidth: contentWidth, alignment: .leading)
-                        .frame(minWidth: proxy.size.width, minHeight: proxy.size.height, alignment: .topLeading)
-                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 26)
                     }
-                    .safeAreaInset(edge: .bottom) {
-                        VStack(spacing: 0) {
-                            Divider()
-                            footerControls(for: assessment)
-                                .frame(maxWidth: contentWidth, alignment: .leading)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 16)
+
+                    Divider()
+
+                    if let assessment = appVM.onboardingAssessment {
+                        footerControls(for: assessment)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 22)
+                    } else {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Spacer()
                         }
-                        .background(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.15), radius: 8, y: -2)
-                    }
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                } else {
-                    ProgressView("Loading assessment…")
-                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
-                }
-            }
-            .frame(minWidth: 780, minHeight: 580)
-            .navigationTitle("Onboarding Assessment")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        appVM.closeAssessmentFlow()
+                        .padding(.vertical, 22)
                     }
                 }
+                .frame(width: modalWidth, height: modalHeight, alignment: .top)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
             await startAssessmentIfNeeded()
@@ -58,17 +88,65 @@ struct OnboardingAssessmentFlow: View {
         }
     }
 
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Onboarding Assessment")
+                    .font(.title2.weight(.semibold))
+                if let status = appVM.onboardingAssessment?.status {
+                    Label(statusLabel(for: status), systemImage: statusIcon(for: status))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Button {
+                appVM.closeAssessmentFlow()
+            } label: {
+                Label("Close", systemImage: "xmark.circle.fill")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+        }
+    }
+
+    private func statusLabel(for status: OnboardingAssessment.Status) -> String {
+        switch status {
+        case .pending:
+            return "Pending calibration"
+        case .inProgress:
+            return "In progress"
+        case .completed:
+            return "Completed"
+        }
+    }
+
+    private func statusIcon(for status: OnboardingAssessment.Status) -> String {
+        switch status {
+        case .pending:
+            return "clock"
+        case .inProgress:
+            return "arrow.triangle.2.circlepath"
+        case .completed:
+            return "checkmark.circle"
+        }
+    }
+
+    // MARK: - Content Builders
+
     @ViewBuilder
     private func curriculumSummary(plan: OnboardingCurriculumPlan) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Curriculum Overview")
-                .font(.title3)
-                .bold()
+                .font(.title3.weight(.semibold))
             Text(plan.overview)
                 .font(.body)
             if !plan.successCriteria.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Success criteria")
+                    Text("Success Criteria")
                         .font(.headline)
                     ForEach(plan.successCriteria, id: \.self) { criterion in
                         Text("• \(criterion)")
@@ -77,14 +155,14 @@ struct OnboardingAssessmentFlow: View {
                 }
             }
             if !plan.modules.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("Modules")
                         .font(.headline)
                     ForEach(plan.modules) { module in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(module.title)
-                                    .font(.subheadline).bold()
+                                    .font(.subheadline.bold())
                                 Spacer()
                                 Text(module.formattedDuration)
                                     .font(.caption)
@@ -99,7 +177,7 @@ struct OnboardingAssessmentFlow: View {
                             }
                         }
                         .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
@@ -113,7 +191,7 @@ struct OnboardingAssessmentFlow: View {
             Text("No assessment tasks available.")
                 .foregroundStyle(.secondary)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Tasks")
                     .font(.headline)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -124,8 +202,7 @@ struct OnboardingAssessmentFlow: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Task \(index + 1)")
-                                        .font(.footnote)
-                                        .bold()
+                                        .font(.footnote.bold())
                                     Text(task.taskType.label)
                                         .font(.caption)
                                     Text(categoryLabel(for: task.categoryKey))
@@ -164,69 +241,67 @@ struct OnboardingAssessmentFlow: View {
                 set: { appVM.setResponse($0, for: task.taskId) }
             )
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(task.title)
-                            .font(.title2)
-                            .bold()
-                        Spacer()
-                        Text("Expected \(task.expectedMinutes) min")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(categoryLabel(for: task.categoryKey))
-                        .font(.subheadline)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(task.title)
+                        .font(.title2.weight(.semibold))
+                    Spacer()
+                    Text("Expected \(task.expectedMinutes) min")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text(task.prompt)
-                        .font(.body)
-                    if !task.guidance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(task.guidance)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !task.rubric.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Rubric checkpoints")
-                                .font(.headline)
-                            ForEach(task.rubric, id: \.self) { item in
-                                Text("• \(item)")
-                                    .font(.footnote)
-                            }
-                        }
-                    }
-
-                    if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
-                        Button("Insert starter code") {
-                            appVM.insertStarter(for: task)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                    }
-
-                    TextEditor(text: response)
-                        .font(task.taskType == .code ? .system(.body, design: .monospaced) : .body)
-                        .frame(minHeight: task.taskType == .code ? 220 : 160)
-                        .padding(10)
-                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.secondary.opacity(0.25))
-                        )
-
-                    if task.taskType == .code, let answer = task.answerKey, !answer.isEmpty {
-                        DisclosureGroup("Agent reference solution") {
-                            Text(answer)
-                                .font(.system(.footnote, design: .monospaced))
-                                .padding(12)
-                                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                }
+                Text(categoryLabel(for: task.categoryKey))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(task.prompt)
+                    .font(.body)
+                if !task.guidance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(task.guidance)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                if !task.rubric.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rubric checkpoints")
+                            .font(.headline)
+                        ForEach(task.rubric, id: \.self) { item in
+                            Text("• \(item)")
+                                .font(.footnote)
                         }
                     }
                 }
-                .padding(.vertical, 4)
+
+                if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
+                    Button("Insert starter code") {
+                        appVM.insertStarter(for: task)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                }
+
+                TextEditor(text: response)
+                    .font(task.taskType == .code ? .system(.body, design: .monospaced) : .body)
+                    .frame(minHeight: task.taskType == .code ? 220 : 160)
+                    .padding(10)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.25))
+                    )
+
+                if task.taskType == .code, let answer = task.answerKey, !answer.isEmpty {
+                    DisclosureGroup("Agent reference solution") {
+                        Text(answer)
+                            .font(.system(.footnote, design: .monospaced))
+                            .padding(12)
+                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
             }
         }
     }
+
+    // MARK: - Footer / Controls
 
     @ViewBuilder
     private func footerControls(for assessment: OnboardingAssessment) -> some View {
@@ -236,7 +311,7 @@ struct OnboardingAssessmentFlow: View {
         let answeredCount = tasks.filter { !$0.taskId.isEmpty && !appVM.response(for: $0.taskId).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
         let allAnswered = answeredCount == total && total > 0
 
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             ProgressView(value: Double(answeredCount), total: Double(max(total, 1)))
             Text("Answered \(answeredCount) of \(total) prompts")
                 .font(.footnote)
@@ -287,6 +362,8 @@ struct OnboardingAssessmentFlow: View {
             }
         }
     }
+
+    // MARK: - Helpers
 
     private func categoryLabel(for key: String) -> String {
         guard let plan = appVM.eloPlan else { return key.capitalized }

@@ -21,7 +21,9 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .center) {
+            Color(nsColor: .windowBackgroundColor)
+                .ignoresSafeArea()
             VStack(spacing: 18) {
                 header
                 if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
@@ -53,23 +55,7 @@ struct HomeView: View {
                     )
                 }
             }
-            if showOnboarding {
-                Color.black.opacity(0.4).ignoresSafeArea()
-                OnboardingView {
-                    showOnboarding = false
-                }
-                .frame(maxWidth: 520)
-                .background(.bar, in: RoundedRectangle(cornerRadius: 18))
-                .padding(40)
-            }
-            if appVM.showingAssessmentFlow, appVM.requiresAssessment {
-                Color.black.opacity(0.45).ignoresSafeArea()
-                OnboardingAssessmentFlow()
-                    .environmentObject(settings)
-                    .environmentObject(appVM)
-                    .background(.bar, in: RoundedRectangle(cornerRadius: 20))
-                    .padding(32)
-            }
+            overlayLayer
         }
         .onReceive(session.$lesson.compactMap { $0 }) { lesson in
             appVM.lastEnvelope = .init(display: lesson.display, widgets: lesson.widgets, citations: lesson.citations)
@@ -119,6 +105,32 @@ struct HomeView: View {
                 message: Text(error.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+    }
+
+    @ViewBuilder
+    private var overlayLayer: some View {
+        if showOnboarding {
+            ZStack {
+                Color.black.opacity(0.4).ignoresSafeArea()
+                OnboardingView {
+                    showOnboarding = false
+                }
+                .frame(maxWidth: 520)
+                .background(.bar, in: RoundedRectangle(cornerRadius: 18))
+                .padding(40)
+            }
+            .transition(.opacity)
+        } else if appVM.showingAssessmentFlow, appVM.requiresAssessment {
+            ZStack {
+                Color.black.opacity(0.45).ignoresSafeArea()
+                OnboardingAssessmentFlow()
+                    .environmentObject(settings)
+                    .environmentObject(appVM)
+                    .background(.bar, in: RoundedRectangle(cornerRadius: 20))
+                    .padding(32)
+            }
+            .transition(.opacity)
         }
     }
 
