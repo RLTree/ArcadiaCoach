@@ -34,12 +34,13 @@ final class AppViewModel: ObservableObject {
                 error = serviceError.localizedDescription
             }
         } catch {
-            error = error.localizedDescription
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
         }
     }
 
     private func alignEloSnapshotWithPlan() {
-        guard let plan else { return }
+        guard let plan = eloPlan else { return }
         var aligned: [String:Int] = [:]
         for category in plan.categories {
             let current = game.elo[category.key] ?? category.startingRating

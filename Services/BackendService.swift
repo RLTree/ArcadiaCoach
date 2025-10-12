@@ -48,6 +48,7 @@ final class BackendService {
     }
 
     private static let logger = Logger(subsystem: "com.arcadiacoach.app", category: "BackendService")
+    private static let requestTimeout: TimeInterval = 1800
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -64,6 +65,7 @@ final class BackendService {
         guard let base = trimmed(url: baseURL), let url = endpoint(baseURL: base, path: "api/session/reset") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? encoder.encode(ResetPayload(sessionId: sessionId))
         do {
@@ -88,6 +90,7 @@ final class BackendService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
 
         logger.debug("GET \(url.absoluteString, privacy: .public)")
 
@@ -196,6 +199,7 @@ final class BackendService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
 
