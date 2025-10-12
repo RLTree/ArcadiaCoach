@@ -10,9 +10,26 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from anyio import ClosedResourceError
 from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
+from mcp.server import streamable_http as _streamable_http
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope, Receive, Send
+
+
+_original_message_router = _streamable_http.message_router
+
+
+async def _safe_message_router(*args, **kwargs):
+    try:
+        async for packet in _original_message_router(*args, **kwargs):
+            yield packet
+    except ClosedResourceError:
+        logging.getLogger("arcadia.mcp.proxy").info(
+            "MCP message stream closed early; suppressing ClosedResourceError.",
+        )
+
+
+_streamable_http.message_router = _safe_message_router
 
 
 class WidgetType(str, Enum):
