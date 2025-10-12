@@ -313,6 +313,11 @@ struct OnboardingAssessmentFlow: View {
             Text("Answered \(answeredCount) of \(total) prompts")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            if appVM.requiresAssessment, let message = appVM.error, !message.isEmpty {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
 
             HStack {
                 Button("Previous") {
@@ -331,14 +336,15 @@ struct OnboardingAssessmentFlow: View {
                     Button {
                         finishingAssessment = true
                         Task {
-                            await appVM.updateAssessmentStatus(
-                                to: .completed,
+                            let success = await appVM.submitAndCompleteAssessment(
                                 baseURL: settings.chatkitBackendURL,
                                 username: settings.arcadiaUsername
                             )
                             await MainActor.run {
                                 finishingAssessment = false
-                                appVM.closeAssessmentFlow()
+                                if success {
+                                    appVM.closeAssessmentFlow()
+                                }
                             }
                         }
                     } label: {
@@ -349,7 +355,12 @@ struct OnboardingAssessmentFlow: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!allAnswered || finishingAssessment)
+                    .disabled(
+                        !allAnswered ||
+                        finishingAssessment ||
+                        settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
                 } else {
                     Button("Done") {
                         appVM.closeAssessmentFlow()

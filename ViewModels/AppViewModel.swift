@@ -113,11 +113,57 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func submitAndCompleteAssessment(
+        baseURL: String,
+        username: String
+    ) async -> Bool {
+        guard let assessment = onboardingAssessment else { return false }
+        guard let responses = makeSubmissionItems(for: assessment) else {
+            error = "Complete every prompt before submitting the assessment."
+            return false
+        }
+        error = nil
+        do {
+            _ = try await BackendService.submitAssessmentResponses(
+                baseURL: baseURL,
+                username: username,
+                responses: responses,
+                metadata: submissionMetadata()
+            )
+            let updated = try await BackendService.updateOnboardingAssessmentStatus(
+                baseURL: baseURL,
+                username: username,
+                status: .completed
+            )
+            onboardingAssessment = updated
+            assessmentResponses.removeAll()
+            showingAssessmentFlow = false
+            error = nil
+            return true
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            return false
+        }
+    }
+
     func openAssessmentFlow() {
         showingAssessmentFlow = true
     }
 
     func closeAssessmentFlow() {
+        showingAssessmentFlow = false
+    }
+
+    func resetAfterDeveloperClear() {
+        game = GameState()
+        lastEnvelope = nil
+        busy = false
+        error = nil
+        eloPlan = nil
+        curriculumPlan = nil
+        onboardingAssessment = nil
+        assessmentResponses.removeAll()
         showingAssessmentFlow = false
     }
 
@@ -152,6 +198,33 @@ final class AppViewModel: ObservableObject {
         }
         let validIds = Set(assessment.tasks.map { $0.taskId })
         assessmentResponses = assessmentResponses.filter { validIds.contains($0.key) }
+    }
+
+    private func makeSubmissionItems(for assessment: OnboardingAssessment) -> [BackendService.AssessmentSubmissionUploadItem]? {
+        var items: [BackendService.AssessmentSubmissionUploadItem] = []
+        for task in assessment.tasks {
+            let trimmed = response(for: task.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
+                let starterTrimmed = starter.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed == starterTrimmed {
+                    return nil
+                }
+            }
+            items.append(.init(taskId: task.taskId, response: trimmed))
+        }
+        return items
+    }
+
+    private func submissionMetadata() -> [String: String] {
+        var metadata: [String: String] = ["platform": "macOS"]
+        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String, !version.isEmpty {
+            metadata["client_version"] = version
+        }
+        if let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String, !build.isEmpty {
+            metadata["build"] = build
+        }
+        return metadata
     }
 
 }

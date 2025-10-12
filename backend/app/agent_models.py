@@ -124,6 +124,22 @@ class OnboardingAssessmentPayload(BaseModel):
     tasks: List[OnboardingAssessmentTaskPayload] = Field(default_factory=list)
 
 
+class AssessmentTaskResponsePayload(BaseModel):
+    task_id: str
+    response: str
+    category_key: str
+    task_type: Literal["concept_check", "code"]
+    word_count: int = Field(default=0, ge=0)
+
+
+class AssessmentSubmissionPayload(BaseModel):
+    submission_id: str
+    username: str
+    submitted_at: datetime
+    responses: List[AssessmentTaskResponsePayload] = Field(default_factory=list)
+    metadata: Dict[str, str] = Field(default_factory=dict)
+
+
 class OnboardingPlanPayload(BaseModel):
     profile_summary: str
     curriculum: OnboardingCurriculumPayload

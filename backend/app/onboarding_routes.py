@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Dict, List, Literal, Set
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from .agent_models import LearnerProfilePayload, OnboardingAssessmentPayload, OnboardingCurriculumPayload
+from .agent_models import (
+    AssessmentSubmissionPayload,
+    LearnerProfilePayload,
+    OnboardingAssessmentPayload,
+    OnboardingCurriculumPayload,
+)
 from .config import Settings, get_settings
 from .learner_profile import profile_store
+from .assessment_submission import AssessmentTaskResponse, submission_payload, submission_store
 from .onboarding_assessment import generate_onboarding_bundle
 from .tools import _profile_payload  # type: ignore[attr-defined]
 
@@ -35,6 +41,16 @@ class OnboardingStatusResponse(BaseModel):
 
 class AssessmentStatusUpdate(BaseModel):
     status: Literal["pending", "in_progress", "completed"]
+
+
+class AssessmentTaskResponseInput(BaseModel):
+    task_id: str = Field(..., min_length=1)
+    response: str = Field(..., min_length=1)
+
+
+class AssessmentSubmissionRequest(BaseModel):
+    responses: List[AssessmentTaskResponseInput] = Field(..., min_length=1)
+    metadata: Dict[str, str] = Field(default_factory=dict)
 
 
 @router.post("/plan", response_model=LearnerProfilePayload, status_code=status.HTTP_200_OK)
@@ -176,3 +192,78 @@ def update_assessment_status(username: str, payload: AssessmentStatusUpdate) -> 
             detail="Failed to transform assessment payload.",
         )
     return transformed.onboarding_assessment
+
+
+@router.post(
+    "/{username}/assessment/submissions",
+    response_model=AssessmentSubmissionPayload,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_assessment_submission(username: str, payload: AssessmentSubmissionRequest) -> AssessmentSubmissionPayload:
+    profile = profile_store.get(username)
+    if profile is None or profile.onboarding_assessment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment for '{username}' is not ready.",
+        )
+
+    tasks = {task.task_id: task for task in profile.onboarding_assessment.tasks}
+    if not tasks:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"No assessment tasks registered for '{username}'.",
+        )
+
+    seen: Set[str] = set()
+    responses: List[AssessmentTaskResponse] = []
+    for entry in payload.responses:
+        task_id = entry.task_id.strip()
+        if not task_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Task ID cannot be empty.",
+            )
+        if task_id not in tasks:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Task '{task_id}' does not belong to '{username}'.",
+            )
+        if task_id in seen:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Task '{task_id}' is duplicated in the submission payload.",
+            )
+        text = entry.response.strip()
+        if not text:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Task '{task_id}' response cannot be empty.",
+            )
+        task = tasks[task_id]
+        responses.append(
+            AssessmentTaskResponse(
+                task_id=task.task_id,
+                response=text,
+                category_key=task.category_key,
+                task_type=task.task_type,  # type: ignore[arg-type]
+            )
+        )
+        seen.add(task_id)
+
+    cleaned_metadata = {
+        key: value.strip()
+        for key, value in payload.metadata.items()
+        if isinstance(key, str) and isinstance(value, str) and value.strip()
+    }
+    submission = submission_store.record(username, responses, metadata=cleaned_metadata)
+    return submission_payload(submission)
+
+
+@router.get(
+    "/{username}/assessment/submissions",
+    response_model=List[AssessmentSubmissionPayload],
+    status_code=status.HTTP_200_OK,
+)
+def list_assessment_submissions(username: str) -> List[AssessmentSubmissionPayload]:
+    entries = submission_store.list_user(username)
+    return [submission_payload(entry) for entry in entries]

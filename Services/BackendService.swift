@@ -59,6 +59,20 @@ final class BackendService {
         var status: String
     }
 
+    struct AssessmentSubmissionUploadItem: Encodable {
+        var taskId: String
+        var response: String
+    }
+
+    private struct AssessmentSubmissionUpload: Encodable {
+        var responses: [AssessmentSubmissionUploadItem]
+        var metadata: [String: String]?
+    }
+
+    private struct DeveloperResetPayload: Encodable {
+        var username: String
+    }
+
     struct OnboardingStatusSnapshot: Decodable {
         var username: String
         var planReady: Bool
@@ -299,6 +313,106 @@ final class BackendService {
             body: AssessmentStatusPayload(status: status.rawValue),
             expecting: OnboardingAssessment.self
         )
+    }
+
+    static func submitAssessmentResponses(
+        baseURL: String,
+        username: String,
+        responses: [AssessmentSubmissionUploadItem],
+        metadata: [String: String] = [:]
+    ) async throws -> AssessmentSubmissionRecord {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty, !responses.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        let cleanedMetadata = metadata
+            .mapValues { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.value.isEmpty }
+        let payload = AssessmentSubmissionUpload(
+            responses: responses,
+            metadata: cleanedMetadata.isEmpty ? nil : cleanedMetadata
+        )
+        return try await post(
+            baseURL: trimmedBase,
+            path: "api/onboarding/\(encodedUsername)/assessment/submissions",
+            body: payload,
+            expecting: AssessmentSubmissionRecord.self
+        )
+    }
+
+    static func fetchAssessmentSubmissions(
+        baseURL: String,
+        username: String? = nil
+    ) async throws -> [AssessmentSubmissionRecord] {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        guard var url = endpoint(baseURL: trimmedBase, path: "api/developer/submissions") else {
+            throw BackendServiceError.invalidURL
+        }
+        if let username, !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            components?.queryItems = [URLQueryItem(name: "username", value: trimmedUsername)]
+            if let resolved = components?.url {
+                url = resolved
+            }
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
+
+        logger.debug("GET \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode([AssessmentSubmissionRecord].self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func developerReset(baseURL: String, username: String) async throws {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/developer/reset") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(DeveloperResetPayload(username: trimmedUsername))
+
+        logger.debug("POST \(url.absoluteString, privacy: .public) [developer reset]")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
     }
 
     static func sendChat(

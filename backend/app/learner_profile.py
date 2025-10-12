@@ -266,6 +266,16 @@ class LearnerProfileStore:
             self._persist_locked()
             return self._profiles[normalized].model_copy(deep=True)
 
+    def delete(self, username: str) -> bool:
+        normalized = username.lower()
+        with self._lock:
+            removed = self._profiles.pop(normalized, None)
+            if removed:
+                self._persist_locked()
+                logger.info("Removed learner profile for %s", normalized)
+                return True
+            return False
+
     def _set_if_changed(self, profile: LearnerProfile, attr: str, raw_value: Any) -> bool:
         if not isinstance(raw_value, str):
             return False

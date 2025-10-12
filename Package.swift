@@ -40,11 +40,13 @@ let package = Package(
                 "Tests",
                 "ViewModels/AppViewModel.swift",
                 "ViewModels/SessionViewModel.swift",
+                "ViewModels/DeveloperToolsViewModel.swift",
                 "Views",
             ],
             sources: [
                 "Models/EloEngine.swift",
                 "Models/EloPlan.swift",
+                "Models/AssessmentSubmission.swift",
                 "Models/OnboardingAssessment.swift",
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",

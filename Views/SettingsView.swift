@@ -2,12 +2,16 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var appVM: AppViewModel
     @StateObject private var diagnostics = ChatKitDiagnosticsViewModel()
+    @StateObject private var developerTools = DeveloperToolsViewModel()
     @State private var apiKey: String = ""
     @State private var backendURL: String = ""
     @State private var domainKey: String = ""
     @State private var learnerGoal: String = ""
     @State private var learnerUseCase: String = ""
+    @State private var showDeveloperDashboard = false
+    @State private var showDeveloperResetConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -98,6 +102,47 @@ struct SettingsView: View {
                     Stepper("Tasks per chunk: \(settings.focusChunks)", value: $settings.focusChunks, in: 1...6)
                 }
 
+                SettingsSection(title: "Developer Tools") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button {
+                            showDeveloperResetConfirmation = true
+                        } label: {
+                            if developerTools.resetInFlight {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Developer Reset", systemImage: "arrow.counterclockwise.circle.fill")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .disabled(developerTools.resetInFlight)
+                        if let resetAt = developerTools.lastResetAt {
+                            Text("Last reset on \(resetAt.formatted(date: .numeric, time: .standard)).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("View Assessment Submissions") {
+                            showDeveloperDashboard = true
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(developerTools.isLoadingSubmissions && showDeveloperDashboard)
+                        if developerTools.isLoadingSubmissions {
+                            ProgressView("Refreshing submissions…")
+                                .controlSize(.small)
+                        }
+                        if let error = developerTools.lastError, !error.isEmpty {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        } else {
+                            Text("Reset clears the learner profile, onboarding assessment bundle, and local responses while keeping your OpenAI key and backend settings intact.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 SettingsSection(title: "Diagnostics") {
                     if diagnostics.isRunning {
                         ProgressView("Running ChatKit diagnostics…")
@@ -142,6 +187,31 @@ struct SettingsView: View {
             learnerGoal = settings.learnerGoal
             learnerUseCase = settings.learnerUseCase
             // strengths handled implicitly by future assessments
+        }
+        .sheet(isPresented: $showDeveloperDashboard) {
+            DeveloperSubmissionDashboard(
+                viewModel: developerTools,
+                baseURL: settings.chatkitBackendURL,
+                currentUsername: settings.arcadiaUsername
+            )
+        }
+        .confirmationDialog(
+            "Developer Reset",
+            isPresented: $showDeveloperResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset learner data", role: .destructive) {
+                Task {
+                    await developerTools.performDeveloperReset(
+                        baseURL: settings.chatkitBackendURL,
+                        settings: settings,
+                        appVM: appVM
+                    )
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This clears the learner profile, curriculum, and assessment submissions. Your backend URL and API key remain saved locally.")
         }
     }
 }
