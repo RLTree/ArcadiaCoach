@@ -1,20 +1,118 @@
+import asyncio
 import json
 import logging
 import os
 import re
+import sys
+import traceback
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from anyio import ClosedResourceError
+from anyio import ClosedResourceError, BrokenResourceError, EndOfStream
 from fastapi import FastAPI, Request, Response
+from mcp import McpError
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import StreamableHTTPServerTransport
+from mcp.types import ErrorData
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope, Receive, Send
 
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload: Dict[str, Any] = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+_log_level = os.getenv("MCP_LOG_LEVEL", "INFO").upper()
+_handler = logging.StreamHandler(sys.stdout)
+_handler.setFormatter(JSONFormatter())
+logging.basicConfig(level=_log_level, handlers=[_handler])
+logger = logging.getLogger("arcadia.mcp")
+
+
+class ProductionErrorMiddleware:
+    """Catch transport and tool exceptions and convert them into MCP errors."""
+
+    def __init__(self, include_traceback: bool = False) -> None:
+        self.include_traceback = include_traceback
+
+    async def __call__(self, context, call_next):
+        try:
+            return await call_next(context)
+        except ClosedResourceError:
+            logger.info("Stream closed gracefully")
+            raise McpError(
+                ErrorData(
+                    code=-32000,
+                    message="Session ended",
+                    data={"reason": "stream_closed"},
+                )
+            )
+        except (BrokenResourceError, EndOfStream) as err:
+            logger.warning("Stream broken: %s", err)
+            raise McpError(
+                ErrorData(
+                    code=-32001,
+                    message="Connection broken",
+                    data={"reason": str(err)},
+                )
+            )
+        except ValueError as err:
+            logger.warning("Invalid request: %s", err)
+            raise McpError(
+                ErrorData(
+                    code=-32602,
+                    message="Invalid parameters",
+                    data={"error": str(err)},
+                )
+            )
+        except Exception as err:  # noqa: BLE001
+            logger.exception("Unexpected error in MCP middleware")
+            error_data: Dict[str, Any] = {"type": type(err).__name__, "message": str(err)}
+            if self.include_traceback:
+                error_data["traceback"] = traceback.format_exc()
+            raise McpError(
+                ErrorData(
+                    code=-32603,
+                    message="Internal server error",
+                    data=error_data,
+                )
+            )
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Simple bearer token authentication for production deployments."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in ("/health", "/mcp/health", "/"):
+            return await call_next(request)
+
+        expected_token = os.getenv("MCP_API_TOKEN")
+        if not expected_token:
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            provided = auth_header[len("Bearer ") :].strip()
+            if provided == expected_token:
+                return await call_next(request)
+
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
 _original_handle_post_request = StreamableHTTPServerTransport._handle_post_request
 
@@ -414,14 +512,29 @@ def _resolve_port() -> int:
         return 8001
 
 
+@asynccontextmanager
+async def _mcp_lifespan(_app):
+    logger.info("Arcadia MCP server starting up")
+    logger.info("Python version: %s", sys.version.replace("\n", " "))
+    try:
+        yield
+    finally:
+        logger.info("Arcadia MCP server shutting down")
+
+
 mcp = FastMCP(
     name="Arcadia Coach Widgets",
     instructions="Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach.",
+    lifespan=_mcp_lifespan,
 )
 mcp.settings.streamable_http_path = "/mcp_internal"
 mcp.settings.message_path = "/messages/"
 mcp.settings.stateless_http = True
 mcp.settings.json_response = True
+
+_include_traceback = os.getenv("DEBUG", "false").lower() == "true"
+mcp.add_middleware(ProductionErrorMiddleware(include_traceback=_include_traceback))
+mcp._app.add_middleware(AuthMiddleware)
 
 
 class _AppLifespan:
@@ -436,14 +549,38 @@ class _AppLifespan:
         await self._context.__aexit__(exc_type, exc, tb)
 
 
+@mcp.custom_route("/", methods=["GET"])
+async def root_route(_request):
+    return JSONResponse(
+        {
+            "service": "arcadia-coach-mcp",
+            "health": "/health",
+            "transport": "streamable-http",
+            "status": "running",
+        }
+    )
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health_route(_request):
-    return JSONResponse({"status": "ok", "service": "arcadia-mcp"})
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "service": "arcadia-coach-mcp",
+            "transport": "streamable-http",
+        }
+    )
 
 
 @mcp.custom_route("/mcp/health", methods=["GET"])
 async def scoped_health_route(_request):
-    return JSONResponse({"status": "ok", "service": "arcadia-mcp"})
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "service": "arcadia-coach-mcp",
+            "transport": "streamable-http",
+        }
+    )
 
 
 @mcp.tool()
@@ -614,7 +751,14 @@ def main() -> None:
 
     import uvicorn
 
-    uvicorn.run(proxy_app, host=host, port=port, log_level="info")
+    uvicorn.run(
+        proxy_app,
+        host=host,
+        port=port,
+        log_level="info",
+        timeout_keep_alive=1800,
+        timeout_graceful_shutdown=60,
+    )
 
 
 def create_proxy_app(inner_app) -> FastAPI:
@@ -736,9 +880,9 @@ async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tup
 
     try:
         await app(scope, receive, send)
-    except ClosedResourceError:
+    except (ClosedResourceError, BrokenResourceError, EndOfStream) as err:
         logging.getLogger("arcadia.mcp.proxy").info(
-            "MCP stream closed before completion; returning partial response",
+            "Stream closed while proxying MCP request: %s", err
         )
     return status_code, response_headers, bytes(response_body)
 
