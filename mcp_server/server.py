@@ -746,9 +746,25 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
         if lifespan_manager is not None:
             await lifespan_manager.__aexit__(None, None, None)
 
+    @app.get("/")
+    async def root() -> Dict[str, str]:
+        return {
+            "service": "arcadia-mcp",
+            "transport": "streamable-http",
+            "health": "/health",
+        }
+
     @app.get("/health")
     async def health() -> Dict[str, str]:
         return {"status": "ok", "service": "arcadia-mcp"}
+
+    @app.get("/mcp")
+    async def mcp_info() -> Dict[str, str]:
+        return {
+            "service": "arcadia-mcp",
+            "endpoint": "/mcp",
+            "internal_path": mcp.settings.streamable_http_path,
+        }
 
     @app.get("/mcp/health")
     async def scoped_health() -> Dict[str, str]:
@@ -822,7 +838,8 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
         quoted_headers = _prepare_headers(request.scope["headers"], body)
 
         scope = dict(request.scope)
-        scope["path"] = mcp.settings.streamable_http_path
+        internal_path = mcp.settings.streamable_http_path.rstrip("/") + "/"
+        scope["path"] = internal_path
         scope["headers"] = quoted_headers
 
         try:
