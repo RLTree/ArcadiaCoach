@@ -1,4 +1,4 @@
-"""Lightweight persistence for onboarding assessment submissions (Phase 4)."""
+"""Lightweight persistence for onboarding assessment submissions (Phases 4-5)."""
 
 from __future__ import annotations
 
@@ -7,15 +7,20 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Dict, Iterable, List, Literal
+from typing import Dict, Iterable, List, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 from .agent_models import (
+    AssessmentCategoryOutcomePayload,
+    AssessmentGradingPayload,
+    AssessmentRubricEvaluationPayload,
     AssessmentSubmissionPayload,
+    AssessmentTaskGradePayload,
     AssessmentTaskResponsePayload,
 )
+from .assessment_result import AssessmentGradingResult
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +44,7 @@ class AssessmentSubmission(BaseModel):
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     responses: List[AssessmentTaskResponse] = Field(default_factory=list)
     metadata: Dict[str, str] = Field(default_factory=dict)
+    grading: Optional[AssessmentGradingResult] = None
 
 
 def _word_count(value: str) -> int:
@@ -81,6 +87,36 @@ class AssessmentSubmissionStore:
             self._persist_locked()
             logger.info("Stored onboarding submission %s for %s", submission.submission_id, normalized)
             return submission
+
+    def apply_grading(
+        self,
+        username: str,
+        submission_id: str,
+        grading: AssessmentGradingResult,
+    ) -> AssessmentSubmission:
+        normalized = username.lower().strip()
+        if not normalized:
+            raise ValueError("Username cannot be empty when applying grading.")
+
+        with self._lock:
+            bucket = self._entries.get(normalized)
+            if not bucket:
+                raise LookupError(f"No submissions found for '{username}'.")
+
+            updated: Optional[AssessmentSubmission] = None
+            for index, entry in enumerate(bucket):
+                if entry.submission_id == submission_id:
+                    bucket[index] = entry = entry.model_copy(deep=True)
+                    entry.grading = grading.model_copy(deep=True)
+                    updated = entry
+                    break
+
+            if updated is None:
+                raise LookupError(f"Submission '{submission_id}' was not found for '{username}'.")
+
+            self._persist_locked()
+            logger.info("Attached grading result to submission %s for %s", submission_id, normalized)
+            return updated.model_copy(deep=True)
 
     def list_user(self, username: str) -> List[AssessmentSubmission]:
         normalized = username.lower().strip()
@@ -145,6 +181,48 @@ class AssessmentSubmissionStore:
 
 
 def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmissionPayload:
+    grading_payload: AssessmentGradingPayload | None = None
+    if submission.grading:
+        grading = submission.grading
+        grading_payload = AssessmentGradingPayload(
+            submission_id=grading.submission_id,
+            evaluated_at=grading.evaluated_at,
+            overall_feedback=grading.overall_feedback,
+            strengths=list(grading.strengths),
+            focus_areas=list(grading.focus_areas),
+            task_results=[
+                AssessmentTaskGradePayload(
+                    task_id=task.task_id,
+                    category_key=task.category_key,
+                    task_type=task.task_type,
+                    score=task.score,
+                    confidence=task.confidence,
+                    feedback=task.feedback,
+                    strengths=list(task.strengths),
+                    improvements=list(task.improvements),
+                    rubric=[
+                        AssessmentRubricEvaluationPayload(
+                            criterion=rubric.criterion,
+                            met=rubric.met,
+                            notes=rubric.notes,
+                            score=rubric.score,
+                        )
+                        for rubric in task.rubric
+                    ],
+                )
+                for task in grading.task_results
+            ],
+            category_outcomes=[
+                AssessmentCategoryOutcomePayload(
+                    category_key=outcome.category_key,
+                    average_score=outcome.average_score,
+                    initial_rating=outcome.initial_rating,
+                    rationale=outcome.rationale,
+                )
+                for outcome in grading.category_outcomes
+            ],
+        )
+
     return AssessmentSubmissionPayload(
         submission_id=submission.submission_id,
         username=submission.username,
@@ -160,12 +238,14 @@ def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmission
             )
             for response in submission.responses
         ],
+        grading=grading_payload,
     )
 
 
 submission_store = AssessmentSubmissionStore(DATA_PATH)
 
 __all__ = [
+    "AssessmentGradingResult",
     "AssessmentSubmission",
     "AssessmentSubmissionStore",
     "AssessmentTaskResponse",

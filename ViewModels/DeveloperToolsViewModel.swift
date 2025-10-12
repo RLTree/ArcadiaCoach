@@ -56,6 +56,7 @@ final class DeveloperToolsViewModel: ObservableObject {
             settings.learnerUseCase = ""
             settings.learnerStrengths = ""
             appVM.resetAfterDeveloperClear()
+            NotificationCenter.default.post(name: .developerResetCompleted, object: nil)
         } catch {
             let nsError = error as NSError
             lastError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription

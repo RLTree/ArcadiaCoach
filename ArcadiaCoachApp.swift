@@ -26,4 +26,5 @@ struct ArcadiaCoachApp: App {
 
 extension Notification.Name {
     static let resetFocusTimer = Notification.Name("resetFocusTimer")
+    static let developerResetCompleted = Notification.Name("developerResetCompleted")
 }

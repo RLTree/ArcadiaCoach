@@ -124,6 +124,10 @@ struct HomeView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .developerResetCompleted)) { _ in
+            selectedTab = .assessment
+            showOnboarding = true
+        }
     }
 
     @ViewBuilder
@@ -263,6 +267,19 @@ struct HomeView: View {
                     .environmentObject(settings)
                     .environmentObject(appVM)
                     .padding(.vertical, 20)
+            } else if appVM.onboardingAssessment == nil {
+                VStack(spacing: 16) {
+                    Text("Onboarding assessment not ready")
+                        .font(.title2.bold())
+                    Text("Run the onboarding flow to generate your personalised curriculum and assessment bundle.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Button("Run Onboarding") {
+                        showOnboarding = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 16) {
                     Text("Onboarding assessment completed")

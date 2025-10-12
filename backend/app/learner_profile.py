@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .assessment_result import AssessmentGradingResult
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,7 @@ class LearnerProfile(BaseModel):
     elo_category_plan: Optional[EloCategoryPlan] = None
     curriculum_plan: Optional[CurriculumPlan] = None
     onboarding_assessment: Optional[OnboardingAssessment] = None
+    onboarding_assessment_result: Optional[AssessmentGradingResult] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -249,6 +251,33 @@ class LearnerProfileStore:
             self._persist_locked()
             return self._profiles[normalized].model_copy(deep=True)
 
+    def apply_assessment_result(
+        self,
+        username: str,
+        result: AssessmentGradingResult,
+        elo_snapshot: Dict[str, int],
+    ) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                raise LookupError(f"Learner profile '{username}' does not exist.")
+            profile.onboarding_assessment_result = result.model_copy(deep=True)
+            if profile.onboarding_assessment is not None:
+                profile.onboarding_assessment.status = "completed"  # type: ignore[assignment]
+            if elo_snapshot:
+                sanitized = {
+                    key: max(int(value), 0)
+                    for key, value in elo_snapshot.items()
+                    if isinstance(key, str)
+                }
+                if sanitized:
+                    profile.elo_snapshot = dict(sanitized)
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
     def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
         normalized = username.lower()
         allowed = {"pending", "in_progress", "completed"}
@@ -323,6 +352,7 @@ class LearnerProfileStore:
 profile_store = LearnerProfileStore(DATA_PATH)
 
 __all__ = [
+    "AssessmentGradingResult",
     "AssessmentTask",
     "CurriculumModule",
     "CurriculumPlan",

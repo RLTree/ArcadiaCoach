@@ -1,4 +1,4 @@
-"""Phase 3 onboarding endpoints for curriculum planning and assessment delivery."""
+"""Onboarding endpoints for curriculum planning, assessment delivery, and grading (Phases 3 & 5)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from .agent_models import (
+    AssessmentGradingPayload,
     AssessmentSubmissionPayload,
     LearnerProfilePayload,
     OnboardingAssessmentPayload,
@@ -16,6 +17,7 @@ from .agent_models import (
 )
 from .config import Settings, get_settings
 from .learner_profile import profile_store
+from .assessment_grading import grade_submission
 from .assessment_submission import AssessmentTaskResponse, submission_payload, submission_store
 from .onboarding_assessment import generate_onboarding_bundle
 from .tools import _profile_payload  # type: ignore[attr-defined]
@@ -199,7 +201,11 @@ def update_assessment_status(username: str, payload: AssessmentStatusUpdate) -> 
     response_model=AssessmentSubmissionPayload,
     status_code=status.HTTP_201_CREATED,
 )
-def create_assessment_submission(username: str, payload: AssessmentSubmissionRequest) -> AssessmentSubmissionPayload:
+async def create_assessment_submission(
+    username: str,
+    payload: AssessmentSubmissionRequest,
+    settings: Settings = Depends(get_settings),
+) -> AssessmentSubmissionPayload:
     profile = profile_store.get(username)
     if profile is None or profile.onboarding_assessment is None:
         raise HTTPException(
@@ -256,7 +262,16 @@ def create_assessment_submission(username: str, payload: AssessmentSubmissionReq
         if isinstance(key, str) and isinstance(value, str) and value.strip()
     }
     submission = submission_store.record(username, responses, metadata=cleaned_metadata)
-    return submission_payload(submission)
+
+    grading_result, rating_updates = await grade_submission(
+        settings=settings,
+        profile=profile,
+        submission=submission,
+        tasks=tasks,
+    )
+    updated_submission = submission_store.apply_grading(username, submission.submission_id, grading_result)
+    profile_store.apply_assessment_result(username, grading_result, rating_updates)
+    return submission_payload(updated_submission)
 
 
 @router.get(
@@ -267,3 +282,24 @@ def create_assessment_submission(username: str, payload: AssessmentSubmissionReq
 def list_assessment_submissions(username: str) -> List[AssessmentSubmissionPayload]:
     entries = submission_store.list_user(username)
     return [submission_payload(entry) for entry in entries]
+
+
+@router.get(
+    "/{username}/assessment/result",
+    response_model=AssessmentGradingPayload,
+    status_code=status.HTTP_200_OK,
+)
+def get_assessment_result(username: str) -> AssessmentGradingPayload:
+    profile = profile_store.get(username)
+    if profile is None or profile.onboarding_assessment_result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Grading result for '{username}' is not available.",
+        )
+    payload = _profile_payload(profile)
+    if payload.onboarding_assessment_result is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to transform grading payload.",
+        )
+    return payload.onboarding_assessment_result

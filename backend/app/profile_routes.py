@@ -5,6 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from .agent_models import (
+    AssessmentCategoryOutcomePayload,
+    AssessmentGradingPayload,
+    AssessmentRubricEvaluationPayload,
+    AssessmentTaskGradePayload,
     CurriculumModulePayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
@@ -88,6 +92,47 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for task in assessment.tasks
             ],
         )
+    assessment_result_payload: AssessmentGradingPayload | None = None
+    if profile.onboarding_assessment_result:
+        result = profile.onboarding_assessment_result
+        assessment_result_payload = AssessmentGradingPayload(
+            submission_id=result.submission_id,
+            evaluated_at=result.evaluated_at,
+            overall_feedback=result.overall_feedback,
+            strengths=list(result.strengths),
+            focus_areas=list(result.focus_areas),
+            task_results=[
+                AssessmentTaskGradePayload(
+                    task_id=task.task_id,
+                    category_key=task.category_key,
+                    task_type=task.task_type,
+                    score=task.score,
+                    confidence=task.confidence,
+                    feedback=task.feedback,
+                    strengths=list(task.strengths),
+                    improvements=list(task.improvements),
+                    rubric=[
+                        AssessmentRubricEvaluationPayload(
+                            criterion=rubric.criterion,
+                            met=rubric.met,
+                            notes=rubric.notes,
+                            score=rubric.score,
+                        )
+                        for rubric in task.rubric
+                    ],
+                )
+                for task in result.task_results
+            ],
+            category_outcomes=[
+                AssessmentCategoryOutcomePayload(
+                    category_key=outcome.category_key,
+                    average_score=outcome.average_score,
+                    initial_rating=outcome.initial_rating,
+                    rationale=outcome.rationale,
+                )
+                for outcome in result.category_outcomes
+            ],
+        )
     return LearnerProfilePayload(
         username=profile.username,
         goal=profile.goal,
@@ -105,6 +150,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         elo_category_plan=plan_payload,
         curriculum_plan=curriculum_payload,
         onboarding_assessment=assessment_payload,
+        onboarding_assessment_result=assessment_result_payload,
     )
 
 

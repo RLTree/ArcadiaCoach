@@ -132,12 +132,49 @@ class AssessmentTaskResponsePayload(BaseModel):
     word_count: int = Field(default=0, ge=0)
 
 
+class AssessmentRubricEvaluationPayload(BaseModel):
+    criterion: str
+    met: bool
+    notes: Optional[str] = None
+    score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+
+
+class AssessmentTaskGradePayload(BaseModel):
+    task_id: str
+    category_key: str
+    task_type: Literal["concept_check", "code"]
+    score: float = Field(ge=0.0, le=1.0)
+    confidence: Literal["low", "medium", "high"] = "medium"
+    feedback: str
+    strengths: List[str] = Field(default_factory=list)
+    improvements: List[str] = Field(default_factory=list)
+    rubric: List[AssessmentRubricEvaluationPayload] = Field(default_factory=list)
+
+
+class AssessmentCategoryOutcomePayload(BaseModel):
+    category_key: str
+    average_score: float = Field(ge=0.0, le=1.0)
+    initial_rating: int = Field(ge=0)
+    rationale: Optional[str] = None
+
+
+class AssessmentGradingPayload(BaseModel):
+    submission_id: str
+    evaluated_at: datetime
+    overall_feedback: str
+    strengths: List[str] = Field(default_factory=list)
+    focus_areas: List[str] = Field(default_factory=list)
+    task_results: List[AssessmentTaskGradePayload] = Field(default_factory=list)
+    category_outcomes: List[AssessmentCategoryOutcomePayload] = Field(default_factory=list)
+
+
 class AssessmentSubmissionPayload(BaseModel):
     submission_id: str
     username: str
     submitted_at: datetime
     responses: List[AssessmentTaskResponsePayload] = Field(default_factory=list)
     metadata: Dict[str, str] = Field(default_factory=dict)
+    grading: Optional[AssessmentGradingPayload] = None
 
 
 class OnboardingPlanPayload(BaseModel):
@@ -166,6 +203,7 @@ class LearnerProfilePayload(BaseModel):
     elo_category_plan: Optional[EloCategoryPlanPayload] = None
     curriculum_plan: Optional[OnboardingCurriculumPayload] = None
     onboarding_assessment: Optional[OnboardingAssessmentPayload] = None
+    onboarding_assessment_result: Optional[AssessmentGradingPayload] = None
 
 
 class LearnerProfileGetResponse(BaseModel):
