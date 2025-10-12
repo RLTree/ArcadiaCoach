@@ -8,6 +8,13 @@ from agents import function_tool
 
 from .learner_profile import profile_store
 from .vector_memory import learner_memory
+from .agent_models import (
+    LearnerMemoryWriteResponse,
+    LearnerProfileGetResponse,
+    LearnerProfilePayload,
+    LearnerProfileUpdateResponse,
+    SkillRatingPayload,
+)
 
 
 def _progress_payload(idx: int, total: int) -> Dict[str, Any]:
@@ -23,7 +30,7 @@ def _progress_payload(idx: int, total: int) -> Dict[str, Any]:
     }
 
 
-@function_tool
+@function_tool(strict_mode=False)
 def progress_start(total: int) -> Dict[str, Any]:
     """Initialise a multi-step progress tracker."""
     if total <= 0:
@@ -31,7 +38,7 @@ def progress_start(total: int) -> Dict[str, Any]:
     return _progress_payload(idx=0, total=total)
 
 
-@function_tool
+@function_tool(strict_mode=False)
 def progress_advance(idx: int, total: int) -> Dict[str, Any]:
     """Advance the progress tracker and surface the updated status."""
     if total <= 0:
@@ -40,7 +47,7 @@ def progress_advance(idx: int, total: int) -> Dict[str, Any]:
     return _progress_payload(idx=next_idx, total=total)
 
 
-@function_tool
+@function_tool(strict_mode=False)
 def elo_update(
     elo: Dict[str, float] | None,
     skill_weights: Dict[str, float] | None,
@@ -71,23 +78,38 @@ def elo_update(
     return {"updated_elo": updated}
 
 
-@function_tool
-def learner_profile_get(username: str) -> Dict[str, Any]:
+@function_tool(strict_mode=False)
+def learner_profile_get(username: str) -> LearnerProfileGetResponse:
     """Fetch the persisted learner profile for the given username."""
     profile = profile_store.get(username)
     if profile is None:
-        return {"found": False, "username": username}
-    return {"found": True, "profile": profile.model_dump(mode="json")}
+        return LearnerProfileGetResponse(found=False, profile=None)
+    payload = LearnerProfilePayload(
+        username=profile.username,
+        goal=profile.goal,
+        use_case=profile.use_case,
+        strengths=profile.strengths,
+        knowledge_tags=profile.knowledge_tags,
+        recent_sessions=profile.recent_sessions,
+        memory_records=profile.memory_records,
+        skill_ratings=[
+            SkillRatingPayload(category=category, rating=value)
+            for category, value in profile.elo_snapshot.items()
+        ],
+        memory_index_id=profile.memory_index_id,
+        last_updated=profile.last_updated,
+    )
+    return LearnerProfileGetResponse(found=True, profile=payload)
 
 
-@function_tool
+@function_tool(strict_mode=False)
 def learner_profile_update(
     username: str,
     goal: str | None = None,
     use_case: str | None = None,
     strengths: str | None = None,
     knowledge_tags: List[str] | None = None,
-) -> Dict[str, Any]:
+) -> LearnerProfileUpdateResponse:
     """Update learner profile fields and return the refreshed profile snapshot."""
     metadata: Dict[str, Any] = {}
     if goal is not None:
@@ -99,14 +121,35 @@ def learner_profile_update(
     if knowledge_tags is not None:
         metadata["knowledge_tags"] = knowledge_tags
     profile = profile_store.apply_metadata(username, metadata)
-    return {"profile": profile.model_dump(mode="json")}
+    payload = LearnerProfilePayload(
+        username=profile.username,
+        goal=profile.goal,
+        use_case=profile.use_case,
+        strengths=profile.strengths,
+        knowledge_tags=profile.knowledge_tags,
+        recent_sessions=profile.recent_sessions,
+        memory_records=profile.memory_records,
+        skill_ratings=[
+            SkillRatingPayload(category=category, rating=value)
+            for category, value in profile.elo_snapshot.items()
+        ],
+        memory_index_id=profile.memory_index_id,
+        last_updated=profile.last_updated,
+    )
+    return LearnerProfileUpdateResponse(profile=payload)
 
 
-@function_tool
-def learner_memory_write(username: str, note: str, tags: List[str] | None = None) -> Dict[str, Any]:
+@function_tool(strict_mode=False)
+def learner_memory_write(
+    username: str, note: str, tags: List[str] | None = None
+) -> LearnerMemoryWriteResponse:
     """Record a personalised memory note for the learner."""
     result = learner_memory.record_note(username=username, note=note, tags=tags or [])
-    return {"memory": result}
+    return LearnerMemoryWriteResponse(
+        note_id=result["note_id"],
+        vector_store_id=result["vector_store_id"],
+        status=result["status"],
+    )
 
 
 AGENT_SUPPORT_TOOLS = [

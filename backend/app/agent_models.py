@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -55,3 +56,43 @@ class EndMilestone(BaseModel):
     intent: str
     display: str
     widgets: List[Widget] = Field(default_factory=list)
+
+
+class LearnerMemoryItemPayload(BaseModel):
+    note_id: str
+    note: str
+    tags: List[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class SkillRatingPayload(BaseModel):
+    category: str
+    rating: int
+
+
+class LearnerProfilePayload(BaseModel):
+    username: str
+    goal: str = ""
+    use_case: str = ""
+    strengths: str = ""
+    knowledge_tags: List[str] = Field(default_factory=list)
+    recent_sessions: List[str] = Field(default_factory=list)
+    memory_records: List[LearnerMemoryItemPayload] = Field(default_factory=list)
+    skill_ratings: List[SkillRatingPayload] = Field(default_factory=list)
+    memory_index_id: str
+    last_updated: datetime
+
+
+class LearnerProfileGetResponse(BaseModel):
+    found: bool
+    profile: Optional[LearnerProfilePayload] = None
+
+
+class LearnerProfileUpdateResponse(BaseModel):
+    profile: LearnerProfilePayload
+
+
+class LearnerMemoryWriteResponse(BaseModel):
+    note_id: str
+    vector_store_id: str
+    status: Literal["queued", "stored"]

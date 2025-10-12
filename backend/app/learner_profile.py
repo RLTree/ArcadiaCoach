@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATA_PATH = DATA_DIR / "learner_profiles.json"
 
 DEFAULT_VECTOR_STORE_ID = "vs_68e81d741f388191acdaabce2f92b7d5"
@@ -170,7 +170,10 @@ class LearnerProfileStore:
             username: profile.model_dump(mode="json")
             for username, profile in self._profiles.items()
         }
-        self._path.write_text(json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8")
+        try:
+            self._path.write_text(json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            logger.exception("Failed to persist learner profiles to %s", self._path)
 
 
 profile_store = LearnerProfileStore(DATA_PATH)
