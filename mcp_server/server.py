@@ -778,6 +778,33 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
     async def scoped_health() -> Dict[str, str]:
         return {"status": "ok", "service": "arcadia-mcp"}
 
+    allow_headers = (
+        "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version"
+    )
+    allow_methods = "POST, OPTIONS, HEAD, GET"
+
+    @app.options("/mcp")
+    async def mcp_options() -> Response:
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": allow_headers,
+                "Access-Control-Allow-Methods": allow_methods,
+            },
+        )
+
+    @app.head("/mcp")
+    async def mcp_head() -> Response:
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": allow_headers,
+                "Access-Control-Allow-Methods": allow_methods,
+            },
+        )
+
     @app.post("/mcp")
     async def proxy(request: Request) -> Response:
         body = await request.body()
@@ -881,24 +908,3 @@ async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tup
 
 if __name__ == "__main__":
     main()
-    @app.options("/mcp")
-    async def mcp_options() -> Response:
-        return Response(
-            status_code=204,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Methods": "POST, OPTIONS, HEAD",
-            },
-        )
-
-    @app.head("/mcp")
-    async def mcp_head() -> Response:
-        return Response(
-            status_code=204,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Methods": "POST, OPTIONS, HEAD",
-            },
-        )
