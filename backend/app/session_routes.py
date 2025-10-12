@@ -166,11 +166,13 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
-            logger.error(
-                "Failed to decode JSON string payload into %s: %s",
+            logger.warning(
+                "Non-JSON payload received for %s; wrapping as display string: %s",
                 expecting.__name__,
                 exc,
             )
+            if expecting == WidgetEnvelope:
+                return WidgetEnvelope(display=payload, widgets=[], citations=None)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Agent returned malformed payload for {expecting.__name__}",
