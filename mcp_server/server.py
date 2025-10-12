@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -13,10 +12,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from anyio import ClosedResourceError, BrokenResourceError, EndOfStream
 from fastapi import FastAPI, Request, Response
-from mcp import McpError
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import StreamableHTTPServerTransport
-from mcp.types import ErrorData
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -45,58 +42,52 @@ logging.basicConfig(level=_log_level, handlers=[_handler])
 logger = logging.getLogger("arcadia.mcp")
 
 
-class ProductionErrorMiddleware:
-    """Catch transport and tool exceptions and convert them into MCP errors."""
+class ProductionErrorMiddleware(BaseHTTPMiddleware):
+    """Catch transport exceptions and surface structured responses."""
 
-    def __init__(self, include_traceback: bool = False) -> None:
+    def __init__(self, app, include_traceback: bool = False) -> None:
+        super().__init__(app)
         self.include_traceback = include_traceback
+        self.logger = logging.getLogger("arcadia.mcp.middleware")
 
-    async def __call__(self, context, call_next):
+    async def dispatch(self, request: Request, call_next):
         try:
-            return await call_next(context)
+            return await call_next(request)
         except ClosedResourceError:
-            logger.info("Stream closed gracefully")
-            raise McpError(
-                ErrorData(
-                    code=-32000,
-                    message="Session ended",
-                    data={"reason": "stream_closed"},
-                )
+            self.logger.info("Stream closed gracefully")
+            return JSONResponse(
+                {"error": {"code": -32000, "message": "Session ended", "reason": "stream_closed"}},
+                status_code=499,
             )
         except (BrokenResourceError, EndOfStream) as err:
-            logger.warning("Stream broken: %s", err)
-            raise McpError(
-                ErrorData(
-                    code=-32001,
-                    message="Connection broken",
-                    data={"reason": str(err)},
-                )
+            self.logger.warning("Stream broken: %s", err)
+            return JSONResponse(
+                {"error": {"code": -32001, "message": "Connection broken", "reason": str(err)}},
+                status_code=502,
             )
         except ValueError as err:
-            logger.warning("Invalid request: %s", err)
-            raise McpError(
-                ErrorData(
-                    code=-32602,
-                    message="Invalid parameters",
-                    data={"error": str(err)},
-                )
+            self.logger.warning("Invalid request: %s", err)
+            return JSONResponse(
+                {"error": {"code": -32602, "message": "Invalid parameters", "detail": str(err)}},
+                status_code=400,
             )
         except Exception as err:  # noqa: BLE001
-            logger.exception("Unexpected error in MCP middleware")
+            self.logger.exception("Unexpected error in MCP middleware")
             error_data: Dict[str, Any] = {"type": type(err).__name__, "message": str(err)}
             if self.include_traceback:
                 error_data["traceback"] = traceback.format_exc()
-            raise McpError(
-                ErrorData(
-                    code=-32603,
-                    message="Internal server error",
-                    data=error_data,
-                )
+            return JSONResponse(
+                {"error": {"code": -32603, "message": "Internal server error", "detail": error_data}},
+                status_code=500,
             )
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """Simple bearer token authentication for production deployments."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.logger = logging.getLogger("arcadia.mcp.auth")
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path in ("/health", "/mcp/health", "/"):
@@ -533,7 +524,7 @@ mcp.settings.stateless_http = True
 mcp.settings.json_response = True
 
 _include_traceback = os.getenv("DEBUG", "false").lower() == "true"
-mcp.add_middleware(ProductionErrorMiddleware(include_traceback=_include_traceback))
+mcp._app.add_middleware(ProductionErrorMiddleware, include_traceback=_include_traceback)
 mcp._app.add_middleware(AuthMiddleware)
 
 
