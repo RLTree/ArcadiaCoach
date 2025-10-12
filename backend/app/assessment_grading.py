@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from statistics import mean
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -135,6 +135,12 @@ def _payload_for_agent(
         },
         "responses": responses,
     }
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    raise TypeError(f"Object of type {value.__class__.__name__} is not JSON serialisable")
 
 
 def _grading_instructions() -> str:
@@ -310,7 +316,12 @@ async def grade_submission(
     tasks: Dict[str, AssessmentTask],
 ) -> Tuple[AssessmentGradingResult, Dict[str, int]]:
     payload = _payload_for_agent(profile, submission, tasks)
-    message = _grading_instructions() + "\n\nINPUT:\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+    message = _grading_instructions() + "\n\nINPUT:\n" + json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=2,
+        default=_json_default,
+    )
 
     agent = get_arcadia_agent(settings.arcadia_agent_model, settings.arcadia_agent_enable_web)
     thread = ThreadMetadata.model_construct(
