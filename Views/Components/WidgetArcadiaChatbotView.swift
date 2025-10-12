@@ -142,10 +142,6 @@ struct WidgetArcadiaChatbotView: View {
         if !useCase.isEmpty {
             metadata["use_case"] = useCase
         }
-        let strengths = settings.learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !strengths.isEmpty {
-            metadata["strengths"] = strengths
-        }
         return metadata
     }
 }

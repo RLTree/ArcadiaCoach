@@ -65,6 +65,28 @@ class LearnerMemoryItemPayload(BaseModel):
     created_at: datetime
 
 
+class EloRubricBandPayload(BaseModel):
+    level: str
+    descriptor: str
+
+
+class EloCategoryDefinitionPayload(BaseModel):
+    key: str
+    label: str
+    description: str
+    focus_areas: List[str] = Field(default_factory=list)
+    weight: float = Field(default=1.0)
+    rubric: List[EloRubricBandPayload] = Field(default_factory=list)
+    starting_rating: int = 1100
+
+
+class EloCategoryPlanPayload(BaseModel):
+    generated_at: datetime
+    source_goal: Optional[str] = None
+    strategy_notes: Optional[str] = None
+    categories: List[EloCategoryDefinitionPayload] = Field(default_factory=list)
+
+
 class SkillRatingPayload(BaseModel):
     category: str
     rating: int
@@ -81,6 +103,7 @@ class LearnerProfilePayload(BaseModel):
     skill_ratings: List[SkillRatingPayload] = Field(default_factory=list)
     memory_index_id: str
     last_updated: datetime
+    elo_category_plan: Optional[EloCategoryPlanPayload] = None
 
 
 class LearnerProfileGetResponse(BaseModel):
@@ -96,3 +119,8 @@ class LearnerMemoryWriteResponse(BaseModel):
     note_id: str
     vector_store_id: str
     status: Literal["queued", "stored"]
+
+
+class LearnerEloCategoryPlanResponse(BaseModel):
+    username: str
+    plan: EloCategoryPlanPayload

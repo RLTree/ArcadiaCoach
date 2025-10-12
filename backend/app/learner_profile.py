@@ -29,6 +29,32 @@ class MemoryRecord(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class EloRubricBand(BaseModel):
+    """Rubric descriptor for an ELO band. Defined in Phase 2 (see docs/phase-2-elo-category-planning.md)."""
+
+    level: str
+    descriptor: str
+
+
+class EloCategoryDefinition(BaseModel):
+    """Category definition persisted during Phase 2 planning."""
+    key: str
+    label: str
+    description: str
+    focus_areas: List[str] = Field(default_factory=list)
+    weight: float = Field(default=1.0, ge=0.0)
+    rubric: List[EloRubricBand] = Field(default_factory=list)
+    starting_rating: int = Field(default=1100, ge=0)
+
+
+class EloCategoryPlan(BaseModel):
+    """Aggregate learner skill plan introduced in Phase 2."""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    source_goal: Optional[str] = None
+    strategy_notes: Optional[str] = None
+    categories: List[EloCategoryDefinition] = Field(default_factory=list)
+
+
 class LearnerProfile(BaseModel):
     username: str
     goal: str = ""
@@ -39,6 +65,7 @@ class LearnerProfile(BaseModel):
     memory_records: List[MemoryRecord] = Field(default_factory=list)
     memory_index_id: str = Field(default=DEFAULT_VECTOR_STORE_ID)
     elo_snapshot: Dict[str, int] = Field(default_factory=dict)
+    elo_category_plan: Optional[EloCategoryPlan] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -132,6 +159,35 @@ class LearnerProfileStore:
             self._persist_locked()
             return profile.model_copy(deep=True)
 
+    def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                profile = LearnerProfile(username=username)
+            snapshot = profile.elo_snapshot
+            updated_snapshot: Dict[str, int] = {}
+            for category in plan.categories:
+                rating: Optional[int] = None
+                if category.key in snapshot:
+                    rating = snapshot[category.key]
+                else:
+                    label_rating = next(
+                        (value for key, value in snapshot.items() if key.lower() == category.label.lower()),
+                        None,
+                    )
+                    rating = label_rating
+                if rating is None:
+                    rating = int(category.starting_rating)
+                updated_snapshot[category.key] = int(rating)
+
+            profile.elo_category_plan = plan.model_copy(deep=True)
+            profile.elo_snapshot = updated_snapshot
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
     def _set_if_changed(self, profile: LearnerProfile, attr: str, raw_value: Any) -> bool:
         if not isinstance(raw_value, str):
             return False
@@ -178,4 +234,12 @@ class LearnerProfileStore:
 
 profile_store = LearnerProfileStore(DATA_PATH)
 
-__all__ = ["LearnerProfile", "LearnerProfileStore", "profile_store", "MemoryRecord"]
+__all__ = [
+    "EloCategoryDefinition",
+    "EloCategoryPlan",
+    "EloRubricBand",
+    "LearnerProfile",
+    "LearnerProfileStore",
+    "MemoryRecord",
+    "profile_store",
+]

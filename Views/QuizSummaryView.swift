@@ -2,12 +2,16 @@ import SwiftUI
 
 struct QuizSummaryView: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var appVM: AppViewModel
     let elo: [String:Int]
     let widgets: [Widget]
     let last: EndQuiz.LastQuiz?
 
     private var sortedElo: [WidgetStatItem] {
-        elo.sorted { $0.value > $1.value }.prefix(3).map { .init(label: $0.key, value: String($0.value)) }
+        let labels = Dictionary(uniqueKeysWithValues: (appVM.eloPlan?.categories ?? []).map { ($0.key, $0.label) })
+        return elo.sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { .init(label: labels[$0.key] ?? $0.key, value: String($0.value)) }
     }
 
     var body: some View {

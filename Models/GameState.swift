@@ -1,9 +1,7 @@
 import Foundation
 
 struct GameState: Codable {
-    var elo: [String:Int] = [
-        "Python":1100,"NumPy":1100,"PyTorch":1100,"Tokenization":1100,"RAG":1100,"Eval":1100,"LLM-Ops":1100
-    ]
+    var elo: [String:Int] = [:]
     var xp: Int = 0
     var level: Int = 1
     var streak: Int = 0

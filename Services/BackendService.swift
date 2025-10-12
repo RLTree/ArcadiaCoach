@@ -1,6 +1,8 @@
 import Foundation
 import OSLog
 
+private let pathAllowed = CharacterSet.urlPathAllowed
+
 struct BackendChatTurn: Codable {
     var role: String
     var text: String
@@ -68,6 +70,40 @@ final class BackendService {
             _ = try await URLSession.shared.data(for: request)
         } catch {
             logger.notice("Failed to reset backend session (id=\(sessionId ?? "nil", privacy: .public)): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    static func fetchProfile(baseURL: String, username: String) async throws -> LearnerProfileSnapshot {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/profile/\(encodedUsername)") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        logger.debug("GET \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode(LearnerProfileSnapshot.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
         }
     }
 

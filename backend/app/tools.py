@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 from agents import function_tool
 
-from .learner_profile import profile_store
+from .learner_profile import (
+    EloCategoryDefinition,
+    EloCategoryPlan,
+    EloRubricBand,
+    LearnerProfile,
+    profile_store,
+)
 from .vector_memory import learner_memory
 from .agent_models import (
+    EloCategoryDefinitionPayload,
+    EloCategoryPlanPayload,
+    EloRubricBandPayload,
+    LearnerEloCategoryPlanResponse,
     LearnerMemoryWriteResponse,
     LearnerProfileGetResponse,
     LearnerProfilePayload,
@@ -45,6 +55,48 @@ def progress_advance(idx: int, total: int) -> Dict[str, Any]:
         total = 1
     next_idx = min(idx + 1, total - 1)
     return _progress_payload(idx=next_idx, total=total)
+
+
+def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
+    plan = profile.elo_category_plan
+    plan_payload: EloCategoryPlanPayload | None = None
+    if plan:
+        plan_payload = EloCategoryPlanPayload(
+            generated_at=plan.generated_at,
+            source_goal=plan.source_goal,
+            strategy_notes=plan.strategy_notes,
+            categories=[
+                EloCategoryDefinitionPayload(
+                    key=definition.key,
+                    label=definition.label,
+                    description=definition.description,
+                    focus_areas=definition.focus_areas,
+                    weight=definition.weight,
+                    rubric=[
+                        EloRubricBandPayload(level=band.level, descriptor=band.descriptor)
+                        for band in definition.rubric
+                    ],
+                    starting_rating=definition.starting_rating,
+                )
+                for definition in plan.categories
+            ],
+        )
+    return LearnerProfilePayload(
+        username=profile.username,
+        goal=profile.goal,
+        use_case=profile.use_case,
+        strengths=profile.strengths,
+        knowledge_tags=profile.knowledge_tags,
+        recent_sessions=profile.recent_sessions,
+        memory_records=profile.memory_records,
+        skill_ratings=[
+            SkillRatingPayload(category=category, rating=value)
+            for category, value in profile.elo_snapshot.items()
+        ],
+        memory_index_id=profile.memory_index_id,
+        last_updated=profile.last_updated,
+        elo_category_plan=plan_payload,
+    )
 
 
 @function_tool(strict_mode=False)
@@ -84,21 +136,7 @@ def learner_profile_get(username: str) -> LearnerProfileGetResponse:
     profile = profile_store.get(username)
     if profile is None:
         return LearnerProfileGetResponse(found=False, profile=None)
-    payload = LearnerProfilePayload(
-        username=profile.username,
-        goal=profile.goal,
-        use_case=profile.use_case,
-        strengths=profile.strengths,
-        knowledge_tags=profile.knowledge_tags,
-        recent_sessions=profile.recent_sessions,
-        memory_records=profile.memory_records,
-        skill_ratings=[
-            SkillRatingPayload(category=category, rating=value)
-            for category, value in profile.elo_snapshot.items()
-        ],
-        memory_index_id=profile.memory_index_id,
-        last_updated=profile.last_updated,
-    )
+    payload = _profile_payload(profile)
     return LearnerProfileGetResponse(found=True, profile=payload)
 
 
@@ -121,21 +159,7 @@ def learner_profile_update(
     if knowledge_tags is not None:
         metadata["knowledge_tags"] = knowledge_tags
     profile = profile_store.apply_metadata(username, metadata)
-    payload = LearnerProfilePayload(
-        username=profile.username,
-        goal=profile.goal,
-        use_case=profile.use_case,
-        strengths=profile.strengths,
-        knowledge_tags=profile.knowledge_tags,
-        recent_sessions=profile.recent_sessions,
-        memory_records=profile.memory_records,
-        skill_ratings=[
-            SkillRatingPayload(category=category, rating=value)
-            for category, value in profile.elo_snapshot.items()
-        ],
-        memory_index_id=profile.memory_index_id,
-        last_updated=profile.last_updated,
-    )
+    payload = _profile_payload(profile)
     return LearnerProfileUpdateResponse(profile=payload)
 
 
@@ -152,6 +176,74 @@ def learner_memory_write(
     )
 
 
+def _normalise_category_key(key: str, label: str) -> str:
+    candidate = key.strip() if isinstance(key, str) else ""
+    if not candidate and isinstance(label, str):
+        candidate = label
+    slug_chars: List[str] = []
+    for char in candidate:
+        if char.isalnum():
+            slug_chars.append(char.lower())
+        elif char in {" ", "-", "_", "/"}:
+            slug_chars.append("-")
+    slug = "".join(slug_chars).strip("-")
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug or "category-1"
+
+
+@function_tool(strict_mode=False)
+def learner_elo_category_plan_set(
+    username: str,
+    categories: List[EloCategoryDefinitionPayload],
+    source_goal: str | None = None,
+    strategy_notes: str | None = None,
+) -> LearnerEloCategoryPlanResponse:
+    """Persist the learner's skill category plan and return the updated snapshot."""
+    normalized_categories: List[EloCategoryDefinition] = []
+    seen_keys: Set[str] = set()
+
+    for entry in categories:
+        key = _normalise_category_key(entry.key, entry.label)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        label = entry.label.strip() if isinstance(entry.label, str) else key.title()
+        description = entry.description.strip() if isinstance(entry.description, str) else ""
+        focus = [
+            focus_area.strip()
+            for focus_area in entry.focus_areas
+            if isinstance(focus_area, str) and focus_area.strip()
+        ]
+        rubric = [
+            EloRubricBand(level=band.level.strip(), descriptor=band.descriptor.strip())
+            for band in entry.rubric
+            if isinstance(band.level, str) and band.level.strip()
+        ]
+        normalized_categories.append(
+            EloCategoryDefinition(
+                key=key,
+                label=label,
+                description=description,
+                focus_areas=focus,
+                weight=max(entry.weight, 0.0),
+                rubric=rubric,
+                starting_rating=max(int(entry.starting_rating), 0),
+            )
+        )
+
+    plan = EloCategoryPlan(
+        source_goal=source_goal.strip() if isinstance(source_goal, str) and source_goal else None,
+        strategy_notes=strategy_notes.strip() if isinstance(strategy_notes, str) and strategy_notes else None,
+        categories=normalized_categories,
+    )
+    profile = profile_store.set_elo_category_plan(username, plan)
+    payload = _profile_payload(profile)
+    if payload.elo_category_plan is None:
+        raise ValueError("Failed to persist learner ELO category plan.")
+    return LearnerEloCategoryPlanResponse(username=profile.username, plan=payload.elo_category_plan)
+
+
 AGENT_SUPPORT_TOOLS = [
     progress_start,
     progress_advance,
@@ -159,12 +251,14 @@ AGENT_SUPPORT_TOOLS = [
     learner_profile_get,
     learner_profile_update,
     learner_memory_write,
+    learner_elo_category_plan_set,
 ]
 
 __all__ = [
     "AGENT_SUPPORT_TOOLS",
     "elo_update",
     "learner_memory_write",
+    "learner_elo_category_plan_set",
     "learner_profile_get",
     "learner_profile_update",
     "progress_advance",

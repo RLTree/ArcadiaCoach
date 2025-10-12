@@ -8,10 +8,16 @@ struct HomeView: View {
     @State private var showOnboarding = false
 
     private var topElo: [WidgetStatItem] {
-        appVM.game.elo
+        let labels = categoryLabels
+        return appVM.game.elo
             .sorted { $0.value > $1.value }
             .prefix(3)
-            .map { .init(label: $0.key, value: String($0.value)) }
+            .map { .init(label: labels[$0.key] ?? $0.key, value: String($0.value)) }
+    }
+
+    private var categoryLabels: [String:String] {
+        guard let plan = appVM.eloPlan else { return [:] }
+        return Dictionary(uniqueKeysWithValues: plan.categories.map { ($0.key, $0.label) })
     }
 
     var body: some View {
@@ -21,6 +27,10 @@ struct HomeView: View {
                 if !settings.minimalMode {
                     WidgetStatRowView(props: .init(items: topElo))
                         .environmentObject(settings)
+                }
+                if let plan = appVM.eloPlan, !plan.categories.isEmpty {
+                    EloPlanSummaryView(plan: plan)
+                        .transition(.opacity)
                 }
                 sessionControls
                 contentTabs
@@ -83,9 +93,6 @@ struct HomeView: View {
             refreshLearnerProfile()
         }
         .onChange(of: settings.learnerUseCase) { _ in
-            refreshLearnerProfile()
-        }
-        .onChange(of: settings.learnerStrengths) { _ in
             refreshLearnerProfile()
         }
         .alert(item: $session.lastError) { error in
@@ -227,8 +234,13 @@ struct HomeView: View {
     private func refreshLearnerProfile() {
         session.updateProfile(
             goal: settings.learnerGoal,
-            useCase: settings.learnerUseCase,
-            strengths: settings.learnerStrengths
+            useCase: settings.learnerUseCase
         )
+        Task {
+            await appVM.loadProfile(
+                baseURL: settings.chatkitBackendURL,
+                username: settings.arcadiaUsername
+            )
+        }
     }
 }

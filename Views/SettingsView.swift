@@ -8,7 +8,6 @@ struct SettingsView: View {
     @State private var domainKey: String = ""
     @State private var learnerGoal: String = ""
     @State private var learnerUseCase: String = ""
-    @State private var learnerStrengths: String = ""
 
     var body: some View {
         Form {
@@ -74,24 +73,9 @@ struct SettingsView: View {
                                 .padding(6)
                         }
                     }
-                TextEditor(text: $learnerStrengths)
-                    .frame(minHeight: 80)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2))
-                    )
-                    .overlay(alignment: .topLeading) {
-                        if learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Current strengths, supports, or accessibility notes")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .padding(6)
-                        }
-                    }
                 Button("Save Learner Profile") {
                     settings.learnerGoal = learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines)
                     settings.learnerUseCase = learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
-                    settings.learnerStrengths = learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
                 Text("Arcadia personalises lessons, quizzes, and refreshers using this profile.")
                     .font(.footnote)
@@ -149,7 +133,7 @@ struct SettingsView: View {
             domainKey = settings.chatkitDomainKey
             learnerGoal = settings.learnerGoal
             learnerUseCase = settings.learnerUseCase
-            learnerStrengths = settings.learnerStrengths
+            // strengths handled implicitly by future assessments
         }
     }
 }
