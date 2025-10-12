@@ -172,7 +172,7 @@ def _coerce_output(payload: Any, expecting: Type[T]) -> T:
                 exc,
             )
             if expecting == WidgetEnvelope:
-                return WidgetEnvelope(display=payload, widgets=[], citations=None)
+                return cast(T, WidgetEnvelope(display=payload, widgets=[], citations=None))
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Agent returned malformed payload for {expecting.__name__}",

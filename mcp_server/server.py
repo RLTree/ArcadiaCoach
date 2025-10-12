@@ -779,14 +779,15 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
         return {"status": "ok", "service": "arcadia-mcp"}
 
     allow_headers = (
-        "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version"
+        "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Accept"
     )
     allow_methods = "POST, OPTIONS, HEAD, GET"
 
     @app.options("/mcp")
     async def mcp_options() -> Response:
+        logger.info("OPTIONS /mcp called")
         return Response(
-            status_code=204,
+            status_code=200,
             headers={
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": allow_headers,
@@ -796,20 +797,23 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
 
     @app.head("/mcp")
     async def mcp_head() -> Response:
+        logger.info("HEAD /mcp called")
         return Response(
-            status_code=204,
+            status_code=200,
             headers={
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": allow_headers,
-                "Access-Control-Allow-Methods": allow_methods,
+                "Content-Type": "application/json",
             },
         )
 
     @app.post("/mcp")
     async def proxy(request: Request) -> Response:
+        logger.info("POST /mcp called from %s", request.client)
         body = await request.body()
+        logger.debug("MCP request body (first 200 bytes): %s", body[:200])
         try:
             payload = json.loads(body)
+            logger.info("Parsed MCP method: %s", payload.get("method"))
         except json.JSONDecodeError:
             logger.warning("Received non-JSON payload on /mcp")
             payload = None
@@ -847,6 +851,7 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
 
         try:
             status, headers, content = await _call_inner_app(inner_app, scope, body)
+            logger.info("Inner MCP app returned status %s (len=%d)", status, len(content))
         except Exception:  # noqa: BLE001
             logger.exception("Unhandled exception proxying MCP request")
             return Response(content="Internal Server Error", status_code=500)
@@ -856,7 +861,7 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
                 "MCP inner app returned %s for method %s: %s",
                 status,
                 payload.get("method") if isinstance(payload, dict) else "<unknown>",
-                content.decode(errors="ignore"),
+                content.decode(errors="ignore")[:500],
             )
 
         return Response(
@@ -880,12 +885,13 @@ async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tup
     response_body = bytearray()
     response_headers: list[Tuple[bytes, bytes]] = []
     status_code = 500
+    request_body: Optional[bytes] = body
 
     async def receive() -> Message:
-        nonlocal body
-        if body is not None:
-            chunk = body
-            body = None
+        nonlocal request_body
+        if request_body is not None:
+            chunk = request_body
+            request_body = None
             return {"type": "http.request", "body": chunk, "more_body": False}
         return {"type": "http.request", "body": b"", "more_body": False}
 
