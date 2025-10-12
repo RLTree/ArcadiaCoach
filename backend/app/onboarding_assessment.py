@@ -26,13 +26,13 @@ from .learner_profile import (
     AssessmentTask,
     CurriculumModule,
     CurriculumPlan,
+    EloCategoryDefinition,
+    EloCategoryPlan,
+    EloRubricBand,
     OnboardingAssessment,
     profile_store,
 )
 from .memory_store import MemoryStore
-from .tools import learner_elo_category_plan_set
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -106,6 +106,42 @@ def _normalise_task(payload: OnboardingAssessmentTaskPayload) -> AssessmentTask:
         expected_minutes=expected,
         starter_code=payload.starter_code.strip() if isinstance(payload.starter_code, str) and payload.starter_code.strip() else None,
         answer_key=payload.answer_key.strip() if isinstance(payload.answer_key, str) and payload.answer_key.strip() else None,
+    )
+
+
+def _normalise_category_definition(entry: Any) -> EloCategoryDefinition:
+    key = entry.key.strip() if isinstance(entry.key, str) else ""
+    label = entry.label.strip() if isinstance(entry.label, str) else ""
+    if not key:
+        key = _slugify(label, "category")
+    description = entry.description.strip() if isinstance(entry.description, str) else ""
+    focus = [
+        item.strip()
+        for item in getattr(entry, "focus_areas", []) or []
+        if isinstance(item, str) and item.strip()
+    ]
+    rubric_payload = getattr(entry, "rubric", []) or []
+    rubric: List[EloRubricBand] = []
+    for band in rubric_payload:
+        level = getattr(band, "level", "")
+        descriptor = getattr(band, "descriptor", "")
+        if isinstance(level, str) and level.strip():
+            rubric.append(
+                EloRubricBand(
+                    level=level.strip(),
+                    descriptor=descriptor.strip() if isinstance(descriptor, str) else "",
+                )
+            )
+    weight = float(entry.weight) if isinstance(entry.weight, (int, float)) else 1.0
+    starting = int(entry.starting_rating) if isinstance(entry.starting_rating, (int, float)) else 1100
+    return EloCategoryDefinition(
+        key=key,
+        label=label or key.replace("-", " ").title(),
+        description=description,
+        focus_areas=focus,
+        weight=max(weight, 0.0),
+        rubric=rubric,
+        starting_rating=max(starting, 0),
     )
 
 
@@ -271,13 +307,23 @@ async def generate_onboarding_bundle(
         logger.error("Invalid onboarding plan payload: %s", exc)
         raise
 
-    # Persist the ELO category plan using the existing tool helper for consistency.
-    learner_elo_category_plan_set(
-        username=username,
-        categories=plan_payload.categories,
-        source_goal=goal or None,
-        strategy_notes=plan_payload.profile_summary,
+    category_definitions: List[EloCategoryDefinition] = []
+    seen_keys: set[str] = set()
+    for entry in plan_payload.categories:
+        definition = _normalise_category_definition(entry)
+        if definition.key in seen_keys:
+            continue
+        seen_keys.add(definition.key)
+        category_definitions.append(definition)
+
+    plan = EloCategoryPlan(
+        source_goal=goal.strip() if isinstance(goal, str) and goal.strip() else None,
+        strategy_notes=plan_payload.profile_summary.strip()
+        if isinstance(plan_payload.profile_summary, str) and plan_payload.profile_summary.strip()
+        else None,
+        categories=category_definitions,
     )
+    profile_store.set_elo_category_plan(username, plan)
 
     curriculum_payload: OnboardingCurriculumPayload = plan_payload.curriculum
     modules = [_normalise_module(module) for module in curriculum_payload.modules]
