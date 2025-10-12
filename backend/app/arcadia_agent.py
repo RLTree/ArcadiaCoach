@@ -12,6 +12,7 @@ from pydantic import ConfigDict, Field
 from .constants import INSTRUCTIONS, MODEL
 from .config import get_settings
 from .memory_store import MemoryStore
+from .tools import AGENT_SUPPORT_TOOLS
 
 # Tool instances ---------------------------------------------------------------
 
@@ -71,9 +72,11 @@ SUPPORTED_MODELS = {
 
 
 def _build_agent(model: str, web_enabled: bool) -> Agent[ArcadiaAgentContext]:
-    tools: list[Any] = [file_search, mcp_widgets]  # type: ignore[var-annotated]
+    tools: list[Any] = [file_search]  # type: ignore[var-annotated]
     if web_enabled:
-        tools.insert(1, web_search)  # keep search tools grouped
+        tools.append(web_search)
+    tools.extend(AGENT_SUPPORT_TOOLS)
+    tools.append(mcp_widgets)
     return Agent[ArcadiaAgentContext](
         name="Arcadia Coach",
         instructions=INSTRUCTIONS,

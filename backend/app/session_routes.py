@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .agent_models import EndLearn, EndMilestone, EndQuiz, WidgetEnvelope
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
+from .learner_profile import profile_store
 from .memory_store import MemoryStore
 
 
@@ -66,14 +67,28 @@ async def _run_structured(
     session_id: Optional[str],
     message: str,
     expecting: Type[T],
+    metadata: Dict[str, Any] | None = None,
 ) -> T:
     state = _session_state(session_id)
     agent = get_arcadia_agent(
         settings.arcadia_agent_model, settings.arcadia_agent_enable_web)
+    metadata_payload: Dict[str, Any] = dict(metadata or {})
+    if session_id:
+        metadata_payload.setdefault("session_id", session_id)
+
+    profile_snapshot: Dict[str, Any] | None = None
+    username = metadata_payload.get("username")
+    if isinstance(username, str) and username.strip():
+        profile = profile_store.apply_metadata(username, metadata_payload)
+        profile_snapshot = profile.model_dump(mode="json")
+
     context = ArcadiaAgentContext.model_construct(
         thread=state.thread,
         store=state.store,
-        request_context={},
+        request_context={
+            "metadata": metadata_payload,
+            "profile": profile_snapshot,
+        },
         sanitized_input=None,
         web_enabled=settings.arcadia_agent_enable_web,
         reasoning_level=settings.arcadia_agent_reasoning,
@@ -227,6 +242,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     session_id: Optional[str] = None
     history: List[ChatMessage] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 def _compose_chat_prompt(history: List[ChatMessage], latest: str) -> str:
@@ -246,7 +262,16 @@ async def create_lesson(
     settings: Settings = Depends(get_settings),
 ) -> EndLearn:
     message = f"learn {payload.topic}".strip()
-    result = await _run_structured(settings, payload.session_id, message, EndLearn)
+    metadata = dict(payload.metadata)
+    if payload.session_id:
+        metadata.setdefault("session_id", payload.session_id)
+    result = await _run_structured(
+        settings,
+        payload.session_id,
+        message,
+        EndLearn,
+        metadata=metadata,
+    )
     logger.info("Returning EndLearn response: %s", result.model_dump_json())
     return result
 
@@ -257,7 +282,16 @@ async def create_quiz(
     settings: Settings = Depends(get_settings),
 ) -> EndQuiz:
     message = f"quiz {payload.topic}".strip()
-    result = await _run_structured(settings, payload.session_id, message, EndQuiz)
+    metadata = dict(payload.metadata)
+    if payload.session_id:
+        metadata.setdefault("session_id", payload.session_id)
+    result = await _run_structured(
+        settings,
+        payload.session_id,
+        message,
+        EndQuiz,
+        metadata=metadata,
+    )
     logger.info("Returning EndQuiz response: %s", result.model_dump_json())
     return result
 
@@ -268,7 +302,16 @@ async def create_milestone(
     settings: Settings = Depends(get_settings),
 ) -> EndMilestone:
     message = f"milestone {payload.topic}".strip()
-    result = await _run_structured(settings, payload.session_id, message, EndMilestone)
+    metadata = dict(payload.metadata)
+    if payload.session_id:
+        metadata.setdefault("session_id", payload.session_id)
+    result = await _run_structured(
+        settings,
+        payload.session_id,
+        message,
+        EndMilestone,
+        metadata=metadata,
+    )
     logger.info("Returning EndMilestone response: %s", result.model_dump_json())
     return result
 
@@ -279,7 +322,16 @@ async def chat_with_agent(
     settings: Settings = Depends(get_settings),
 ) -> WidgetEnvelope:
     prompt = _compose_chat_prompt(payload.history, payload.message)
-    return await _run_structured(settings, payload.session_id, prompt, WidgetEnvelope)
+    metadata = dict(payload.metadata)
+    if payload.session_id:
+        metadata.setdefault("session_id", payload.session_id)
+    return await _run_structured(
+        settings,
+        payload.session_id,
+        prompt,
+        WidgetEnvelope,
+        metadata=metadata,
+    )
 
 
 @router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)

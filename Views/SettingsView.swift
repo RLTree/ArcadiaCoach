@@ -6,6 +6,9 @@ struct SettingsView: View {
     @State private var apiKey: String = ""
     @State private var backendURL: String = ""
     @State private var domainKey: String = ""
+    @State private var learnerGoal: String = ""
+    @State private var learnerUseCase: String = ""
+    @State private var learnerStrengths: String = ""
 
     var body: some View {
         Form {
@@ -39,6 +42,58 @@ struct SettingsView: View {
                     domainKey = trimmedDomain
                 }
                 Text("Arcadia Coach connects directly to your ChatKit server. Add the domain key from the ChatKit dashboard so custom backends render correctly.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Learner Profile") {
+                TextEditor(text: $learnerGoal)
+                    .frame(minHeight: 100)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+                    .overlay(alignment: .topLeading) {
+                        if learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Long-term learning goal")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(6)
+                        }
+                    }
+                TextEditor(text: $learnerUseCase)
+                    .frame(minHeight: 80)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+                    .overlay(alignment: .topLeading) {
+                        if learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("How you plan to use coding (domain, projects, context)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(6)
+                        }
+                    }
+                TextEditor(text: $learnerStrengths)
+                    .frame(minHeight: 80)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+                    .overlay(alignment: .topLeading) {
+                        if learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Current strengths, supports, or accessibility notes")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .padding(6)
+                        }
+                    }
+                Button("Save Learner Profile") {
+                    settings.learnerGoal = learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines)
+                    settings.learnerUseCase = learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
+                    settings.learnerStrengths = learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                Text("Arcadia personalises lessons, quizzes, and refreshers using this profile.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -92,6 +147,9 @@ struct SettingsView: View {
             apiKey = settings.openaiApiKey
             backendURL = settings.chatkitBackendURL
             domainKey = settings.chatkitDomainKey
+            learnerGoal = settings.learnerGoal
+            learnerUseCase = settings.learnerUseCase
+            learnerStrengths = settings.learnerStrengths
         }
     }
 }

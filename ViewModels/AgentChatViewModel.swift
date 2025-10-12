@@ -16,6 +16,10 @@ final class AgentChatViewModel: ObservableObject {
     private var welcomed = false
     private var sessionKey = UUID().uuidString
     private var backendURL: String = ""
+    private var username: String = ""
+    private var learnerGoal: String = ""
+    private var learnerUseCase: String = ""
+    private var learnerStrengths: String = ""
 
     func prepareWelcomeMessage(isBackendReady: Bool) {
         guard !welcomed else { return }
@@ -23,7 +27,11 @@ final class AgentChatViewModel: ObservableObject {
         if !isBackendReady {
             messages = [ChatMessage(role: .assistant, text: "Set your Arcadia backend URL in Settings to start chatting.")]
         } else {
-            messages = [ChatMessage(role: .assistant, text: "Hi! I’m your Arcadia Coach. What would you like to explore today?")]
+            if username.isEmpty {
+                messages = [ChatMessage(role: .assistant, text: "Hi! I’m your Arcadia Coach. What would you like to explore today?")]
+            } else {
+                messages = [ChatMessage(role: .assistant, text: "Welcome back, \(username)! What should we focus on today?")]
+            }
         }
     }
 
@@ -41,8 +49,22 @@ final class AgentChatViewModel: ObservableObject {
         Task {
             await BackendService.resetSession(baseURL: trimmed, sessionId: previousKey)
         }
-        sessionKey = UUID().uuidString
+        sessionKey = sessionIdentifier()
         prepareWelcomeMessage(isBackendReady: !trimmed.isEmpty)
+    }
+
+    func updateUser(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == username { return }
+        let previousKey = sessionKey
+        username = trimmed
+        sessionKey = sessionIdentifier()
+        welcomed = false
+        messages.removeAll()
+        if let backend = BackendService.trimmed(url: backendURL) {
+            Task { await BackendService.resetSession(baseURL: backend, sessionId: previousKey) }
+        }
+        prepareWelcomeMessage(isBackendReady: !backendURL.isEmpty)
     }
 
     func statusLabel() -> String {
@@ -52,6 +74,12 @@ final class AgentChatViewModel: ObservableObject {
 
     func canSend() -> Bool {
         !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
+    func updateProfile(goal: String, useCase: String, strengths: String) {
+        learnerGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        learnerUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        learnerStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func send(message: String) async {
@@ -71,7 +99,8 @@ final class AgentChatViewModel: ObservableObject {
                 baseURL: backendURL,
                 sessionId: sessionKey,
                 history: history,
-                message: trimmed
+                message: trimmed,
+                metadata: metadataPayload()
             )
             let reply = Self.extractReply(from: envelope)
             messages.append(ChatMessage(role: .assistant, text: reply))
@@ -82,6 +111,29 @@ final class AgentChatViewModel: ObservableObject {
             lastError = message
         }
         isSending = false
+    }
+
+    private func sessionIdentifier() -> String {
+        guard !username.isEmpty else { return UUID().uuidString }
+        let allowed = username.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        return allowed.isEmpty ? UUID().uuidString : "chat-\(allowed)"
+    }
+
+    private func metadataPayload() -> [String: String] {
+        var metadata: [String: String] = [:]
+        if !username.isEmpty {
+            metadata["username"] = username
+        }
+        if !learnerGoal.isEmpty {
+            metadata["goal"] = learnerGoal
+        }
+        if !learnerUseCase.isEmpty {
+            metadata["use_case"] = learnerUseCase
+        }
+        if !learnerStrengths.isEmpty {
+            metadata["strengths"] = learnerStrengths
+        }
+        return metadata
     }
 
     static func extractReply(from envelope: WidgetEnvelope) -> String {

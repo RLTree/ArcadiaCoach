@@ -38,6 +38,7 @@ final class BackendService {
         var message: String
         var sessionId: String?
         var history: [BackendChatTurn]
+        var metadata: [String: String]?
     }
 
     private struct ResetPayload: Encodable {
@@ -58,7 +59,7 @@ final class BackendService {
     }()
 
     static func resetSession(baseURL: String, sessionId: String?) async {
-        guard let url = endpoint(baseURL: baseURL, path: "api/session/reset") else { return }
+        guard let base = trimmed(url: baseURL), let url = endpoint(baseURL: base, path: "api/session/reset") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -70,29 +71,56 @@ final class BackendService {
         }
     }
 
-    static func loadLesson(baseURL: String, sessionId: String?, topic: String) async throws -> EndLearn {
+    static func loadLesson(
+        baseURL: String,
+        sessionId: String?,
+        topic: String,
+        metadata: [String: String] = [:]
+    ) async throws -> EndLearn {
         try await post(
             baseURL: baseURL,
             path: "api/session/lesson",
-            body: TopicPayload(topic: topic, sessionId: sessionId, metadata: [:]),
+            body: TopicPayload(
+                topic: topic,
+                sessionId: sessionId,
+                metadata: metadata.isEmpty ? nil : metadata
+            ),
             expecting: EndLearn.self
         )
     }
 
-    static func loadQuiz(baseURL: String, sessionId: String?, topic: String) async throws -> EndQuiz {
+    static func loadQuiz(
+        baseURL: String,
+        sessionId: String?,
+        topic: String,
+        metadata: [String: String] = [:]
+    ) async throws -> EndQuiz {
         try await post(
             baseURL: baseURL,
             path: "api/session/quiz",
-            body: TopicPayload(topic: topic, sessionId: sessionId, metadata: [:]),
+            body: TopicPayload(
+                topic: topic,
+                sessionId: sessionId,
+                metadata: metadata.isEmpty ? nil : metadata
+            ),
             expecting: EndQuiz.self
         )
     }
 
-    static func loadMilestone(baseURL: String, sessionId: String?, topic: String) async throws -> EndMilestone {
+    static func loadMilestone(
+        baseURL: String,
+        sessionId: String?,
+        topic: String,
+        metadata: [String: String] = [:]
+    ) async throws -> EndMilestone {
         try await post(
             baseURL: baseURL,
             path: "api/session/milestone",
-            body: TopicPayload(topic: topic, sessionId: sessionId, metadata: [:]),
+            body: TopicPayload(
+                topic: topic,
+                sessionId: sessionId,
+                metadata: metadata.isEmpty ? nil : metadata
+            ),
             expecting: EndMilestone.self
         )
     }
@@ -101,12 +129,18 @@ final class BackendService {
         baseURL: String,
         sessionId: String?,
         history: [BackendChatTurn],
-        message: String
+        message: String,
+        metadata: [String: String] = [:]
     ) async throws -> WidgetEnvelope {
         try await post(
             baseURL: baseURL,
             path: "api/session/chat",
-            body: ChatPayload(message: message, sessionId: sessionId, history: history),
+            body: ChatPayload(
+                message: message,
+                sessionId: sessionId,
+                history: history,
+                metadata: metadata.isEmpty ? nil : metadata
+            ),
             expecting: WidgetEnvelope.self
         )
     }
@@ -117,10 +151,10 @@ final class BackendService {
         body: Body,
         expecting _: Result.Type
     ) async throws -> Result {
-        guard !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let trimmedBase = trimmed(url: baseURL) else {
             throw BackendServiceError.missingBackend
         }
-        guard let url = endpoint(baseURL: baseURL, path: path) else {
+        guard let url = endpoint(baseURL: trimmedBase, path: path) else {
             throw BackendServiceError.invalidURL
         }
 
@@ -150,6 +184,11 @@ final class BackendService {
     static func endpoint(baseURL: String, path: String) -> URL? {
         guard let base = URL(string: baseURL) else { return nil }
         return base.appendingPathComponent(path, isDirectory: false)
+    }
+
+    static func trimmed(url: String) -> String? {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

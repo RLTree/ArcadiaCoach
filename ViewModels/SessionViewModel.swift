@@ -6,12 +6,16 @@ final class SessionViewModel: ObservableObject {
     @Published var lesson: EndLearn?
     @Published var quiz: EndQuiz?
     @Published var milestone: EndMilestone?
-    @Published var sessionId: String? = UUID().uuidString
+    @Published var sessionId: String?
     @Published private(set) var activeAction: SessionAction?
     @Published var lastError: SessionActionError?
     @Published var lastEventDescription: String?
 
     private static let logger = Logger(subsystem: "com.arcadiacoach.app", category: "SessionViewModel")
+    private var currentUsername: String = ""
+    private var profileGoal: String = ""
+    private var profileUseCase: String = ""
+    private var profileStrengths: String = ""
 
     func reset(for backendURL: String) async {
         let cacheKey = sessionId ?? "default"
@@ -30,7 +34,8 @@ final class SessionViewModel: ObservableObject {
             let output = try await BackendService.loadLesson(
                 baseURL: backendURL,
                 sessionId: sessionId,
-                topic: topic
+                topic: topic,
+                metadata: metadataPayload()
             )
             lesson = output
             lastEventDescription = "Loaded lesson envelope (\(output.widgets.count) widgets)."
@@ -42,7 +47,8 @@ final class SessionViewModel: ObservableObject {
             let output = try await BackendService.loadQuiz(
                 baseURL: backendURL,
                 sessionId: sessionId,
-                topic: topic
+                topic: topic,
+                metadata: metadataPayload()
             )
             quiz = output
             lastEventDescription = "Loaded quiz results (ELO keys: \(output.elo.keys.joined(separator: ", ")))."
@@ -54,7 +60,8 @@ final class SessionViewModel: ObservableObject {
             let output = try await BackendService.loadMilestone(
                 baseURL: backendURL,
                 sessionId: sessionId,
-                topic: topic
+                topic: topic,
+                metadata: metadataPayload()
             )
             milestone = output
             lastEventDescription = "Loaded milestone update (\(output.widgets.count) widgets)."
@@ -85,6 +92,61 @@ final class SessionViewModel: ObservableObject {
             Self.logger.error("\(action.rawValue) action failed: \(message, privacy: .public)")
         }
         activeAction = nil
+    }
+
+    func applyUserContext(username: String, backendURL: String) async {
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = Self.sessionIdentifier(for: trimmedUsername)
+        if normalized == sessionId, trimmedUsername == currentUsername {
+            return
+        }
+
+        let previousId = sessionId
+        if let backend = BackendService.trimmed(url: backendURL), let previousId {
+            await BackendService.resetSession(baseURL: backend, sessionId: previousId)
+        }
+
+        await MainActor.run {
+            sessionId = normalized
+            currentUsername = normalized != nil ? trimmedUsername : ""
+            lesson = nil
+            quiz = nil
+            milestone = nil
+            lastEventDescription = normalized != nil
+                ? "Signed in as \(trimmedUsername)"
+                : "Session reset for anonymous user"
+        }
+    }
+
+    private static func sessionIdentifier(for username: String) -> String? {
+        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let allowed = trimmed.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        guard !allowed.isEmpty else { return nil }
+        return "user-\(allowed)"
+    }
+
+    private func metadataPayload() -> [String: String] {
+        var metadata: [String: String] = [:]
+        if !currentUsername.isEmpty {
+            metadata["username"] = currentUsername
+        }
+        if !profileGoal.isEmpty {
+            metadata["goal"] = profileGoal
+        }
+        if !profileUseCase.isEmpty {
+            metadata["use_case"] = profileUseCase
+        }
+        if !profileStrengths.isEmpty {
+            metadata["strengths"] = profileStrengths
+        }
+        return metadata
+    }
+
+    func updateProfile(goal: String, useCase: String, strengths: String) {
+        profileGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        profileUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        profileStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func describe(error: Error) -> String {

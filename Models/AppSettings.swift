@@ -11,4 +11,8 @@ final class AppSettings: ObservableObject {
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
     @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
     @AppStorage("openaiApiKey") var openaiApiKey: String = ""
+    @AppStorage("arcadiaUsername") var arcadiaUsername: String = ""
+    @AppStorage("learnerGoal") var learnerGoal: String = ""
+    @AppStorage("learnerUseCase") var learnerUseCase: String = ""
+    @AppStorage("learnerStrengths") var learnerStrengths: String = ""
 }

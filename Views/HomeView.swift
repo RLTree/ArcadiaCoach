@@ -27,7 +27,14 @@ struct HomeView: View {
             }
             .padding(24)
             .onAppear {
-                showOnboarding = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                showOnboarding = needsOnboarding
+                refreshLearnerProfile()
+                Task {
+                    await session.applyUserContext(
+                        username: settings.arcadiaUsername,
+                        backendURL: settings.chatkitBackendURL
+                    )
+                }
             }
             if showOnboarding {
                 Color.black.opacity(0.4).ignoresSafeArea()
@@ -50,10 +57,36 @@ struct HomeView: View {
             appVM.lastEnvelope = .init(display: milestone.display, widgets: milestone.widgets, citations: nil)
         }
         .onChange(of: settings.chatkitBackendURL) { newValue in
-            Task { await session.reset(for: newValue) }
-            if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                showOnboarding = false
+            Task {
+                await session.reset(for: newValue)
+                await session.applyUserContext(
+                    username: settings.arcadiaUsername,
+                    backendURL: newValue
+                )
             }
+            showOnboarding = needsOnboarding
+            refreshLearnerProfile()
+        }
+        .onChange(of: settings.openaiApiKey) { _ in
+            showOnboarding = needsOnboarding
+        }
+        .onChange(of: settings.arcadiaUsername) { _ in
+            showOnboarding = needsOnboarding
+            Task {
+                await session.applyUserContext(
+                    username: settings.arcadiaUsername,
+                    backendURL: settings.chatkitBackendURL
+                )
+            }
+        }
+        .onChange(of: settings.learnerGoal) { _ in
+            refreshLearnerProfile()
+        }
+        .onChange(of: settings.learnerUseCase) { _ in
+            refreshLearnerProfile()
+        }
+        .onChange(of: settings.learnerStrengths) { _ in
+            refreshLearnerProfile()
         }
         .alert(item: $session.lastError) { error in
             Alert(
@@ -71,6 +104,11 @@ struct HomeView: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color("Brand"))
                     .accessibilityAddTraits(.isHeader)
+                if let usernameLabel {
+                    Text(usernameLabel)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
                 Text("Level \(appVM.game.level) • XP \(appVM.game.xp) • Streak \(appVM.game.streak)")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -120,7 +158,10 @@ struct HomeView: View {
                     }
                 }
             }
-            .disabled(settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(
+                settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
             .accessibilityElement(children: .contain)
 
             if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
@@ -164,11 +205,30 @@ struct HomeView: View {
         .frame(maxHeight: .infinity)
     }
 
+    private var needsOnboarding: Bool {
+        settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        settings.openaiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var usernameLabel: String? {
+        let trimmed = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : "Signed in as \(trimmed)"
+    }
+
     private func delta(from old: [String:Int], to new: [String:Int]) -> [String:Int] {
         var diff: [String:Int] = [:]
         for (key, value) in new {
             diff[key] = value - (old[key] ?? 1100)
         }
         return diff
+    }
+
+    private func refreshLearnerProfile() {
+        session.updateProfile(
+            goal: settings.learnerGoal,
+            useCase: settings.learnerUseCase,
+            strengths: settings.learnerStrengths
+        )
     }
 }

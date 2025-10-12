@@ -49,10 +49,40 @@ struct ChatPanel: View {
         }
         .padding(12)
         .onAppear {
+            viewModel.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths
+            )
+            viewModel.updateUser(settings.arcadiaUsername)
             viewModel.handleBackendChange(backend)
         }
         .onChange(of: settings.chatkitBackendURL) { newValue in
             viewModel.handleBackendChange(newValue)
+        }
+        .onChange(of: settings.arcadiaUsername) { newValue in
+            viewModel.updateUser(newValue)
+        }
+        .onChange(of: settings.learnerGoal) { newValue in
+            viewModel.updateProfile(
+                goal: newValue,
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths
+            )
+        }
+        .onChange(of: settings.learnerUseCase) { newValue in
+            viewModel.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: newValue,
+                strengths: settings.learnerStrengths
+            )
+        }
+        .onChange(of: settings.learnerStrengths) { newValue in
+            viewModel.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: settings.learnerUseCase,
+                strengths: newValue
+            )
         }
     }
 

@@ -103,7 +103,8 @@ struct WidgetArcadiaChatbotView: View {
                 baseURL: backend,
                 sessionId: sessionKey,
                 history: history,
-                message: text
+                message: text,
+                metadata: metadataPayload()
             )
             await MainActor.run {
                 if let chat = envelope.widgets.first(where: { $0.type == .ArcadiaChatbot || $0.type == .MiniChatbot })?.propsArcadiaChatbot {
@@ -125,5 +126,26 @@ struct WidgetArcadiaChatbotView: View {
                 isSending = false
             }
         }
+    }
+
+    private func metadataPayload() -> [String: String] {
+        let name = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        var metadata: [String: String] = [:]
+        if !name.isEmpty {
+            metadata["username"] = name
+        }
+        let goal = settings.learnerGoal.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !goal.isEmpty {
+            metadata["goal"] = goal
+        }
+        let useCase = settings.learnerUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !useCase.isEmpty {
+            metadata["use_case"] = useCase
+        }
+        let strengths = settings.learnerStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !strengths.isEmpty {
+            metadata["strengths"] = strengths
+        }
+        return metadata
     }
 }
