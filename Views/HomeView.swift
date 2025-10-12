@@ -2,16 +2,23 @@ import SwiftUI
 import Combine
 
 struct HomeView: View {
+    private enum MainTab: Hashable {
+        case dashboard
+        case assessment
+        case chat
+        case settings
+    }
+
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var appVM: AppViewModel
     @StateObject var session = SessionViewModel()
     @State private var showOnboarding = false
+    @State private var selectedTab: MainTab = .dashboard
 
-    private var topElo: [WidgetStatItem] {
+    private var allEloItems: [WidgetStatItem] {
         let labels = categoryLabels
         return appVM.game.elo
             .sorted { $0.value > $1.value }
-            .prefix(3)
             .map { .init(label: labels[$0.key] ?? $0.key, value: String($0.value)) }
     }
 
@@ -24,28 +31,31 @@ struct HomeView: View {
         ZStack(alignment: .center) {
             Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
-            VStack(spacing: 18) {
-                header
-                if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
-                    assessmentBanner(status: bundle.status)
-                }
-                if !settings.minimalMode {
-                    WidgetStatRowView(props: .init(items: topElo))
-                        .environmentObject(settings)
-                }
-                if let plan = appVM.eloPlan, !plan.categories.isEmpty {
-                    EloPlanSummaryView(plan: plan)
-                        .transition(.opacity)
-                }
-                if let curriculum = appVM.curriculumPlan {
-                    CurriculumOutlineView(plan: curriculum)
-                        .transition(.opacity)
-                }
-                sessionControls
-                contentTabs
+
+            TabView(selection: $selectedTab) {
+                dashboardTab
+                    .tabItem { Label("Dashboard", systemImage: "rectangle.grid.2x2") }
+                    .tag(MainTab.dashboard)
+
+                assessmentTab
+                    .tabItem {
+                        Label("Assessment", systemImage: "checklist")
+                    }
+                    .tag(MainTab.assessment)
+                    .badge(appVM.requiresAssessment ? "!" : nil)
+
+                ChatPanel()
+                    .environmentObject(settings)
+                    .tabItem { Label("Agent Chat", systemImage: "bubble.left.and.bubble.right") }
+                    .tag(MainTab.chat)
+
+                SettingsView()
+                    .environmentObject(settings)
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(MainTab.settings)
             }
-            .padding(24)
             .onAppear {
+                selectedTab = appVM.requiresAssessment ? .assessment : .dashboard
                 showOnboarding = needsOnboarding
                 refreshLearnerProfile()
                 Task {
@@ -55,7 +65,10 @@ struct HomeView: View {
                     )
                 }
             }
-            overlayLayer
+
+            if showOnboarding {
+                onboardingOverlay
+            }
         }
         .onReceive(session.$lesson.compactMap { $0 }) { lesson in
             appVM.lastEnvelope = .init(display: lesson.display, widgets: lesson.widgets, citations: lesson.citations)
@@ -99,6 +112,11 @@ struct HomeView: View {
         .onChange(of: settings.learnerStrengths) { _ in
             refreshLearnerProfile()
         }
+        .onChange(of: appVM.requiresAssessment) { required in
+            if required {
+                selectedTab = .assessment
+            }
+        }
         .alert(item: $session.lastError) { error in
             Alert(
                 title: Text("\(error.action.rawValue) failed"),
@@ -109,29 +127,17 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private var overlayLayer: some View {
-        if showOnboarding {
-            ZStack {
-                Color.black.opacity(0.4).ignoresSafeArea()
-                OnboardingView {
-                    showOnboarding = false
-                }
-                .frame(maxWidth: 520)
-                .background(.bar, in: RoundedRectangle(cornerRadius: 18))
-                .padding(40)
+    private var onboardingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            OnboardingView {
+                showOnboarding = false
             }
-            .transition(.opacity)
-        } else if appVM.showingAssessmentFlow, appVM.requiresAssessment {
-            ZStack {
-                Color.black.opacity(0.45).ignoresSafeArea()
-                OnboardingAssessmentFlow()
-                    .environmentObject(settings)
-                    .environmentObject(appVM)
-                    .background(.bar, in: RoundedRectangle(cornerRadius: 20))
-                    .padding(32)
-            }
-            .transition(.opacity)
+            .frame(maxWidth: 520)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 18))
+            .padding(40)
         }
+        .transition(.opacity)
     }
 
     private var header: some View {
@@ -224,37 +230,52 @@ struct HomeView: View {
         }
     }
 
-    private var contentTabs: some View {
-        TabView {
-            if let lesson = session.lesson {
-                LessonView(envelope: .init(display: lesson.display, widgets: lesson.widgets, citations: lesson.citations))
-                    .environmentObject(settings)
-                    .tabItem { Text("Lesson") }
+    private var dashboardTab: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 18) {
+                header
+                if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
+                    assessmentBanner(status: bundle.status)
+                }
+                if !settings.minimalMode && !allEloItems.isEmpty {
+                    WidgetStatRowView(props: .init(items: allEloItems))
+                        .environmentObject(settings)
+                }
+                if let plan = appVM.eloPlan, !plan.categories.isEmpty {
+                    EloPlanSummaryView(plan: plan)
+                        .transition(.opacity)
+                }
+                if let curriculum = appVM.curriculumPlan {
+                    CurriculumOutlineView(plan: curriculum)
+                        .transition(.opacity)
+                }
+                sessionControls
             }
-            if let quiz = session.quiz {
-                QuizSummaryView(elo: quiz.elo, widgets: quiz.widgets, last: quiz.last_quiz)
-                    .environmentObject(settings)
-                    .tabItem { Text("Quiz") }
-            }
-            if let milestone = session.milestone {
-                MilestoneView(content: milestone)
-                    .environmentObject(settings)
-                    .tabItem { Text("Milestone") }
-            }
-            if let envelope = appVM.lastEnvelope, !settings.minimalMode {
-                AssignmentView(envelope: envelope)
-                    .environmentObject(settings)
-                    .tabItem { Text("Assignments") }
-            }
-            ChatPanel()
-                .environmentObject(settings)
-                .tabItem { Text("Agent Chat") }
-            SettingsView()
-                .environmentObject(settings)
-                .tabItem { Text("Settings") }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
         }
-        .tabViewStyle(.automatic)
-        .frame(maxHeight: .infinity)
+    }
+
+    private var assessmentTab: some View {
+        Group {
+            if appVM.requiresAssessment {
+                OnboardingAssessmentFlow()
+                    .environmentObject(settings)
+                    .environmentObject(appVM)
+                    .padding(.vertical, 20)
+            } else {
+                VStack(spacing: 16) {
+                    Text("Onboarding assessment completed")
+                        .font(.title2.bold())
+                    Text("Reopen the assessment from the dashboard if you want to review your responses.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
     }
 
     private var needsOnboarding: Bool {

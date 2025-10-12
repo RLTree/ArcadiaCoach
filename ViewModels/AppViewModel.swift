@@ -82,6 +82,18 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func isAssessmentTaskAnswered(_ task: OnboardingAssessmentTask) -> Bool {
+        let trimmed = response(for: task.taskId).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if task.taskType == .code, let starter = task.starterCode, !starter.isEmpty {
+            let starterTrimmed = starter.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == starterTrimmed {
+                return false
+            }
+        }
+        return true
+    }
+
     func updateAssessmentStatus(
         to status: OnboardingAssessment.Status,
         baseURL: String,
@@ -131,7 +143,6 @@ final class AppViewModel: ObservableObject {
         onboardingAssessment = snapshot.onboardingAssessment
         alignEloSnapshotWithPlan()
         pruneAssessmentResponses()
-        prepareStarterCode()
     }
 
     private func pruneAssessmentResponses() {
@@ -143,12 +154,4 @@ final class AppViewModel: ObservableObject {
         assessmentResponses = assessmentResponses.filter { validIds.contains($0.key) }
     }
 
-    private func prepareStarterCode() {
-        guard let assessment = onboardingAssessment else { return }
-        for task in assessment.tasks where task.taskType == .code {
-            if assessmentResponses[task.taskId] == nil, let starter = task.starterCode, !starter.isEmpty {
-                assessmentResponses[task.taskId] = starter
-            }
-        }
-    }
 }
