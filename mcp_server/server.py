@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from anyio import ClosedResourceError
 from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
@@ -715,7 +716,12 @@ async def _call_inner_app(app, scope: Scope, body: bytes) -> Tuple[int, list[Tup
         elif message["type"] == "http.response.body":
             response_body.extend(message.get("body", b""))
 
-    await app(scope, receive, send)
+    try:
+        await app(scope, receive, send)
+    except ClosedResourceError:
+        logging.getLogger("arcadia.mcp.proxy").info(
+            "MCP stream closed before completion; returning partial response",
+        )
     return status_code, response_headers, bytes(response_body)
 
 
