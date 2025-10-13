@@ -28,7 +28,21 @@ def apply_preferences_overlay(
     model: str,
 ) -> str:
     """Append preference, attachment, and capability guidance to the user prompt."""
-    sections: list[str] = [base_text.rstrip()]
+    stripped = base_text.rstrip()
+    sections: list[str] = [stripped]
+
+    lower_text = stripped.lower()
+    user_explicit_web_request = any(
+        phrase in lower_text
+        for phrase in (
+            "web search",
+            "search the web",
+            "search online",
+            "look up online",
+            "use web results",
+            "google this",
+        )
+    )
 
     if attachments:
         attachment_lines: list[str] = ["Uploaded files available:"]
@@ -64,7 +78,13 @@ def apply_preferences_overlay(
         sections.append("\n".join(attachment_lines))
 
     if web_enabled:
-        sections.append("Web search is enabled. Use the web_search tool whenever it adds trustworthy context.")
+        web_line = (
+            "Web search is enabled. Before responding, call the web_search tool to gather current sources relevant to this message. "
+            "Summarise the findings alongside other context and cite each source using Markdown hyperlinks like [Title](https://example.com)."
+        )
+        if user_explicit_web_request:
+            web_line += " The learner explicitly requested web search, so skipping the tool is not acceptable."
+        sections.append(web_line)
     else:
         sections.append("Web search is disabled; rely on internal knowledge and any uploaded files.")
 

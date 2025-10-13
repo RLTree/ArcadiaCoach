@@ -6,6 +6,7 @@
 ## Summary
 
 - Hardened the Arcadia Coach prompt overlays so GPT-5/GPT-5 Mini runs automatically consult uploaded files via `file_search`, while GPT-5 Codex receives explicit guidance to interpret inline image previews instead of invoking `file_search`.
+- When web search is toggled on, the overlay now requires a `web_search` tool call on every turn and reminds the agent to cite each web result as a Markdown hyperlink, satisfying the learner’s transparency request.
 - Centralised the preference/attachment prompt builder (`apply_preferences_overlay`) so both the ChatKit streaming server and `/api/session/chat` share identical instructions and attachment metadata formatting.
 - Added a "Resume" workflow to the macOS Agent Chat sidebar: learners can reopen any stored transcript, continue the exact backend session thread, and see which session is active at a glance.
 - Updated chat history models to persist the selected model per transcript, keeping capability enforcement (web search, attachment policy) in sync when a past conversation is resumed.

@@ -51,7 +51,7 @@ def test_apply_preferences_overlay_codex_guidance():
     assert "Do not call file_search" in result
     assert "inline image previews" in result
     assert "call the file_search tool to read each attachment" not in result
-    assert "Web search is enabled" in result
+    assert "Before responding, call the web_search tool" in result
 
 
 def test_apply_preferences_overlay_without_attachments():
@@ -64,4 +64,18 @@ def test_apply_preferences_overlay_without_attachments():
     )
 
     assert "Uploaded files available" not in result
-    assert "Web search is enabled" in result
+    assert "Before responding, call the web_search tool" in result
+
+
+def test_apply_preferences_overlay_honours_explicit_web_request():
+    prompt = "User: Please web search the latest Rust compiler release notes."
+    result = apply_preferences_overlay(
+        prompt,
+        [],
+        web_enabled=True,
+        reasoning_level="medium",
+        model="gpt-5",
+    )
+
+    assert "Before responding, call the web_search tool" in result
+    assert "skipping the tool is not acceptable" in result
