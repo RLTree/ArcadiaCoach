@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from .agent_models import (
     AssessmentCategoryOutcomePayload,
@@ -10,6 +10,7 @@ from .agent_models import (
     AssessmentRubricEvaluationPayload,
     AssessmentTaskGradePayload,
     CurriculumModulePayload,
+    CurriculumSchedulePayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
@@ -17,13 +18,42 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
     OnboardingCurriculumPayload,
+    SequencedWorkItemPayload,
     SkillRatingPayload,
 )
 from .assessment_submission import submission_payload, submission_store
-from .learner_profile import LearnerProfile, profile_store
+from .curriculum_sequencer import generate_schedule_for_user
+from .learner_profile import CurriculumSchedule, LearnerProfile, profile_store
 
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
+
+
+def _schedule_payload(schedule: CurriculumSchedule | None) -> CurriculumSchedulePayload | None:
+    if schedule is None:
+        return None
+    return CurriculumSchedulePayload(
+        generated_at=schedule.generated_at,
+        time_horizon_days=schedule.time_horizon_days,
+        cadence_notes=schedule.cadence_notes,
+        items=[
+            SequencedWorkItemPayload(
+                item_id=item.item_id,
+                kind=item.kind,
+                category_key=item.category_key,
+                title=item.title,
+                summary=item.summary,
+                objectives=list(item.objectives),
+                prerequisites=list(item.prerequisites),
+                recommended_minutes=item.recommended_minutes,
+                recommended_day_offset=item.recommended_day_offset,
+                effort_level=item.effort_level,
+                focus_reason=item.focus_reason,
+                expected_outcome=item.expected_outcome,
+            )
+            for item in schedule.items
+        ],
+    )
 
 
 def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
@@ -71,6 +101,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for module in curriculum.modules
             ],
         )
+    schedule_payload = _schedule_payload(profile.curriculum_schedule)
     assessment_payload: OnboardingAssessmentPayload | None = None
     if profile.onboarding_assessment:
         assessment = profile.onboarding_assessment
@@ -155,6 +186,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         last_updated=profile.last_updated,
         elo_category_plan=plan_payload,
         curriculum_plan=curriculum_payload,
+        curriculum_schedule=schedule_payload,
         onboarding_assessment=assessment_payload,
         onboarding_assessment_result=assessment_result_payload,
         assessment_submissions=submission_payloads,
@@ -191,6 +223,46 @@ def get_elo_category_plan(username: str) -> EloCategoryPlanPayload:
             detail=f"ELO categories for '{username}' are not set.",
         )
     return payload.elo_category_plan
+
+
+@router.get(
+    "/{username}/schedule",
+    response_model=CurriculumSchedulePayload,
+    status_code=status.HTTP_200_OK,
+)
+def get_curriculum_schedule(
+    username: str,
+    refresh: bool = Query(
+        default=False,
+        description="Set to true to regenerate the schedule using the latest learner signals.",
+    ),
+) -> CurriculumSchedulePayload:
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    if refresh or profile.curriculum_schedule is None:
+        try:
+            profile = generate_schedule_for_user(username)
+        except LookupError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+    schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    if schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    return schedule_payload
 
 
 __all__ = ["router"]

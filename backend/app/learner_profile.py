@@ -76,6 +76,32 @@ class CurriculumPlan(BaseModel):
     modules: List[CurriculumModule] = Field(default_factory=list)
 
 
+class SequencedWorkItem(BaseModel):
+    """Single learning activity emitted by the curriculum sequencer (Phase 11)."""
+
+    item_id: str
+    category_key: str
+    kind: Literal["lesson", "quiz", "milestone"]
+    title: str
+    summary: str = ""
+    objectives: List[str] = Field(default_factory=list)
+    prerequisites: List[str] = Field(default_factory=list)
+    recommended_minutes: int = Field(default=45, ge=5)
+    recommended_day_offset: int = Field(default=0, ge=0)
+    focus_reason: Optional[str] = None
+    expected_outcome: Optional[str] = None
+    effort_level: Literal["light", "moderate", "focus"] = "moderate"
+
+
+class CurriculumSchedule(BaseModel):
+    """Rolling schedule for upcoming lessons, quizzes, and milestones."""
+
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    time_horizon_days: int = Field(default=14, ge=1)
+    cadence_notes: Optional[str] = None
+    items: List[SequencedWorkItem] = Field(default_factory=list)
+
+
 class AssessmentTask(BaseModel):
     """Assessment task delivered during onboarding assessment."""
     task_id: str
@@ -109,6 +135,7 @@ class LearnerProfile(BaseModel):
     elo_snapshot: Dict[str, int] = Field(default_factory=dict)
     elo_category_plan: Optional[EloCategoryPlan] = None
     curriculum_plan: Optional[CurriculumPlan] = None
+    curriculum_schedule: Optional[CurriculumSchedule] = None
     onboarding_assessment: Optional[OnboardingAssessment] = None
     onboarding_assessment_result: Optional[AssessmentGradingResult] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -246,6 +273,19 @@ class LearnerProfileStore:
                 profile = LearnerProfile(username=username)
             profile.curriculum_plan = curriculum.model_copy(deep=True)
             profile.onboarding_assessment = assessment.model_copy(deep=True)
+            profile.curriculum_schedule = None
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
+    def set_curriculum_schedule(self, username: str, schedule: CurriculumSchedule) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                raise LookupError(f"Learner profile '{username}' does not exist.")
+            profile.curriculum_schedule = schedule.model_copy(deep=True)
             profile.last_updated = datetime.now(timezone.utc)
             self._profiles[normalized] = profile.model_copy(deep=True)
             self._persist_locked()
@@ -356,11 +396,13 @@ __all__ = [
     "AssessmentTask",
     "CurriculumModule",
     "CurriculumPlan",
+    "CurriculumSchedule",
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
     "LearnerProfile",
     "LearnerProfileStore",
+    "SequencedWorkItem",
     "OnboardingAssessment",
     "MemoryRecord",
     "profile_store",

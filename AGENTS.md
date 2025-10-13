@@ -1,36 +1,39 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `backend/`: FastAPI services (`app/`), configuration (`config.py`), and deployment assets (Dockerfile). Use this for the custom ChatKit server, file uploads, and Arcadia agent orchestration.
-- `Resources/`, `Views/`, `ViewModels/`, `Services/`: macOS SwiftUI client. Widget assets (e.g., `Resources/Widgets/ArcadiaChatbot.widget`) live here.
-- `advanced-agent/`: Node/TypeScript utilities built on the OpenAI Agents SDK. Run from this directory when prototyping agent workflows.
-- `mcp_server/`, `Models/`, `Tests/`: Auxiliary services, data models, and Swift unit tests. Keep cross-cutting assets (icons, entitlements) under `Resources/`.
+- `backend/`: FastAPI entrypoint (`app/`), agent tooling, curriculum sequencer, and upload/grading services. Treat this as the source of truth for agent orchestration, REST APIs, and persistence helpers.
+- `mcp_server/`: FastMCP-compatible widget service that streams lesson/quiz/milestone/focus sprint envelopes to the agent. Run this locally when developing widget payloads.
+- `Resources/`, `Views/`, `ViewModels/`, `Services/`, `Models/`, `Tests/`: macOS SwiftUI client. Widgets live under `Resources/Widgets/`, shared assets stay in `Resources/`, and unit tests belong in `Tests/`.
+- `docs/`: Phase snapshots, runbooks, and troubleshooting guides (kept in lockstep with the roadmap).
+- `openai-agents-python/`, `openai-chatkit-advanced-samples/`: upstream SDK examples referenced during prototyping—do not modify unless syncing from upstream.
+- Root-level config (`prompts-agents-maintenance.md`, `render.yaml`, `Package.swift`, etc.) describes deployment, prompt hygiene, and Swift package settings.
 
 ## Build, Test, and Development Commands
-- `uv sync && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` (backend): install deps and start the FastAPI server with live reload.
-- `npm install && npm run dev` (advanced-agent): run the TypeScript agent playground.
-- `open ArcadiaCoach.xcodeproj` → `⌘B` in Xcode: build the macOS client. Use the “ArcadiaCoach” scheme (Debug for development, Release for distribution).
-- `swift test` (from project root): execute Swift unit tests under `Tests/`.
+- Backend: `cd backend && uv sync && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+- MCP widgets: `cd mcp_server && uv sync && uv run python server.py --host 127.0.0.1 --port 8001`.
+- Backend lint/tests: `cd backend && uv run ruff check && uv run pytest`.
+- macOS client: `open ArcadiaCoach.xcodeproj` → build/run the **ArcadiaCoach** scheme (Debug for development, Release for distribution).
+- Swift unit tests: run `swift test` from the repository root so model + view-model coverage executes.
 
 ## Coding Style & Naming Conventions
-- Python: follow Black/PEP 8 (4-space indents, snake_case). Run `uv run ruff check` before committing.
-- Swift: 4-space indents, UpperCamelCase for types, lowerCamelCase for properties/functions. Keep widget JSON assets in PascalCase filenames (e.g., `ArcadiaChatbot.widget`).
-- TypeScript: use Prettier defaults (`npm run format`) and camelCase for variables/functions, PascalCase for components.
+- Python: Black/PEP 8, 4-space indents, snake_case. Keep docstrings concise and run `uv run ruff check` plus `uv run pytest` before pushing.
+- Swift: 4-space indents, UpperCamelCase types, lowerCamelCase members. Widget JSON assets stay in PascalCase (e.g., `ArcadiaChatbot.widget`).
+- TypeScript/JS (sample integrations): Prettier defaults with camelCase functions/variables and PascalCase components. Treat `openai-*` sample folders as read-only unless explicitly prototyping.
 
 ## Testing Guidelines
-- Backend: add pytest or FastAPI route tests under `backend/tests/` (create if missing). Name tests `test_<feature>.py`.
-- Swift: group tests by feature (`Tests/<FeatureName>Tests.swift`). Include integration coverage for key flows (lesson, quiz, milestone).
-- Target ≥80 % coverage for new modules; document gaps in PR descriptions when unavoidable.
+- Backend: add pytest coverage under `backend/tests/` (use `test_<feature>.py` naming). Every new service (e.g., curriculum sequencer, assessment storage) needs happy path + failure mode tests.
+- Swift: group tests by feature (`Tests/<FeatureName>Tests.swift`) and cover onboarding, assessment delivery, dashboard history, and chat continuity.
+- Aim for ≥80 % coverage on new modules; document any gaps in PR descriptions and open follow-up tasks when deferring tests.
 
 ## Commit & Pull Request Guidelines
-- Commit messages: `<scope>: <imperative summary>` (e.g., `backend: add file-upload endpoint`). Keep commits focused and include migration notes in the body if needed.
-- Pull Requests: provide a concise summary, list testing steps (`uv run …`, `swift test`, screenshots for UI), and link to tracking issues. Request review from both backend and client owners when changes span directories.
+- Commit messages follow `<scope>: <imperative summary>` (e.g., `backend: add curriculum sequencer`). Keep commits focused; include migration or data backfill notes in the body when relevant.
+- Pull Requests require a concise summary, explicit testing checklist (`uv run …`, `swift test`, screenshots for UI), and links to roadmap phases or issues. Request reviews from backend and client owners when touching both stacks.
 
 ---
 
 # Arcadia Coach Agent Overview
 
-Arcadia Coach now runs solely on the custom backend + Agents SDK (Path 2). This section tracks the production agent configuration and how to run it locally.
+Arcadia Coach runs on the custom FastAPI backend + OpenAI Agents SDK (Path 2) with MCP widgets and vector-backed memory. Keep this section current with production configuration and local workflows.
 
 ## Current Production Agent
 
@@ -38,9 +41,10 @@ Arcadia Coach now runs solely on the custom backend + Agents SDK (Path 2). Thi
 |-------|-------|
 | Agent Name | Arcadia Coach |
 | Agent ID | (stored in Render env var `ARCADIA_AGENT_ID`) |
-| Default Model | `gpt-5` |
-| Reasoning Effort | `medium` (`ARCADIA_AGENT_REASONING`) |
-| Web Search | Default `false` (`ARCADIA_AGENT_ENABLE_WEB`) |
+| Supported Models | `gpt-5`, `gpt-5-codex`, `gpt-5-mini`, `gpt-5-nano` (fallbacks default to `gpt-5`) |
+| Default Model | `gpt-5` (`ARCADIA_AGENT_MODEL`) |
+| Reasoning Effort | `medium` (`ARCADIA_AGENT_REASONING`; prompt overlay upgrades per turn) |
+| Web Search | Off by default (`ARCADIA_AGENT_ENABLE_WEB=false`); toggled per chat turn in the macOS client |
 
 ## Tools
 
@@ -51,8 +55,12 @@ The agent is configured with:
 | `HostedMCPTool` (`Arcadia_Coach_Widgets`) | Serves lesson/quiz/milestone/focus sprint widgets |
 | `FileSearchTool` | Queries Arcadia’s vector store (summary decks, docs) |
 | `WebSearchTool` | Optional web context when `webEnabled=true` |
+| `progress_start` / `progress_advance` | Multi-step progress overlay inside lessons/quizzes |
+| `learner_profile_get` / `learner_profile_update` | Retrieve and persist learner profile fields |
+| `learner_memory_write` | Append structured memory into the learner vector store |
+| `elo_update` / `learner_elo_category_plan_set` | Maintain ELO snapshots and category plans
 
-Additional function tools (Phase 2+) wired through `AGENT_SUPPORT_TOOLS`: `progress_start`, `progress_advance`, `learner_profile_get`, `learner_profile_update`, `learner_memory_write`, `elo_update`, and the new `learner_elo_category_plan_set` for persisting skill plans (see `docs/phase-2-elo-category-planning.md`).
+Hosted MCP calls are proxied through the backend (see `backend/app/arcadia_agent.py` and `backend/app/tools.py`).
 
 MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 
@@ -66,12 +74,13 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | Responses/Agents API key |
-| `ARCADIA_AGENT_MODEL` | Default model (`gpt-5`, `gpt-5-codex`, etc.) |
-| `ARCADIA_AGENT_REASONING` | `minimal` \| `low` \| `medium` \| `high` |
-| `ARCADIA_AGENT_ENABLE_WEB` | Toggle web search for the agent |
-| `ARCADIA_MCP_URL` | MCP server URL (`https://mcp.arcadiacoach.com/mcp`) |
-| `ARCADIA_MCP_LABEL` | `Arcadia_Coach_Widgets` |
-| `ARCADIA_MCP_REQUIRE_APPROVAL` | Approval mode (`never`) |
+| `ARCADIA_AGENT_MODEL` | Default agent model (string literal from `SUPPORTED_MODELS`) |
+| `ARCADIA_AGENT_REASONING` | Reasoning effort literal: `minimal` / `low` / `medium` / `high` |
+| `ARCADIA_AGENT_ENABLE_WEB` | Toggle web search default (macOS UI can override per turn) |
+| `ARCADIA_MCP_URL` | MCP server URL (local dev defaults to `http://127.0.0.1:8001/mcp`) |
+| `ARCADIA_MCP_LABEL` | Label shown in the tool config (default `Arcadia_Coach_Widgets`) |
+| `ARCADIA_MCP_REQUIRE_APPROVAL` | MCP approval strategy (default `never`) |
+| `ARCADIA_DEBUG_ENDPOINTS` | `true` to expose debugging routes in non-production builds |
 
 ## Local Debugging Checklist
 
@@ -101,13 +110,14 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
    Runner.run_sync(agent, "learn transformers", context=context,
                    run_config=RunConfig(model_settings=ModelSettings()))
    ```
+5. From the macOS client, toggle “Refresh Plan” in the dashboard to hit `GET /api/profile/<username>/schedule?refresh=true` and confirm curriculum sequencing output lines up with backend logs.
 
 **Hosted-only limitation:** The production backend runs at `https://chat.arcadiacoach.com`, and the MCP server lives at `https://mcp.arcadiacoach.com` (tool base URL `https://mcp.arcadiacoach.com/mcp`). Because OpenAI requires the domain to be pre-approved, we cannot exercise the full stack against localhost; all integration tests must target the hosted endpoints.
 
 ## Widgets
 
 - `Resources/Widgets/ArcadiaChatbot.widget` powers the ChatKit embed (served via `ChatPanel`).
-- MCP widgets return `Card`, `List`, `StatRow` items; the backend normalizes props before returning to Swift.
+- MCP widgets return `Card`, `List`, `StatRow`, and other envelope types. The backend normalises props before returning to Swift to keep widget schemas stable across releases.
 
 Keep this section up to date as agent configuration changes (new tools, model upgrades, etc.).
 
@@ -185,10 +195,10 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Surfaced structured attachments across profile/developer APIs and piped attachment descriptors into grading payloads so the agent can ingest learner-provided context.
     - Extended regression coverage for upload/link/delete flows, download endpoints, and submission payloads to guard the new storage/ingestion path.
     - Follow-ups: add inline previews for common attachment types, capture ingestion telemetry, harden storage encryption ahead of the persistence migration, and resolve Swift 6 concurrency warnings raised by shared formatters (see follow-up assignments under Phases 14, 18, 21, and the new Known Corrections entry).
-12. **Phase 11 – Curriculum Sequencer Foundations**
-    - Stand up a sequencing service that consumes current ELO snapshot, goals, and recent assessment results to order upcoming lessons, quizzes, and milestones.
-    - Emit structured schedules that the macOS client can cache, including prerequisites and expected effort.
-    - Document sequencing inputs/outputs to unblock adaptive curriculum work in later phases.
+12. **Phase 11 – Curriculum Sequencer Foundations** ✅ *(completed October 13, 2025; see `docs/phase-11-curriculum-sequencer-foundations.md`)*
+    - Delivered a deterministic sequencing service that prioritises lessons, quizzes, and a milestone using learner goals, ELO snapshots, curriculum modules, and assessment deltas.
+    - Persisted schedules on learner profiles and exposed `GET /api/profile/{username}/schedule` (with on-demand refresh) so the macOS client can cache prerequisites and expected effort.
+    - Documented schedule inputs/outputs and added regression tests to stabilise the heuristics ahead of adaptive curriculum phases.
 13. **Phase 12 – Adaptive Curriculum MVP**
     - Plug the sequencing service into the existing curriculum generator to produce a short-term (2–3 week) adaptive roadmap per learner.
     - Ensure ELO deltas and onboarding assessment outcomes feed the sequencer so near-term lessons/quizzes reflect current proficiency.

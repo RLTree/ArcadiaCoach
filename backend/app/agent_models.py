@@ -98,6 +98,28 @@ class CurriculumModulePayload(BaseModel):
     estimated_minutes: Optional[int] = None
 
 
+class SequencedWorkItemPayload(BaseModel):
+    item_id: str
+    kind: Literal["lesson", "quiz", "milestone"]
+    category_key: str
+    title: str
+    summary: Optional[str] = None
+    objectives: List[str] = Field(default_factory=list)
+    prerequisites: List[str] = Field(default_factory=list)
+    recommended_minutes: int = Field(default=45, ge=5)
+    recommended_day_offset: int = Field(default=0, ge=0)
+    effort_level: Literal["light", "moderate", "focus"] = "moderate"
+    focus_reason: Optional[str] = None
+    expected_outcome: Optional[str] = None
+
+
+class CurriculumSchedulePayload(BaseModel):
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    time_horizon_days: int = Field(default=14, ge=1)
+    cadence_notes: Optional[str] = None
+    items: List[SequencedWorkItemPayload] = Field(default_factory=list)
+
+
 class OnboardingCurriculumPayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     overview: str
@@ -216,6 +238,7 @@ class LearnerProfilePayload(BaseModel):
     last_updated: datetime
     elo_category_plan: Optional[EloCategoryPlanPayload] = None
     curriculum_plan: Optional[OnboardingCurriculumPayload] = None
+    curriculum_schedule: Optional[CurriculumSchedulePayload] = None
     onboarding_assessment: Optional[OnboardingAssessmentPayload] = None
     onboarding_assessment_result: Optional[AssessmentGradingPayload] = None
     assessment_submissions: List[AssessmentSubmissionPayload] = Field(default_factory=list)
