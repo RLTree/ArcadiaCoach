@@ -14,7 +14,7 @@ struct ArcadiaChatbotView: View {
     var selectedLevel: String
     var onSelectLevel: ((String) -> Void)? = nil
     var onToggleWeb: ((Bool) -> Void)? = nil
-    var attachments: [ChatAttachment] = []
+    var composerAttachments: [ChatAttachment] = []
     var isAttachmentUploading: Bool = false
     var onAddAttachment: (() -> Void)? = nil
     var onRemoveAttachment: ((String) -> Void)? = nil
@@ -90,23 +90,33 @@ struct ArcadiaChatbotView: View {
     }
 
     private func messageRow(_ message: ChatMessage) -> some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            if message.role == .assistant {
-                avatar(systemName: "sparkles")
+        VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
+                if message.role == .assistant {
+                    avatar(systemName: "sparkles")
+                }
+                Text(message.text)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(bubbleBackground(for: message.role))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .frame(maxWidth: 420, alignment: message.role == .user ? .trailing : .leading)
+                if message.role == .user {
+                    avatar(systemName: "person.fill")
+                }
             }
-            Text(message.text)
-                .font(.body)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(bubbleBackground(for: message.role))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-                .frame(maxWidth: 420, alignment: message.role == .user ? .trailing : .leading)
-            if message.role == .user {
-                avatar(systemName: "person.fill")
+            if !message.attachments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(message.attachments) { attachment in
+                        attachmentRow(attachment)
+                    }
+                }
+                .frame(maxWidth: message.role == .user ? 420 : .infinity, alignment: message.role == .user ? .trailing : .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
@@ -195,7 +205,7 @@ struct ArcadiaChatbotView: View {
 
     @ViewBuilder
     private var attachmentsSection: some View {
-        if onAddAttachment != nil || !attachments.isEmpty {
+        if onAddAttachment != nil || !composerAttachments.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Label("Attachments", systemImage: "paperclip")
@@ -220,13 +230,13 @@ struct ArcadiaChatbotView: View {
                         }
                     }
                 }
-                if attachments.isEmpty {
+                if composerAttachments.isEmpty {
                     Text("No files attached.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(attachments) { attachment in
+                        ForEach(composerAttachments) { attachment in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(alignment: .center, spacing: 8) {
                                     Image(systemName: attachment.iconSystemName)
@@ -287,6 +297,33 @@ struct ArcadiaChatbotView: View {
             )
             .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
             .accessibilityLabel("Reasoning effort \(level.label)")
+    }
+
+    private func attachmentRow(_ attachment: ChatAttachment) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: attachment.iconSystemName)
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attachment.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text("\(attachment.sizeLabel) • \(attachment.mimeType)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            if let snippet = attachment.previewSnippet {
+                Text(snippet)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var statusImageName: String {

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, cast
 from uuid import uuid4
@@ -30,11 +30,19 @@ T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
+MODEL_FOR_LEVEL: Dict[str, str] = {
+    "minimal": "gpt-5-nano",
+    "low": "gpt-5-mini",
+    "medium": "gpt-5",
+    "high": "gpt-5-codex",
+}
+
 
 @dataclass
 class SessionState:
     store: MemoryStore
     thread: ThreadMetadata
+    attachments: list[dict[str, Any]] = field(default_factory=list)
 
 
 _session_states: Dict[str, SessionState] = {}
@@ -82,7 +90,14 @@ async def _run_structured(
     reasoning_level = _effort(
         reasoning_level_override or settings.arcadia_agent_reasoning
     )
-    agent = get_arcadia_agent(settings.arcadia_agent_model, web_enabled)
+    model_choice = MODEL_FOR_LEVEL.get(reasoning_level, settings.arcadia_agent_model)
+    agent = get_arcadia_agent(model_choice, web_enabled)
+    logger.debug(
+        "Resolved chat session settings (model=%s, web_enabled=%s, reasoning=%s)",
+        model_choice,
+        web_enabled,
+        reasoning_level,
+    )
     metadata_payload: Dict[str, Any] = dict(metadata or {})
     if session_id:
         metadata_payload.setdefault("session_id", session_id)
@@ -106,11 +121,22 @@ async def _run_structured(
             }
             for item in attachments
         ]
-        if attachments_payload and "attachments" not in metadata_payload:
-            metadata_payload["attachments"] = [
+    if attachments_payload:
+        merged = _merge_attachments(state.attachments, attachments_payload)
+        state.attachments = merged
+        attachments_payload = merged
+    else:
+        attachments_payload = list(state.attachments)
+
+    if attachments_payload:
+        metadata_payload.setdefault(
+            "attachments",
+            [
                 {k: v for k, v in attachment.items() if k != "file_id"}
                 for attachment in attachments_payload
-            ]
+            ],
+        )
+
     if augment_with_preferences:
         message = _augment_prompt_with_preferences(
             message,
@@ -338,6 +364,32 @@ def _augment_prompt_with_preferences(
         "Balance depth with timely responses."
     )
     return augmented
+
+
+def _attachment_key(data: Dict[str, Any]) -> str:
+    candidate = data.get("file_id") or data.get("openai_file_id") or data.get("name") or data.get("id")
+    if isinstance(candidate, str) and candidate:
+        return candidate
+    return uuid4().hex
+
+
+def _merge_attachments(
+    existing: Sequence[Dict[str, Any]],
+    new: Sequence[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
+    merged: list[Dict[str, Any]] = [dict(item) for item in existing]
+    index: Dict[str, Dict[str, Any]] = {
+        _attachment_key(item): item for item in merged
+    }
+    for item in new:
+        cleaned = {k: v for k, v in item.items() if v is not None}
+        key = _attachment_key(cleaned)
+        if key in index:
+            index[key].update(cleaned)
+        else:
+            merged.append(cleaned)
+            index[key] = cleaned
+    return merged
 
 
 @router.post("/lesson", response_model=EndLearn, status_code=status.HTTP_200_OK)

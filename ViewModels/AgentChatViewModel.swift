@@ -1,11 +1,171 @@
 import Foundation
+import OSLog
 import SwiftUI
+
+// Phase 6 data models (kept local for Xcode target inclusion).
+struct ChatAttachment: Identifiable, Codable, Hashable {
+    var id: String
+    var name: String
+    var mimeType: String
+    var size: Int
+    var preview: String?
+    var openAIFileId: String?
+    var addedAt: Date
+
+    init(
+        id: String,
+        name: String,
+        mimeType: String,
+        size: Int,
+        preview: String?,
+        openAIFileId: String?,
+        addedAt: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.mimeType = mimeType
+        self.size = size
+        self.preview = preview
+        self.openAIFileId = openAIFileId
+        self.addedAt = addedAt
+    }
+
+    var sizeLabel: String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(size))
+    }
+
+    var previewSnippet: String? {
+        guard let preview else { return nil }
+        let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(220))
+    }
+
+    var iconSystemName: String {
+        if mimeType.contains("image/") { return "photo" }
+        if mimeType.contains("pdf") { return "doc.richtext" }
+        if mimeType.contains("zip") { return "archivebox" }
+        if mimeType.contains("text") { return "doc.text" }
+        if mimeType.contains("audio") { return "waveform" }
+        if mimeType.contains("video") { return "film" }
+        return "paperclip"
+    }
+}
+
+struct ChatTranscript: Identifiable, Codable, Equatable {
+    struct Message: Codable, Equatable {
+        var role: String
+        var text: String
+        var sentAt: Date
+        var attachments: [ChatAttachment]
+    }
+
+    var id: String
+    var title: String
+    var startedAt: Date
+    var updatedAt: Date
+    var webEnabled: Bool
+    var reasoningLevel: String
+    var messages: [Message]
+    var attachments: [ChatAttachment]
+
+    mutating func refreshTitle() {
+        if let headline = messages.first(where: { $0.role == "user" && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            let trimmed = headline.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            title = String(trimmed.prefix(60))
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            title = "Session \(formatter.string(from: startedAt))"
+        }
+    }
+}
+
+struct ChatTranscriptSummary: Identifiable, Hashable {
+    var id: String
+    var title: String
+    var lastUpdated: Date
+    var snippet: String
+    var webEnabled: Bool
+    var reasoningLevel: String
+
+    init(transcript: ChatTranscript) {
+        id = transcript.id
+        title = transcript.title
+        lastUpdated = transcript.updatedAt
+        reasoningLevel = transcript.reasoningLevel
+        webEnabled = transcript.webEnabled
+        if let last = transcript.messages.last {
+            let trimmed = last.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            snippet = trimmed.isEmpty ? "No messages yet." : String(trimmed.prefix(100))
+        } else {
+            snippet = "No messages yet."
+        }
+    }
+}
+
+/// Stores per-session chat transcripts for the Phase 6 sidebar experience.
+/// Phase 6 – Frontend Chat & Accessibility Enhancements (Oct 2025).
+final class ChatHistoryStore {
+    static let shared = ChatHistoryStore()
+
+    private let storageKey = "com.arcadiacoach.chatHistory"
+    private let userDefaults: UserDefaults
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private let logger = Logger(subsystem: "com.arcadiacoach.app", category: "ChatHistoryStore")
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        self.encoder = JSONEncoder()
+        self.encoder.outputFormatting = [.sortedKeys]
+        self.encoder.dateEncodingStrategy = .iso8601
+        self.decoder = JSONDecoder()
+        self.decoder.dateDecodingStrategy = .iso8601
+    }
+
+    func load() -> [ChatTranscript] {
+        guard let data = userDefaults.data(forKey: storageKey) else {
+            return []
+        }
+        do {
+            return try decoder.decode([ChatTranscript].self, from: data)
+        } catch {
+            logger.error("Failed to decode chat history: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
+
+    func save(_ transcripts: [ChatTranscript]) {
+        do {
+            let data = try encoder.encode(transcripts)
+            userDefaults.set(data, forKey: storageKey)
+        } catch {
+            logger.error("Failed to persist chat history: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func clear() {
+        userDefaults.removeObject(forKey: storageKey)
+    }
+}
 
 struct ChatMessage: Identifiable, Equatable {
     enum Role { case user, assistant }
     let id = UUID()
     let role: Role
     let text: String
+    let attachments: [ChatAttachment]
+
+    init(role: Role, text: String, attachments: [ChatAttachment] = []) {
+        self.role = role
+        self.text = text
+        self.attachments = attachments
+    }
 }
 
 @MainActor
@@ -15,7 +175,7 @@ final class AgentChatViewModel: ObservableObject {
     @Published var lastError: String?
     @Published var webSearchEnabled: Bool
     @Published var reasoningLevel: String
-    @Published var attachments: [ChatAttachment] = []
+    @Published var composerAttachments: [ChatAttachment] = []
     @Published private(set) var recents: [ChatTranscriptSummary] = []
     @Published var previewTranscript: ChatTranscript?
     @Published var isUploadingAttachment: Bool = false
@@ -68,7 +228,7 @@ final class AgentChatViewModel: ObservableObject {
         updateCurrentTranscript { transcript in
             if transcript.messages.isEmpty {
                 transcript.messages.append(
-                    ChatTranscript.Message(role: "assistant", text: welcome.text, sentAt: Date())
+                    ChatTranscript.Message(role: "assistant", text: welcome.text, sentAt: Date(), attachments: [])
                 )
             }
         }
@@ -84,7 +244,7 @@ final class AgentChatViewModel: ObservableObject {
         }
         welcomed = false
         messages.removeAll()
-        attachments.removeAll()
+        composerAttachments.removeAll()
         lastError = nil
         let previousKey = sessionKey
         Task {
@@ -104,7 +264,7 @@ final class AgentChatViewModel: ObservableObject {
         sessionKey = sessionIdentifier()
         welcomed = false
         messages.removeAll()
-        attachments.removeAll()
+        composerAttachments.removeAll()
         lastError = nil
         if let backend = BackendService.trimmed(url: backendURL) {
             Task { await BackendService.resetSession(baseURL: backend, sessionId: previousKey) }
@@ -161,18 +321,12 @@ final class AgentChatViewModel: ObservableObject {
     }
 
     func addAttachment(_ attachment: ChatAttachment) {
-        attachments.append(attachment)
-        updateCurrentTranscript { transcript in
-            transcript.attachments = attachments
-        }
+        composerAttachments.append(attachment)
     }
 
     func removeAttachment(id: String) {
-        guard let index = attachments.firstIndex(where: { $0.id == id }) else { return }
-        attachments.remove(at: index)
-        updateCurrentTranscript { transcript in
-            transcript.attachments = attachments
-        }
+        guard let index = composerAttachments.firstIndex(where: { $0.id == id }) else { return }
+        composerAttachments.remove(at: index)
     }
 
     func uploadAttachment(from url: URL) async {
@@ -205,9 +359,12 @@ final class AgentChatViewModel: ObservableObject {
               let backend = BackendService.trimmed(url: backendURL) else { return }
 
         ensureTranscript(for: sessionKey)
-        let userMessage = ChatMessage(role: .user, text: trimmed)
+
+        let outgoingAttachments = composerAttachments
+        let userMessage = ChatMessage(role: .user, text: trimmed, attachments: outgoingAttachments)
         messages.append(userMessage)
         recordMessage(userMessage)
+        composerAttachments.removeAll()
 
         isSending = true
         do {
@@ -225,10 +382,10 @@ final class AgentChatViewModel: ObservableObject {
                 metadata: metadataPayload(),
                 webEnabled: webSearchEnabled,
                 reasoningLevel: reasoningLevel,
-                attachments: attachments
+                attachments: outgoingAttachments
             )
             let reply = Self.extractReply(from: envelope)
-            let assistantMessage = ChatMessage(role: .assistant, text: reply)
+            let assistantMessage = ChatMessage(role: .assistant, text: reply, attachments: [])
             messages.append(assistantMessage)
             recordMessage(assistantMessage)
             lastError = nil
@@ -241,6 +398,7 @@ final class AgentChatViewModel: ObservableObject {
             messages.append(apologetic)
             recordMessage(apologetic)
             lastError = failure
+            composerAttachments = outgoingAttachments
         }
         isSending = false
     }
@@ -267,19 +425,23 @@ final class AgentChatViewModel: ObservableObject {
         }
         metadata["web_enabled"] = webSearchEnabled ? "true" : "false"
         metadata["reasoning_level"] = reasoningLevel
-        if !attachments.isEmpty {
-            metadata["attachments_count"] = String(attachments.count)
+        if let transcript = transcripts.first(where: { $0.id == sessionKey }) {
+            let attachmentCount = transcript.attachments.count
+            if attachmentCount > 0 {
+                metadata["attachments_count"] = String(attachmentCount)
+            }
         }
         return metadata
     }
 
-    private func recordMessage(_ message: ChatMessage) {
+    func recordMessage(_ message: ChatMessage) {
         updateCurrentTranscript { transcript in
             transcript.messages.append(
                 ChatTranscript.Message(
                     role: message.role == .user ? "user" : "assistant",
                     text: message.text,
-                    sentAt: Date()
+                    sentAt: Date(),
+                    attachments: message.attachments
                 )
             )
         }
@@ -296,7 +458,7 @@ final class AgentChatViewModel: ObservableObject {
             webEnabled: webSearchEnabled,
             reasoningLevel: reasoningLevel,
             messages: [],
-            attachments: attachments
+            attachments: []
         )
         transcript.refreshTitle()
         transcripts.append(transcript)
@@ -314,7 +476,7 @@ final class AgentChatViewModel: ObservableObject {
         mutate(&transcript)
         transcript.webEnabled = webSearchEnabled
         transcript.reasoningLevel = reasoningLevel
-        transcript.attachments = attachments
+        transcript.attachments = aggregateAttachments(from: transcript.messages)
         transcript.refreshTitle()
         if transcript != original {
             transcript.updatedAt = Date()
@@ -328,6 +490,20 @@ final class AgentChatViewModel: ObservableObject {
         recents = transcripts
             .sorted { $0.updatedAt > $1.updatedAt }
             .map(ChatTranscriptSummary.init)
+    }
+
+    private func aggregateAttachments(from messages: [ChatTranscript.Message]) -> [ChatAttachment] {
+        var seen = Set<String>()
+        var unique: [ChatAttachment] = []
+        for message in messages {
+            for attachment in message.attachments {
+                let key = attachment.id
+                if seen.insert(key).inserted {
+                    unique.append(attachment)
+                }
+            }
+        }
+        return unique
     }
 
     static func extractReply(from envelope: WidgetEnvelope) -> String {

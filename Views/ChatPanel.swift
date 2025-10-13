@@ -43,7 +43,7 @@ struct ChatPanel: View {
                         settings.chatWebSearchEnabled = enabled
                         viewModel.toggleWebSearch(enabled)
                     },
-                    attachments: viewModel.attachments,
+                    composerAttachments: viewModel.composerAttachments,
                     isAttachmentUploading: viewModel.isUploadingAttachment,
                     onAddAttachment: backend.isEmpty ? nil : presentAttachmentPicker,
                     onRemoveAttachment: { id in

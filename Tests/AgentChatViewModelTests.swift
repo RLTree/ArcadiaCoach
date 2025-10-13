@@ -75,8 +75,12 @@ final class AgentChatViewModelTests: XCTestCase {
             openAIFileId: nil
         )
         viewModel.addAttachment(attachment)
+        XCTAssertEqual(viewModel.composerAttachments.count, 1)
 
-        XCTAssertEqual(viewModel.attachments.count, 1)
+        let message = ChatMessage(role: .user, text: "See attached.", attachments: viewModel.composerAttachments)
+        viewModel.recordMessage(message)
+        viewModel.composerAttachments.removeAll()
+
         let persisted = store.load()
         XCTAssertEqual(persisted.first?.attachments.first?.name, "notes.md")
     }

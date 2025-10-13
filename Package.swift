@@ -50,10 +50,7 @@ let package = Package(
                 "Models/OnboardingAssessment.swift",
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",
-                "Models/ChatAttachment.swift",
-                "Models/ChatTranscript.swift",
                 "Services/BackendService.swift",
-                "Services/ChatHistoryStore.swift",
                 "ViewModels/AgentChatViewModel.swift",
             ],
             swiftSettings: [
