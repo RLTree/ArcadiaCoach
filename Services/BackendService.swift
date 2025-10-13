@@ -109,6 +109,7 @@ final class BackendService {
         var skillRatings: [SkillRating]
         var eloCategoryPlan: EloCategoryPlan?
         var curriculumPlan: OnboardingCurriculumPlan?
+        var curriculumSchedule: CurriculumSchedule?
         var onboardingAssessment: OnboardingAssessment?
         var onboardingAssessmentResult: AssessmentGradingResult?
     }
@@ -214,6 +215,48 @@ final class BackendService {
         }
     }
 
+    static func fetchCurriculumSchedule(baseURL: String, username: String, refresh: Bool) async throws -> CurriculumSchedule {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        let route = "api/profile/\(encodedUsername)/schedule"
+        guard var components = URLComponents(string: trimmedBase + "/" + route) else {
+            throw BackendServiceError.invalidURL
+        }
+        if refresh {
+            components.queryItems = [URLQueryItem(name: "refresh", value: "true")]
+        }
+        guard let url = components.url else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
+
+        logger.debug("GET \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode(CurriculumSchedule.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
     private static func decodeProfileSnapshot(from data: Data) throws -> LearnerProfileSnapshot {
         do {
             return try decoder.decode(LearnerProfileSnapshot.self, from: data)
@@ -226,6 +269,7 @@ final class BackendService {
                     skillRatings: legacy.skillRatings,
                     eloCategoryPlan: legacy.eloCategoryPlan,
                     curriculumPlan: legacy.curriculumPlan,
+                    curriculumSchedule: legacy.curriculumSchedule,
                     onboardingAssessment: legacy.onboardingAssessment,
                     onboardingAssessmentResult: legacy.onboardingAssessmentResult,
                     assessmentSubmissions: []

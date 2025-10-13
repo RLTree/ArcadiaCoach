@@ -8,6 +8,7 @@ final class AppViewModel: ObservableObject {
     @Published var error: String?
     @Published var eloPlan: EloCategoryPlan?
     @Published var curriculumPlan: OnboardingCurriculumPlan?
+    @Published var curriculumSchedule: CurriculumSchedule?
     @Published var onboardingAssessment: OnboardingAssessment?
     @Published var assessmentResult: AssessmentGradingResult?
     // Phase 8 – Track submission/grading history for dashboard + chat surfaces.
@@ -19,6 +20,7 @@ final class AppViewModel: ObservableObject {
     @Published var latestLesson: EndLearn?
     @Published var latestQuiz: EndQuiz?
     @Published var latestMilestone: EndMilestone?
+    @Published var scheduleRefreshing: Bool = false
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -40,6 +42,7 @@ final class AppViewModel: ObservableObject {
             if case let .transportFailure(status, _) = serviceError, status == 404 {
                 eloPlan = nil
                 curriculumPlan = nil
+                curriculumSchedule = nil
                 onboardingAssessment = nil
                 assessmentResult = nil
                 assessmentHistory = []
@@ -47,6 +50,28 @@ final class AppViewModel: ObservableObject {
             } else {
                 error = serviceError.localizedDescription
             }
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+        }
+    }
+
+    func refreshCurriculumSchedule(baseURL: String, username: String) async {
+        guard let trimmedBase = BackendService.trimmed(url: baseURL) else { return }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else { return }
+        scheduleRefreshing = true
+        defer { scheduleRefreshing = false }
+        do {
+            let schedule = try await BackendService.fetchCurriculumSchedule(
+                baseURL: trimmedBase,
+                username: trimmedUsername,
+                refresh: true
+            )
+            curriculumSchedule = schedule
+            error = nil
+        } catch let serviceError as BackendServiceError {
+            error = serviceError.localizedDescription
         } catch {
             let nsError = error as NSError
             self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
@@ -399,6 +424,7 @@ final class AppViewModel: ObservableObject {
         game.elo = Dictionary(uniqueKeysWithValues: snapshot.skillRatings.map { ($0.category, $0.rating) })
         eloPlan = snapshot.eloCategoryPlan
         curriculumPlan = snapshot.curriculumPlan
+        curriculumSchedule = snapshot.curriculumSchedule
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult
         assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }

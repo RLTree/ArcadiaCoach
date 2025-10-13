@@ -38,8 +38,9 @@
 	CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */; };
 	AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
 	AA30B0002D1A000000B8BEA0 /* AssessmentSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0012D1A000000B8BEA0 /* AssessmentSubmission.swift */; };
-	AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0032D1A000000B8BEA0 /* DeveloperToolsViewModel.swift */; };
-	AA30B0042D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0052D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift */; };
+		AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0032D1A000000B8BEA0 /* DeveloperToolsViewModel.swift */; };
+		AA30B0042D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0052D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift */; };
+		AA77A0032D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77A0022D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift */; };
 	AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */ = {isa = PBXBuildFile; fileRef = AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */; };
 		AA00101F29250A0000B8BEA0 /* ArcadiaChatbotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */; };
 		AA00102029250A0000B8BEA0 /* AgentChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F2729250A0000B8BEA0 /* AgentChatViewModel.swift */; };
@@ -86,6 +87,7 @@
 		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentView.swift; sourceTree = "<group>"; };
 		AA001F122924F97A00B8BEA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA30B0052D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperSubmissionDashboard.swift; sourceTree = "<group>"; };
+		AA77A0022D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumScheduleView.swift; sourceTree = "<group>"; };
 		AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCardView.swift; sourceTree = "<group>"; };
 		AA001F142924F97A00B8BEA0 /* WidgetListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetListView.swift; sourceTree = "<group>"; };
 		AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatRowView.swift; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */,
 		AA001F0E2924F97A00B8BEA0 /* LessonView.swift */,
 		AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */,
+		AA77A0022D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift */,
 		AA001F102924F97A00B8BEA0 /* MilestoneView.swift */,
 		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */,
 		AA001F122924F97A00B8BEA0 /* SettingsView.swift */,
@@ -345,6 +348,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			buildActionMask = 2147483647;
 		files = (
 			AA10A0122B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift in Sources */,
+			AA77A0032D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift in Sources */,
 			AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */,
 			AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */,
 		AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,

@@ -133,7 +133,88 @@ struct LearnerProfileSnapshot: Codable {
     var skillRatings: [SkillRating]
     var eloCategoryPlan: EloCategoryPlan?
     var curriculumPlan: OnboardingCurriculumPlan?
+    var curriculumSchedule: CurriculumSchedule?
     var onboardingAssessment: OnboardingAssessment?
     var onboardingAssessmentResult: AssessmentGradingResult?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
+}
+
+struct CurriculumSchedule: Codable, Hashable {
+    var generatedAt: Date
+    var timeHorizonDays: Int
+    var cadenceNotes: String?
+    var items: [SequencedWorkItem]
+
+    var groupedItems: [(offset: Int, items: [SequencedWorkItem])] {
+        Dictionary(grouping: items) { $0.recommendedDayOffset }
+            .sorted { $0.key < $1.key }
+            .map { (offset: $0.key, items: $0.value.sorted { $0.recommendedMinutes > $1.recommendedMinutes }) }
+    }
+}
+
+struct SequencedWorkItem: Codable, Hashable, Identifiable {
+    enum Kind: String, Codable, Hashable {
+        case lesson
+        case quiz
+        case milestone
+
+        var label: String {
+            switch self {
+            case .lesson:
+                return "Lesson"
+            case .quiz:
+                return "Quiz"
+            case .milestone:
+                return "Milestone"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .lesson:
+                return "book.closed"
+            case .quiz:
+                return "checklist"
+            case .milestone:
+                return "flag.checkered"
+            }
+        }
+    }
+
+    enum EffortLevel: String, Codable, Hashable {
+        case light
+        case moderate
+        case focus
+
+        var label: String {
+            switch self {
+            case .light:
+                return "Light"
+            case .moderate:
+                return "Moderate"
+            case .focus:
+                return "Focus"
+            }
+        }
+    }
+
+    var itemId: String
+    var kind: Kind
+    var categoryKey: String
+    var title: String
+    var summary: String?
+    var objectives: [String]
+    var prerequisites: [String]
+    var recommendedMinutes: Int
+    var recommendedDayOffset: Int
+    var effortLevel: EffortLevel
+    var focusReason: String?
+    var expectedOutcome: String?
+
+    var id: String { itemId }
+
+    var formattedDuration: String {
+        guard recommendedMinutes > 0 else { return "Flexible" }
+        return "~\(recommendedMinutes) min"
+    }
 }

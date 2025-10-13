@@ -320,6 +320,15 @@ struct HomeView: View {
                             CurriculumOutlineView(plan: curriculum)
                                 .transition(.opacity)
                         }
+                        if let schedule = appVM.curriculumSchedule, !schedule.items.isEmpty {
+                            CurriculumScheduleView(
+                                schedule: schedule,
+                                categoryLabels: categoryLabels,
+                                isRefreshing: appVM.scheduleRefreshing,
+                                refreshAction: refreshSchedule
+                            )
+                            .transition(.opacity)
+                        }
                         sessionControls
                         sessionContentSection
                     }
@@ -392,6 +401,15 @@ struct HomeView: View {
         )
         Task {
             await appVM.loadProfile(
+                baseURL: settings.chatkitBackendURL,
+                username: settings.arcadiaUsername
+            )
+        }
+    }
+
+    private func refreshSchedule() {
+        Task {
+            await appVM.refreshCurriculumSchedule(
                 baseURL: settings.chatkitBackendURL,
                 username: settings.arcadiaUsername
             )
