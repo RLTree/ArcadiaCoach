@@ -19,6 +19,7 @@ struct ChatPanel: View {
     @StateObject private var viewModel = AgentChatViewModel()
     @State private var selectedTranscriptId: String?
     @State private var selectedModelId: String = "gpt-5"
+    @State private var suppressModelChange = false
 
     private let modelOptions: [ChatModelOption] = [
         ChatModelOption(
@@ -138,6 +139,10 @@ struct ChatPanel: View {
             )
         }
         .onChange(of: selectedModelId) { newModel in
+            if suppressModelChange {
+                suppressModelChange = false
+                return
+            }
             guard let option = modelOption(for: newModel) else { return }
             settings.chatModel = newModel
             if !option.supportsWeb {
@@ -159,6 +164,11 @@ struct ChatPanel: View {
         .onChange(of: viewModel.previewTranscript) { preview in
             selectedTranscriptId = preview?.id
         }
+        .onChange(of: viewModel.activeTranscriptId) { active in
+            if selectedTranscriptId == nil {
+                selectedTranscriptId = active
+            }
+        }
     }
 
     // Phase 6 sidebar: surfaces prior transcripts for fast recall.
@@ -175,11 +185,12 @@ struct ChatPanel: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(viewModel.recents) { summary in
+                            let isActive = summary.id == viewModel.activeTranscriptId
                             Button {
                                 selectedTranscriptId = summary.id
                                 viewModel.showTranscript(withId: summary.id)
                             } label: {
-                                summaryCard(for: summary)
+                                summaryCard(for: summary, isActive: isActive)
                             }
                             .buttonStyle(.plain)
                         }
@@ -197,14 +208,20 @@ struct ChatPanel: View {
         }
     }
 
-    private func summaryCard(for summary: ChatTranscriptSummary) -> some View {
+    private func summaryCard(for summary: ChatTranscriptSummary, isActive: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(summary.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Spacer()
-                if summary.id == selectedTranscriptId {
+                if isActive {
+                    Text("Active")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.2), in: Capsule())
+                } else if summary.id == selectedTranscriptId {
                     Image(systemName: "arrow.right.circle.fill")
                         .foregroundStyle(Color.accentColor)
                 }
@@ -230,7 +247,11 @@ struct ChatPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(summary.id == selectedTranscriptId ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
+                .fill(
+                    isActive
+                        ? Color.accentColor.opacity(0.28)
+                        : (summary.id == selectedTranscriptId ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
+                )
         )
     }
 
@@ -241,6 +262,13 @@ struct ChatPanel: View {
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Spacer()
+                Button {
+                    resumeTranscript(transcript)
+                } label: {
+                    Label("Resume", systemImage: "arrow.uturn.backward")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
                 Button {
                     selectedTranscriptId = nil
                     viewModel.clearPreview()
@@ -253,6 +281,18 @@ struct ChatPanel: View {
             Text("Last updated \(transcript.updatedAt.formatted(date: .numeric, time: .shortened))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                let option = modelOption(for: transcript.model) ?? modelOptions[0]
+                Label(option.name, systemImage: "cpu")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Label(transcript.webEnabled ? "Web on" : "Web off", systemImage: "globe")
+                    .font(.caption2)
+                    .foregroundStyle(transcript.webEnabled ? Color.accentColor : Color.secondary)
+                Label(transcript.reasoningLevel.capitalized, systemImage: "brain.head.profile")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
@@ -341,6 +381,23 @@ struct ChatPanel: View {
 
     private var trimmedBackendURL: String {
         settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resumeTranscript(_ transcript: ChatTranscript) {
+        let option = modelOption(for: transcript.model) ?? modelOptions[0]
+        let didChangeModel = selectedModelId != option.id
+        suppressModelChange = true
+        selectedModelId = option.id
+        if !didChangeModel {
+            suppressModelChange = false
+        }
+        viewModel.resumeTranscript(transcript, modelId: option.id, capability: option.capability)
+
+        let shouldEnableWeb = option.supportsWeb && transcript.webEnabled
+        settings.chatModel = option.id
+        settings.chatWebSearchEnabled = shouldEnableWeb
+        settings.chatReasoningLevel = transcript.reasoningLevel
+        selectedTranscriptId = transcript.id
     }
 
     private func modelOption(for id: String) -> ChatModelOption? {

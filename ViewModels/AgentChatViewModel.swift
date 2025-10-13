@@ -70,6 +70,7 @@ struct ChatTranscript: Identifiable, Codable, Equatable {
     var updatedAt: Date
     var webEnabled: Bool
     var reasoningLevel: String
+    var model: String = "gpt-5"
     var messages: [Message]
     var attachments: [ChatAttachment]
 
@@ -93,6 +94,7 @@ struct ChatTranscriptSummary: Identifiable, Hashable {
     var snippet: String
     var webEnabled: Bool
     var reasoningLevel: String
+    var model: String
 
     init(transcript: ChatTranscript) {
         id = transcript.id
@@ -100,6 +102,7 @@ struct ChatTranscriptSummary: Identifiable, Hashable {
         lastUpdated = transcript.updatedAt
         reasoningLevel = transcript.reasoningLevel
         webEnabled = transcript.webEnabled
+        model = transcript.model
         if let last = transcript.messages.last {
             let trimmed = last.text.trimmingCharacters(in: .whitespacesAndNewlines)
             snippet = trimmed.isEmpty ? "No messages yet." : String(trimmed.prefix(100))
@@ -192,6 +195,8 @@ final class AgentChatViewModel: ObservableObject {
     @Published private(set) var modelSupportsWeb: Bool
     @Published private(set) var attachmentPolicy: ChatModelCapability.AttachmentPolicy
     @Published private(set) var recents: [ChatTranscriptSummary] = []
+    // Phase 7 – Track the active transcript id for resume/continuity UI.
+    @Published private(set) var activeTranscriptId: String
     @Published var previewTranscript: ChatTranscript?
     @Published var isUploadingAttachment: Bool = false
 
@@ -212,7 +217,11 @@ final class AgentChatViewModel: ObservableObject {
     }
 
     private var welcomed = false
-    private var sessionKey: String
+    private var sessionKey: String {
+        didSet {
+            activeTranscriptId = sessionKey
+        }
+    }
     private var backendURL: String = ""
     private var username: String = ""
     private var learnerGoal: String = ""
@@ -237,6 +246,7 @@ final class AgentChatViewModel: ObservableObject {
         self.attachmentPolicy = initialModelSupportsAttachments ? .any : .none
         self.transcripts = historyStore.load()
         self.sessionKey = UUID().uuidString
+        self.activeTranscriptId = self.sessionKey
         refreshSummaries()
     }
 
@@ -432,6 +442,42 @@ final class AgentChatViewModel: ObservableObject {
         previewTranscript = nil
     }
 
+    // Phase 7 – Reopen stored transcripts without resetting the backend session.
+    func resumeTranscript(
+        _ transcript: ChatTranscript,
+        modelId: String,
+        capability: ChatModelCapability
+    ) {
+        selectedModel = modelId
+        modelSupportsWeb = capability.supportsWeb
+        attachmentPolicy = capability.attachmentPolicy
+        webSearchEnabled = capability.supportsWeb ? transcript.webEnabled : false
+        enforceAttachmentPolicy()
+
+        reasoningLevel = transcript.reasoningLevel
+        welcomed = true
+        lastError = nil
+        isSending = false
+        composerAttachments.removeAll()
+
+        sessionKey = transcript.id
+        ensureTranscript(for: sessionKey)
+
+        messages = transcript.messages.map { message in
+            ChatMessage(
+                role: message.role == "user" ? .user : .assistant,
+                text: message.text,
+                attachments: message.attachments
+            )
+        }
+
+        updateCurrentTranscript { item in
+            item.updatedAt = Date()
+        }
+
+        previewTranscript = transcripts.first(where: { $0.id == transcript.id })
+    }
+
     func send(message: String) async {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -556,6 +602,7 @@ final class AgentChatViewModel: ObservableObject {
             updatedAt: now,
             webEnabled: webSearchEnabled,
             reasoningLevel: reasoningLevel,
+            model: selectedModel,
             messages: [],
             attachments: []
         )
@@ -575,6 +622,7 @@ final class AgentChatViewModel: ObservableObject {
         mutate(&transcript)
         transcript.webEnabled = webSearchEnabled
         transcript.reasoningLevel = reasoningLevel
+        transcript.model = selectedModel
         transcript.attachments = aggregateAttachments(from: transcript.messages)
         transcript.refreshTitle()
         if transcript != original {

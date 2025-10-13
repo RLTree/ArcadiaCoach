@@ -22,6 +22,7 @@ from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
 from .learner_profile import profile_store
 from .memory_store import MemoryStore
+from .prompt_utils import apply_preferences_overlay
 
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -161,11 +162,12 @@ async def _run_structured(
         )
 
     if augment_with_preferences:
-        message = _augment_prompt_with_preferences(
+        message = apply_preferences_overlay(
             message,
             attachments_payload,
             web_enabled=web_enabled,
             reasoning_level=reasoning_level,
+            model=model_choice,
         )
     metadata_payload.setdefault("web_enabled", web_enabled)
     metadata_payload.setdefault("reasoning_level", reasoning_level)
@@ -359,36 +361,6 @@ def _compose_chat_prompt(history: List[ChatMessage], latest: str) -> str:
     parts.append(f"User: {latest}")
     parts.append("Assistant:")
     return "\n".join(parts)
-
-
-def _augment_prompt_with_preferences(
-    prompt: str,
-    attachments: Sequence[Dict[str, Any]],
-    *,
-    web_enabled: bool,
-    reasoning_level: str,
-) -> str:
-    augmented = prompt
-    if attachments:
-        augmented += "\n\nUploaded files:"
-        for attachment in attachments:
-            name = attachment.get("name") or "Attachment"
-            mime_type = attachment.get("mime_type") or "application/octet-stream"
-            size = attachment.get("size")
-            size_label = f"{size} bytes" if isinstance(size, int) else "size unknown"
-            preview = attachment.get("preview") or ""
-            augmented += f"\n- {name} ({mime_type}, {size_label})"
-            if preview:
-                augmented += f"\n  Summary: {preview}"
-    if web_enabled:
-        augmented += "\n\nWeb search is enabled. Use the web_search tool freely when it can improve answers."
-    else:
-        augmented += "\n\nWeb search is disabled; rely on internal knowledge and any uploaded files."
-    augmented += (
-        f"\n\nReasoning effort target: {reasoning_level}. "
-        "Balance depth with timely responses."
-    )
-    return augmented
 
 
 def _attachment_key(data: Dict[str, Any]) -> str:

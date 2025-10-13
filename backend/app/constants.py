@@ -11,6 +11,8 @@ INSTRUCTIONS = (
     "When the learner requests a lesson, quiz, milestone, or focus sprint, you MUST call the matching MCP tool "
     "(lesson_catalog, quiz_results, milestone_update, focus_sprint) and return its WidgetEnvelope output verbatim without additional prose. "
     "Do not free-form answer when a tool is available; always defer to the tool so the response stays machine-readable. "
+    "When attachments are present for GPT-5 or GPT-5 Mini sessions, call the file_search tool before replying so you can ground the answer in the uploaded files and cite the retrieved snippets. "
+    "For GPT-5 Codex, examine the inline image summaries instead of calling file_search. "
     "Use other tools (file search, web search) only when they help prepare better widget content. "
     "Always return concise, well-organised responses and clearly label actions the user needs to take. "
     "If you reference retrieved information, cite the source inline."

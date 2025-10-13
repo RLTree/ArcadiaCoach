@@ -113,6 +113,44 @@ final class AgentChatViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.composerAttachments.count, 1, "Non-image attachment should be rejected for Codex")
     }
 
+    func testResumeTranscriptRestoresSessionState() throws {
+        let suiteName = "AgentChatResume-" + UUID().uuidString
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated UserDefaults")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let historyStore = ChatHistoryStore(userDefaults: defaults)
+        let message = ChatTranscript.Message(role: "assistant", text: "Hello again!", sentAt: Date(), attachments: [])
+        let transcript = ChatTranscript(
+            id: "chat-existing",
+            title: "Session Snapshot",
+            startedAt: Date(),
+            updatedAt: Date(),
+            webEnabled: true,
+            reasoningLevel: "high",
+            model: "gpt-5-codex",
+            messages: [message],
+            attachments: []
+        )
+        historyStore.save([transcript])
+
+        let viewModel = AgentChatViewModel(historyStore: historyStore)
+        viewModel.resumeTranscript(
+            transcript,
+            modelId: "gpt-5-codex",
+            capability: ChatModelCapability(supportsWeb: true, attachmentPolicy: .imagesOnly)
+        )
+
+        XCTAssertEqual(viewModel.selectedModel, "gpt-5-codex")
+        XCTAssertEqual(viewModel.messages.count, 1)
+        XCTAssertTrue(viewModel.webSearchEnabled)
+        XCTAssertEqual(viewModel.attachmentPolicy, .imagesOnly)
+        XCTAssertEqual(viewModel.activeTranscriptId, "chat-existing")
+    }
+
     // MARK: - Helpers
 
     private func makeCardWidget(title: String, sections: [WidgetCardSection]) throws -> Widget {

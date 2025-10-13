@@ -51,6 +51,7 @@ from openai.types.shared.reasoning import Reasoning
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .guardrails import run_guardrail_checks
 from .memory_store import MemoryStore
+from .prompt_utils import apply_preferences_overlay
 
 logger = logging.getLogger(__name__)
 
@@ -201,9 +202,11 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
 
         sanitized_text = payload if isinstance(payload, str) else message_text
 
+        model_name = MODEL_FOR_LEVEL.get(prefs.reasoning_level, "gpt-5")
         augmented_input = self._augment_input_with_preferences(
             sanitized_text,
             prefs,
+            model_name,
         )
 
         agent_context = ArcadiaAgentContext(
@@ -228,7 +231,6 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         if not agent_input:
             agent_input = augmented_input
 
-        model_name = MODEL_FOR_LEVEL.get(prefs.reasoning_level, "gpt-5")
         agent = get_arcadia_agent(model_name, prefs.web_enabled)
         reasoning_effort = REASONING_FOR_LEVEL.get(prefs.reasoning_level, "medium")
 
@@ -387,21 +389,29 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             content=[{"type": "output_text", "text": content}],
         )
 
-    def _augment_input_with_preferences(self, text: str, prefs: ChatPreferences) -> str:
-        augmented = text
-        if prefs.uploaded_files:
-            augmented += "\n\nUploaded files:\n"
-            for ref in prefs.uploaded_files:
-                augmented += f"- {ref.name} ({ref.mime_type}, {ref.size} bytes)\n  Summary: {ref.preview}\n"
-        if prefs.web_enabled:
-            augmented += "\n\nWeb search is enabled. Use the web_search tool freely when needed."
-        else:
-            augmented += "\n\nWeb search is disabled; rely on internal knowledge and uploaded files."
-        augmented += (
-            f"\n\nReasoning effort target: {prefs.reasoning_level}. "
-            "Be mindful of latency when responding."
+    def _augment_input_with_preferences(
+        self,
+        text: str,
+        prefs: ChatPreferences,
+        model_name: str,
+    ) -> str:
+        attachments = [
+            {
+                "name": ref.name,
+                "mime_type": ref.mime_type,
+                "size": ref.size,
+                "preview": ref.preview,
+                "openai_file_id": ref.openai_file_id,
+            }
+            for ref in prefs.uploaded_files
+        ]
+        return apply_preferences_overlay(
+            text,
+            attachments,
+            web_enabled=prefs.web_enabled,
+            reasoning_level=prefs.reasoning_level,
+            model=model_name,
         )
-        return augmented
 
     async def _emit_widget(
         self,
