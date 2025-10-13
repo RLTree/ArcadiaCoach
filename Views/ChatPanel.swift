@@ -1,15 +1,16 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 private struct ChatModelOption: Identifiable, Hashable {
     let id: String
     let name: String
     let detail: String
     let supportsWeb: Bool
-    let supportsAttachments: Bool
+    let attachmentPolicy: ChatModelCapability.AttachmentPolicy
 
     var capability: ChatModelCapability {
-        ChatModelCapability(supportsWeb: supportsWeb, supportsAttachments: supportsAttachments)
+        ChatModelCapability(supportsWeb: supportsWeb, attachmentPolicy: attachmentPolicy)
     }
 }
 
@@ -25,26 +26,30 @@ struct ChatPanel: View {
             name: "GPT-5",
             detail: "Full tools (web search, file uploads).",
             supportsWeb: true,
-            supportsAttachments: true
+            attachmentPolicy: .any
         ),
         ChatModelOption(
             id: "gpt-5-mini",
             name: "GPT-5 Mini",
             detail: "Faster responses with web and files enabled.",
             supportsWeb: true,
-            supportsAttachments: true
+            attachmentPolicy: .any
         ),
         ChatModelOption(
             id: "gpt-5-codex",
             name: "GPT-5 Codex",
-            detail: "Code-first (terminal/apply_patch tools only).",
-            supportsWeb: false,
-            supportsAttachments: false
+            detail: "Code-first with web search; image uploads only.",
+            supportsWeb: true,
+            attachmentPolicy: .imagesOnly
         ),
     ]
 
     var body: some View {
         let backend = trimmedBackendURL
+        let option = modelOption(for: selectedModelId) ?? modelOptions[0]
+        let composerAttachments = viewModel.allowsAttachments ? viewModel.composerAttachments : []
+        let canAddAttachment = !backend.isEmpty && viewModel.allowsAttachments
+
         HStack(alignment: .top, spacing: 20) {
             sidebar
                 .frame(width: 260, alignment: .topLeading)
@@ -54,74 +59,38 @@ struct ChatPanel: View {
                     .font(.title2)
                     .bold()
 
-            if backend.isEmpty {
-                Text("Set your Arcadia backend URL in Settings to chat with your deployed agent.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
-
-            Picker("Model", selection: $selectedModelId) {
-                ForEach(modelOptions) { option in
-                    Text(option.name).tag(option.id)
+                if backend.isEmpty {
+                    Text("Set your Arcadia backend URL in Settings to chat with your deployed agent.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 }
-            }
-            .pickerStyle(.segmented)
 
-            if let option = modelOption(for: selectedModelId) {
-                Text(option.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !option.supportsAttachments {
-                    Text("File uploads are disabled for \(option.name).").font(.caption2).foregroundStyle(.secondary)
+                Picker("Model", selection: $selectedModelId) {
+                    ForEach(modelOptions) { option in
+                        Text(option.name).tag(option.id)
+                    }
                 }
-                if !option.supportsWeb {
-                    Text("Web search is disabled for \(option.name).").font(.caption2).foregroundStyle(.secondary)
+                .pickerStyle(.segmented)
+
+                modelInfoSection(option)
+
+                chatbotSurface(
+                    backend: backend,
+                    composerAttachments: composerAttachments,
+                    canAddAttachment: canAddAttachment
+                )
+
+                if !backend.isEmpty {
+                    Text("Connected to \(backend).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-            }
 
-            ArcadiaChatbotView(
-                title: "Arcadia Coach",
-                levelLabel: viewModel.levelLabel,
-                messages: viewModel.messages,
-                placeholder: "Ask Arcadia Coach anything…",
-                status: viewModel.statusLabel(),
-                canSend: viewModel.canSend(),
-                isSending: viewModel.isSending,
-                webEnabled: viewModel.webSearchEnabled,
-                showTonePicker: true,
-                levels: viewModel.levelOptions,
-                selectedLevel: viewModel.reasoningLevel,
-                onSelectLevel: { level in
-                    settings.chatReasoningLevel = level
-                    viewModel.selectReasoning(level: level)
-                },
-                onToggleWeb: viewModel.modelSupportsWeb ? { enabled in
-                    settings.chatWebSearchEnabled = enabled
-                    viewModel.toggleWebSearch(enabled)
-                } : nil,
-                composerAttachments: viewModel.modelSupportsAttachments ? viewModel.composerAttachments : [],
-                isAttachmentUploading: viewModel.isUploadingAttachment,
-                onAddAttachment: (backend.isEmpty || !viewModel.modelSupportsAttachments) ? nil : presentAttachmentPicker,
-                onRemoveAttachment: { id in
-                    viewModel.removeAttachment(id: id)
-                },
-                onSubmit: { text in
-                    await viewModel.send(message: text)
+                if let error = viewModel.lastError, !error.isEmpty {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
                 }
-            )
-            .frame(minHeight: 440)
-
-            if !backend.isEmpty {
-                Text("Connected to \(backend).")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let error = viewModel.lastError, !error.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -357,6 +326,11 @@ struct ChatPanel: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Attach"
+        if viewModel.allowsImagesOnly {
+            if #available(macOS 11.0, *) {
+                panel.allowedContentTypes = [.image]
+            }
+        }
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             Task {
@@ -371,5 +345,69 @@ struct ChatPanel: View {
 
     private func modelOption(for id: String) -> ChatModelOption? {
         modelOptions.first(where: { $0.id == id })
+    }
+
+    private func modelInfoSection(_ option: ChatModelOption) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(option.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            switch option.attachmentPolicy {
+            case .none:
+                Text("File uploads are disabled for \(option.name).")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            case .imagesOnly:
+                Text("Only image uploads (PNG, JPG, GIF) are supported for \(option.name).")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            case .any:
+                EmptyView()
+            }
+            if !option.supportsWeb {
+                Text("Web search is disabled for \(option.name).")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func chatbotSurface(
+        backend: String,
+        composerAttachments: [ChatAttachment],
+        canAddAttachment: Bool
+    ) -> some View {
+        ArcadiaChatbotView(
+            title: "Arcadia Coach",
+            levelLabel: viewModel.levelLabel,
+            messages: viewModel.messages,
+            placeholder: "Ask Arcadia Coach anything…",
+            status: viewModel.statusLabel(),
+            canSend: viewModel.canSend(),
+            isSending: viewModel.isSending,
+            webEnabled: viewModel.webSearchEnabled,
+            showTonePicker: true,
+            levels: viewModel.levelOptions,
+            selectedLevel: viewModel.reasoningLevel,
+            onSelectLevel: { level in
+                settings.chatReasoningLevel = level
+                viewModel.selectReasoning(level: level)
+            },
+            onToggleWeb: viewModel.modelSupportsWeb ? { enabled in
+                settings.chatWebSearchEnabled = enabled
+                viewModel.toggleWebSearch(enabled)
+            } : nil,
+            composerAttachments: composerAttachments,
+            isAttachmentUploading: viewModel.isUploadingAttachment,
+            onAddAttachment: canAddAttachment ? presentAttachmentPicker : nil,
+            onRemoveAttachment: { id in
+                viewModel.removeAttachment(id: id)
+            },
+            allowsImagesOnly: viewModel.allowsImagesOnly,
+            onSubmit: { text in
+                await viewModel.send(message: text)
+            }
+        )
+        .frame(minHeight: 440)
     }
 }

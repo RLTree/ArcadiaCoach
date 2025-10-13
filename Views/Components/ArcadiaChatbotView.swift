@@ -18,6 +18,7 @@ struct ArcadiaChatbotView: View {
     var isAttachmentUploading: Bool = false
     var onAddAttachment: (() -> Void)? = nil
     var onRemoveAttachment: ((String) -> Void)? = nil
+    var allowsImagesOnly: Bool = false
     var onSubmit: (String) async -> Void
 
     @State private var draft: String = ""
@@ -211,12 +212,17 @@ struct ArcadiaChatbotView: View {
                     Label("Attachments", systemImage: "paperclip")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                    if allowsImagesOnly {
+                        Text("Images only")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
                     if let onAddAttachment {
                         Button {
                             onAddAttachment()
                         } label: {
-                            Label("Add file", systemImage: "plus")
+                            Label(allowsImagesOnly ? "Add image" : "Add file", systemImage: "plus")
                                 .labelStyle(.titleAndIcon)
                         }
                         .buttonStyle(.bordered)

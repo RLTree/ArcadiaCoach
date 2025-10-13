@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Phase 6 data models (kept local for Xcode target inclusion).
 struct ChatAttachment: Identifiable, Codable, Hashable {
@@ -109,8 +110,14 @@ struct ChatTranscriptSummary: Identifiable, Hashable {
 }
 
 struct ChatModelCapability {
+    enum AttachmentPolicy {
+        case any
+        case imagesOnly
+        case none
+    }
+
     var supportsWeb: Bool
-    var supportsAttachments: Bool
+    var attachmentPolicy: AttachmentPolicy
 }
 
 /// Stores per-session chat transcripts for the Phase 6 sidebar experience.
@@ -183,7 +190,7 @@ final class AgentChatViewModel: ObservableObject {
     @Published var composerAttachments: [ChatAttachment] = []
     @Published var selectedModel: String
     @Published private(set) var modelSupportsWeb: Bool
-    @Published private(set) var modelSupportsAttachments: Bool
+    @Published private(set) var attachmentPolicy: ChatModelCapability.AttachmentPolicy
     @Published private(set) var recents: [ChatTranscriptSummary] = []
     @Published var previewTranscript: ChatTranscript?
     @Published var isUploadingAttachment: Bool = false
@@ -194,6 +201,14 @@ final class AgentChatViewModel: ObservableObject {
             return "\(option.label) effort"
         }
         return "Medium effort"
+    }
+
+    var allowsAttachments: Bool {
+        attachmentPolicy != .none
+    }
+
+    var allowsImagesOnly: Bool {
+        attachmentPolicy == .imagesOnly
     }
 
     private var welcomed = false
@@ -219,7 +234,7 @@ final class AgentChatViewModel: ObservableObject {
         self.reasoningLevel = initialReasoningLevel
         self.selectedModel = initialModel
         self.modelSupportsWeb = initialModelSupportsWeb
-        self.modelSupportsAttachments = initialModelSupportsAttachments
+        self.attachmentPolicy = initialModelSupportsAttachments ? .any : .none
         self.transcripts = historyStore.load()
         self.sessionKey = UUID().uuidString
         refreshSummaries()
@@ -344,19 +359,17 @@ final class AgentChatViewModel: ObservableObject {
         backendURL: String
     ) {
         let trimmedBackend = backendURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let capabilitiesChanged = modelSupportsWeb != capability.supportsWeb || modelSupportsAttachments != capability.supportsAttachments
+        let capabilitiesChanged = modelSupportsWeb != capability.supportsWeb || attachmentPolicy != capability.attachmentPolicy
         let modelChanged = selectedModel != model
         guard modelChanged || capabilitiesChanged else { return }
 
         selectedModel = model
         modelSupportsWeb = capability.supportsWeb
-        modelSupportsAttachments = capability.supportsAttachments
+        attachmentPolicy = capability.attachmentPolicy
         if !modelSupportsWeb {
             webSearchEnabled = false
         }
-        if !modelSupportsAttachments {
-            composerAttachments.removeAll()
-        }
+        enforceAttachmentPolicy()
 
         welcomed = false
         messages.removeAll()
@@ -375,7 +388,10 @@ final class AgentChatViewModel: ObservableObject {
     }
 
     func addAttachment(_ attachment: ChatAttachment) {
-        guard modelSupportsAttachments else { return }
+        guard isAttachmentAllowed(attachment) else {
+            lastError = "\(selectedModel) only accepts image uploads."
+            return
+        }
         composerAttachments.append(attachment)
     }
 
@@ -385,8 +401,8 @@ final class AgentChatViewModel: ObservableObject {
     }
 
     func uploadAttachment(from url: URL) async {
-        guard modelSupportsAttachments else {
-            lastError = "\(selectedModel) does not support attaching files."
+        guard canUploadFile(at: url) else {
+            lastError = "\(selectedModel) only accepts image uploads (PNG, JPG, GIF)."
             return
         }
         guard let backend = BackendService.trimmed(url: backendURL) else {
@@ -397,6 +413,10 @@ final class AgentChatViewModel: ObservableObject {
         defer { isUploadingAttachment = false }
         do {
             let uploaded = try await BackendService.uploadChatAttachment(baseURL: backend, fileURL: url)
+            guard isAttachmentAllowed(uploaded) else {
+                lastError = "Upload succeeded but \(selectedModel) can only use images."
+                return
+            }
             addAttachment(uploaded)
             lastError = nil
         } catch {
@@ -419,7 +439,7 @@ final class AgentChatViewModel: ObservableObject {
 
         ensureTranscript(for: sessionKey)
 
-        let outgoingAttachments = modelSupportsAttachments ? composerAttachments : []
+        let outgoingAttachments = composerAttachments.filter { isAttachmentAllowed($0) }
         let outgoingAttachmentCount = outgoingAttachments.count
         let userMessage = ChatMessage(role: .user, text: trimmed, attachments: outgoingAttachments)
         messages.append(userMessage)
@@ -459,9 +479,7 @@ final class AgentChatViewModel: ObservableObject {
             messages.append(apologetic)
             recordMessage(apologetic)
             lastError = failure
-            if modelSupportsAttachments {
-                composerAttachments = outgoingAttachments
-            }
+            composerAttachments = outgoingAttachments
         }
         isSending = false
     }
@@ -497,6 +515,17 @@ final class AgentChatViewModel: ObservableObject {
             metadata["attachments_count"] = String(attachmentCount)
         }
         return metadata
+    }
+
+    private func enforceAttachmentPolicy() {
+        switch attachmentPolicy {
+        case .none:
+            composerAttachments.removeAll()
+        case .imagesOnly:
+            composerAttachments.removeAll { !isAttachmentAllowed($0) }
+        case .any:
+            break
+        }
     }
 
     private func sanitizedModelIdentifier() -> String {
@@ -574,6 +603,33 @@ final class AgentChatViewModel: ObservableObject {
             }
         }
         return unique
+    }
+
+    private func isAttachmentAllowed(_ attachment: ChatAttachment) -> Bool {
+        switch attachmentPolicy {
+        case .none:
+            return false
+        case .any:
+            return true
+        case .imagesOnly:
+            return attachment.mimeType.lowercased().hasPrefix("image/")
+        }
+    }
+
+    private func canUploadFile(at url: URL) -> Bool {
+        switch attachmentPolicy {
+        case .none:
+            return false
+        case .any:
+            return true
+        case .imagesOnly:
+            if #available(macOS 11.0, *) {
+                if let type = UTType(filenameExtension: url.pathExtension.lowercased()) {
+                    return type.conforms(to: .image)
+                }
+            }
+            return false
+        }
     }
 
     static func extractReply(from envelope: WidgetEnvelope) -> String {

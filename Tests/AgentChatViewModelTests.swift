@@ -88,14 +88,29 @@ final class AgentChatViewModelTests: XCTestCase {
     func testApplyModelDisablesUnsupportedFeatures() throws {
         let viewModel = AgentChatViewModel(initialWebEnabled: true, initialReasoningLevel: "medium")
         viewModel.composerAttachments = [ChatAttachment(id: "file-1", name: "doc.txt", mimeType: "text/plain", size: 12, preview: nil, openAIFileId: nil)]
+        viewModel.updatePreferences(webEnabled: true, reasoningLevel: "medium")
 
-        let capability = ChatModelCapability(supportsWeb: false, supportsAttachments: false)
+        let capability = ChatModelCapability(supportsWeb: true, attachmentPolicy: .imagesOnly)
         viewModel.applyModel("gpt-5-codex", capability: capability, backendURL: "")
 
-        XCTAssertFalse(viewModel.modelSupportsWeb)
-        XCTAssertFalse(viewModel.webSearchEnabled)
-        XCTAssertFalse(viewModel.modelSupportsAttachments)
+        XCTAssertTrue(viewModel.modelSupportsWeb)
+        XCTAssertTrue(viewModel.webSearchEnabled)
+        XCTAssertTrue(viewModel.allowsImagesOnly)
         XCTAssertTrue(viewModel.composerAttachments.isEmpty)
+    }
+
+    func testCodexAllowsOnlyImageAttachments() throws {
+        let viewModel = AgentChatViewModel(initialWebEnabled: true, initialReasoningLevel: "medium")
+        let capability = ChatModelCapability(supportsWeb: true, attachmentPolicy: .imagesOnly)
+        viewModel.applyModel("gpt-5-codex", capability: capability, backendURL: "")
+
+        let imageAttachment = ChatAttachment(id: "img", name: "diagram.png", mimeType: "image/png", size: 1024, preview: nil, openAIFileId: nil)
+        viewModel.addAttachment(imageAttachment)
+        XCTAssertEqual(viewModel.composerAttachments.count, 1)
+
+        let textAttachment = ChatAttachment(id: "txt", name: "notes.txt", mimeType: "text/plain", size: 64, preview: nil, openAIFileId: nil)
+        viewModel.addAttachment(textAttachment)
+        XCTAssertEqual(viewModel.composerAttachments.count, 1, "Non-image attachment should be rejected for Codex")
     }
 
     // MARK: - Helpers

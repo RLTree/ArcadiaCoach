@@ -37,6 +37,13 @@ MODEL_FOR_LEVEL: Dict[str, str] = {
     "high": "gpt-5-codex",
 }
 
+ATTACHMENT_POLICY: Dict[str, str] = {
+    "gpt-5": "any",
+    "gpt-5-mini": "any",
+    "gpt-5-nano": "any",
+    "gpt-5-codex": "images",
+}
+
 
 @dataclass
 class SessionState:
@@ -92,7 +99,10 @@ async def _run_structured(
         reasoning_level_override or settings.arcadia_agent_reasoning
     )
     selected_model = model_override or settings.arcadia_agent_model
-    model_choice = MODEL_FOR_LEVEL.get(reasoning_level, selected_model)
+    if model_override:
+        model_choice = model_override
+    else:
+        model_choice = MODEL_FOR_LEVEL.get(reasoning_level, selected_model)
     agent = get_arcadia_agent(model_choice, web_enabled)
     logger.debug(
         "Resolved chat session settings (model=%s, web_enabled=%s, reasoning=%s)",
@@ -128,6 +138,18 @@ async def _run_structured(
         attachments_payload = merged
     else:
         attachments_payload = list(state.attachments)
+
+    policy = ATTACHMENT_POLICY.get(model_choice, "any")
+    if policy == "none":
+        attachments_payload = []
+        state.attachments = []
+    elif policy == "images":
+        attachments_payload = [
+            item
+            for item in attachments_payload
+            if isinstance(item.get("mime_type"), str) and item["mime_type"].lower().startswith("image/")
+        ]
+        state.attachments = [dict(item) for item in attachments_payload]
 
     if attachments_payload:
         metadata_payload.setdefault(
