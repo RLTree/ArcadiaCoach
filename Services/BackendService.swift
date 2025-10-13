@@ -76,6 +76,12 @@ final class BackendService {
         var metadata: [String: String]?
     }
 
+    private struct AssessmentAttachmentLinkPayload: Encodable {
+        var name: String?
+        var url: String
+        var description: String?
+    }
+
     private struct DeveloperResetPayload: Encodable {
         var username: String
     }
@@ -398,6 +404,183 @@ final class BackendService {
             body: payload,
             expecting: AssessmentSubmissionRecord.self
         )
+    }
+
+    static func listAssessmentAttachments(
+        baseURL: String,
+        username: String
+    ) async throws -> [AssessmentSubmissionRecord.Attachment] {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/onboarding/\(encodedUsername)/assessment/attachments") else {
+            throw BackendServiceError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
+        logger.debug("GET \(url.absoluteString, privacy: .public) [assessment attachments]")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+        do {
+            return try decoder.decode([AssessmentSubmissionRecord.Attachment].self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func uploadAssessmentAttachment(
+        baseURL: String,
+        username: String,
+        fileURL: URL,
+        description: String? = nil
+    ) async throws -> AssessmentSubmissionRecord.Attachment {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/onboarding/\(encodedUsername)/assessment/attachments/files") else {
+            throw BackendServiceError.invalidURL
+        }
+        let data = try Data(contentsOf: fileURL)
+        guard !data.isEmpty else {
+            throw BackendServiceError.transportFailure(status: 400, body: "Cannot upload empty file.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        if let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"description\"\r\n\r\n")
+            body.append("\(description)\r\n")
+        }
+
+        let filename = fileURL.lastPathComponent
+        let mimeType = mimeType(for: fileURL)
+        body.append("--\(boundary)\r\n")
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
+        body.append("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(data)
+        body.append("\r\n")
+        body.append("--\(boundary)--\r\n")
+        request.httpBody = body
+
+        logger.debug("POST \(url.absoluteString, privacy: .public) [assessment attachment upload]")
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: responseData, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+        do {
+            return try decoder.decode(AssessmentSubmissionRecord.Attachment.self, from: responseData)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func createAssessmentAttachmentLink(
+        baseURL: String,
+        username: String,
+        name: String?,
+        url link: String,
+        description: String?
+    ) async throws -> AssessmentSubmissionRecord.Attachment {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let endpointURL = endpoint(baseURL: trimmedBase, path: "api/onboarding/\(encodedUsername)/assessment/attachments/links") else {
+            throw BackendServiceError.invalidURL
+        }
+        var request = URLRequest(url: endpointURL)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(
+            AssessmentAttachmentLinkPayload(
+                name: name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                url: link,
+                description: description?.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        )
+
+        logger.debug("POST \(endpointURL.absoluteString, privacy: .public) [assessment attachment link]")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+        do {
+            return try decoder.decode(AssessmentSubmissionRecord.Attachment.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func deleteAssessmentAttachment(
+        baseURL: String,
+        username: String,
+        attachmentId: String
+    ) async throws {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let trimmedAttachment = attachmentId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAttachment.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        let encodedAttachment = trimmedAttachment.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedAttachment
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/onboarding/\(encodedUsername)/assessment/attachments/\(encodedAttachment)") else {
+            throw BackendServiceError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = requestTimeout
+        logger.debug("DELETE \(url.absoluteString, privacy: .public) [assessment attachment]")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: "")
+        }
     }
 
     static func fetchAssessmentSubmissions(

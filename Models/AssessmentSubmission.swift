@@ -60,13 +60,63 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
             case note
         }
 
+        var attachmentId: String?
         var name: String
         var kind: Kind
         var url: String?
         var description: String?
         var source: String?
+        var contentType: String?
+        var sizeBytes: Int?
 
-        var id: String { "\(name)|\(url ?? "")|\(kind.rawValue)" }
+        var id: String { attachmentId ?? "\(name)|\(url ?? "")|\(kind.rawValue)" }
+
+        var sizeLabel: String? {
+            guard let sizeBytes, sizeBytes > 0 else { return nil }
+            return ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+        }
+
+        func resolvedURL(baseURL: String) -> URL? {
+            guard let url else { return nil }
+            if let absolute = URL(string: url), absolute.scheme != nil {
+                return absolute
+            }
+            let trimmedBase = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedBase.isEmpty, let base = URL(string: trimmedBase) else { return nil }
+            let trimmedPath = url.hasPrefix("/") ? String(url.dropFirst()) : url
+            return base.appendingPathComponent(trimmedPath)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case attachmentId
+            case name
+            case kind
+            case url
+            case description
+            case source
+            case contentType
+            case sizeBytes
+        }
+
+        init(
+            attachmentId: String? = nil,
+            name: String,
+            kind: Kind,
+            url: String? = nil,
+            description: String? = nil,
+            source: String? = nil,
+            contentType: String? = nil,
+            sizeBytes: Int? = nil
+        ) {
+            self.attachmentId = attachmentId
+            self.name = name
+            self.kind = kind
+            self.url = url
+            self.description = description
+            self.source = source
+            self.contentType = contentType
+            self.sizeBytes = sizeBytes
+        }
     }
 
     var submissionId: String

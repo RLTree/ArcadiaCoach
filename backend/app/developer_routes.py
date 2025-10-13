@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .agent_models import AssessmentSubmissionPayload
 from .assessment_submission import submission_payload, submission_store
+from .assessment_attachments import attachment_store
 from .learner_profile import profile_store
 
 
@@ -29,6 +30,7 @@ def developer_reset(payload: DeveloperResetRequest) -> Response:
         )
     profile_store.delete(username)
     submission_store.delete_user(username)
+    attachment_store.purge_user(username)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

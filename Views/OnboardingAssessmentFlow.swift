@@ -1,10 +1,16 @@
 import SwiftUI
+import AppKit
 
 struct OnboardingAssessmentFlow: View {
     @EnvironmentObject private var appVM: AppViewModel
     @EnvironmentObject private var settings: AppSettings
     @State private var activeIndex: Int = 0
     @State private var finishingAssessment = false
+    @State private var attachmentOperationInFlight = false
+    @State private var showingLinkSheet = false
+    @State private var linkName: String = ""
+    @State private var linkURL: String = ""
+    @State private var linkDescription: String = ""
 
     private let cornerRadius: CGFloat = 24
     private let maxContentWidth: CGFloat = 960
@@ -39,6 +45,7 @@ struct OnboardingAssessmentFlow: View {
                             taskPicker(for: assessment)
                             Divider()
                             taskDetail(for: assessment)
+                            attachmentsManager
                         } else {
                             ProgressView("Preparing personalised assessment…")
                                 .controlSize(.large)
@@ -71,9 +78,13 @@ struct OnboardingAssessmentFlow: View {
         }
         .task {
             await startAssessmentIfNeeded()
+            await refreshAttachmentsIfNeeded()
         }
         .onChange(of: appVM.onboardingAssessment?.tasks.count ?? 0) { _ in
             activeIndex = 0
+        }
+        .sheet(isPresented: $showingLinkSheet) {
+            linkSheet
         }
     }
 
@@ -284,6 +295,99 @@ struct OnboardingAssessmentFlow: View {
         }
     }
 
+    @ViewBuilder
+    private var attachmentsManager: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                Label("Submission Attachments", systemImage: "paperclip")
+                    .font(.headline)
+                Spacer()
+                if attachmentOperationInFlight {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            if !canModifyAttachments {
+                Text("Set your backend URL and Arcadia username to enable attachments.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if appVM.pendingAssessmentAttachments.isEmpty {
+                Text("Attach reference files or links to give the grader extra context for your responses.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(appVM.pendingAssessmentAttachments) { attachment in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: icon(for: attachment.kind))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(attachment.name)
+                                    .font(.callout.weight(.semibold))
+                                if let size = attachment.sizeLabel, !size.isEmpty {
+                                    Text(size)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let description = attachment.description, !description.isEmpty {
+                                    Text(description)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let destination = attachment.resolvedURL(baseURL: settings.chatkitBackendURL) {
+                                    Link("Open", destination: destination)
+                                        .font(.caption)
+                                }
+                            }
+                            Spacer()
+                            if let id = attachment.attachmentId {
+                                Button(role: .destructive) {
+                                    removeAttachment(withId: id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(attachmentOperationInFlight)
+                                .help("Remove attachment")
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            HStack(spacing: 12) {
+                Button {
+                    selectFileAttachment()
+                } label: {
+                    Label("Add File", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!canModifyAttachments || attachmentOperationInFlight)
+
+                Button {
+                    guard canModifyAttachments else {
+                        appVM.error = "Set your backend URL and username before adding links."
+                        return
+                    }
+                    linkName = ""
+                    linkURL = ""
+                    linkDescription = ""
+                    showingLinkSheet = true
+                } label: {
+                    Label("Add Link", systemImage: "link")
+                }
+                .disabled(!canModifyAttachments || attachmentOperationInFlight)
+
+                Spacer()
+            }
+            .font(.callout)
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .animation(.easeInOut(duration: 0.2), value: appVM.pendingAssessmentAttachments.count)
+    }
+
     // MARK: - Footer / Controls
 
     @ViewBuilder
@@ -384,5 +488,115 @@ struct OnboardingAssessmentFlow: View {
             baseURL: settings.chatkitBackendURL,
             username: settings.arcadiaUsername
         )
+    }
+
+    private func refreshAttachmentsIfNeeded() async {
+        let base = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.isEmpty || username.isEmpty {
+            appVM.pendingAssessmentAttachments.removeAll()
+            return
+        }
+        await appVM.refreshPendingAssessmentAttachments(baseURL: base, username: username)
+    }
+
+    private var canModifyAttachments: Bool {
+        let base = settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !base.isEmpty && !username.isEmpty
+    }
+
+    private func icon(for kind: AssessmentSubmissionRecord.Attachment.Kind) -> String {
+        switch kind {
+        case .file: return "doc"
+        case .link: return "link"
+        case .note: return "note.text"
+        }
+    }
+
+    private func selectFileAttachment() {
+        guard canModifyAttachments else {
+            appVM.error = "Set your backend URL and username before adding files."
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task {
+                attachmentOperationInFlight = true
+                defer { attachmentOperationInFlight = false }
+                _ = await appVM.uploadAssessmentAttachmentFile(
+                    baseURL: settings.chatkitBackendURL,
+                    username: settings.arcadiaUsername,
+                    fileURL: url
+                )
+            }
+        }
+    }
+
+    private func removeAttachment(withId id: String) {
+        guard canModifyAttachments else {
+            appVM.error = "Set your backend URL and username before removing attachments."
+            return
+        }
+        Task {
+            attachmentOperationInFlight = true
+            defer { attachmentOperationInFlight = false }
+            _ = await appVM.removeAssessmentAttachment(
+                baseURL: settings.chatkitBackendURL,
+                username: settings.arcadiaUsername,
+                attachmentId: id
+            )
+        }
+    }
+
+    private var linkSheet: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Link Details")) {
+                    TextField("URL", text: $linkURL)
+                        .textContentType(.URL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                    TextField("Title (optional)", text: $linkName)
+                    TextField("Description (optional)", text: $linkDescription, axis: .vertical)
+                }
+            }
+            .frame(minWidth: 360, minHeight: 220)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showingLinkSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let trimmedURL = linkURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmedURL.isEmpty else { return }
+                        Task {
+                            attachmentOperationInFlight = true
+                            defer { attachmentOperationInFlight = false }
+                            let success = await appVM.addAssessmentAttachmentLink(
+                                baseURL: settings.chatkitBackendURL,
+                                username: settings.arcadiaUsername,
+                                name: linkName.trimmingCharacters(in: .whitespacesAndNewlines),
+                                url: trimmedURL,
+                                description: linkDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                            )
+                            if success {
+                                linkName = ""
+                                linkURL = ""
+                                linkDescription = ""
+                                showingLinkSheet = false
+                            }
+                        }
+                    }
+                    .disabled(linkURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachmentOperationInFlight)
+                }
+            }
+        }
     }
 }

@@ -171,11 +171,14 @@ class AssessmentGradingPayload(BaseModel):
 
 
 class AssessmentSubmissionAttachmentPayload(BaseModel):
+    attachment_id: Optional[str] = None
     name: str
     kind: Literal["file", "link", "note"] = "file"
     url: Optional[str] = None
     description: Optional[str] = None
     source: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = Field(default=None, ge=0)
 
 
 class AssessmentSubmissionPayload(BaseModel):

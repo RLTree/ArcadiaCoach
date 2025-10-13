@@ -13,23 +13,24 @@
 - Augmented regression tests to cover attachment parsing and to assert the new rating deltas persist end-to-end.
 
 ## macOS Client Updates
-- Added `AssessmentSubmissionDetailView` to present full grading drilldowns: attachment manifests, rubric notes, per-category ELO deltas, curriculum module ties, and task-level feedback.
+- Added the inline `AssessmentSubmissionDetailView` (embedded in `Views/HomeView.swift`) to present full grading drilldowns: attachment manifests, rubric notes, per-category ELO deltas, curriculum module ties, and task-level feedback.
 - Wired dashboard history rows and chat sidebar summaries with quick-detail buttons that open the new drilldown view using the shared `AppViewModel.focus(on:)` API.
 - Extended models (`AssessmentSubmissionRecord`, `AssessmentCategoryOutcome`, etc.) with attachment metadata, rating deltas, and safe decoding defaults for legacy payloads.
 - Introduced a “Latest Session Content” section on the dashboard (collapsible) that renders the most recent lesson, quiz, or milestone envelope so structured widgets are visible immediately after agent actions.
 - Captured lesson/quiz/milestone envelopes in `AppViewModel` via new `recordLesson/recordQuiz/recordMilestone` helpers, ensuring the UI stays in sync across tabs.
 
 ## Follow-ups / Open Items
-1. Add unit coverage around the new `AssessmentSubmissionDetailView` once UI snapshot testing infrastructure is ready (tracked for Phase 15 automation work).
-2. Consider surfacing attachment previews (file icons or inline text snippets) when metadata supplies MIME types; current implementation shows names/descriptions only.
-3. Expand curriculum linkage to include milestone backlog entries after the milestone roadmap API lands (Phase 10 dependency).
-4. Evaluate pagination for submissions if attachment manifests significantly increase payload size; current cap remains the latest 12 submissions.
+1. Automate assessment attachments end-to-end (API field, upload flow, client picker, agent ingestion) – scheduled for Phase 10.
+2. Add unit coverage around the new `AssessmentSubmissionDetailView` once UI snapshot testing infrastructure is ready (tracked for Phase 20 automation work).
+3. Surface attachment previews (file icons or inline snippets) whenever metadata provides MIME type hints.
+4. Expand curriculum linkage to include milestone backlog entries after the milestone roadmap API lands (Phase 15 dependency).
+5. Evaluate pagination for submissions if attachment manifests significantly increase payload size; current cap remains the latest 12 submissions.
 
 ## Validation Checklist
 1. `uv run pytest backend/tests/test_assessment_submission_store.py`
 2. `swift test`
 3. Manual sanity:
-   - Trigger a fresh onboarding assessment submission with mock metadata containing an `attachments` JSON array; confirm `/api/profile/{username}` returns parsed attachment objects with non-zero `rating_delta` values.
+   - (Until Phase 10 automates attachments) trigger a fresh onboarding assessment submission with mock metadata containing an `attachments` array; confirm `/api/profile/{username}` returns parsed attachment objects with non-zero `rating_delta` values.
    - In the macOS app, load the dashboard and open the history detail; verify attachments, rubric notes, and curriculum suggestions appear, and ELO deltas match backend values.
    - From the chat sidebar, click a recent graded submission and confirm the drilldown sheet opens with identical content.
    - Launch a lesson, quiz, and milestone from the dashboard; ensure each widget envelope is rendered in the “Latest Session Content” disclosure and can be cleared via the new action.

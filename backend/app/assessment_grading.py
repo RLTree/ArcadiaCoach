@@ -21,7 +21,7 @@ from .assessment_result import (
     RubricCriterionResult,
     TaskGradingResult,
 )
-from .assessment_submission import AssessmentSubmission, AssessmentTaskResponse
+from .assessment_submission import AssessmentSubmission, AssessmentTaskResponse, submission_payload
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings
 from .learner_profile import AssessmentTask, LearnerProfile
@@ -120,6 +120,21 @@ def _payload_for_agent(
             }
         )
 
+    submission_view = submission_payload(submission)
+    attachments_payload = [
+        {
+            "attachment_id": item.attachment_id,
+            "name": item.name,
+            "kind": item.kind,
+            "url": item.url,
+            "description": item.description,
+            "content_type": item.content_type,
+            "size_bytes": item.size_bytes,
+            "source": item.source,
+        }
+        for item in submission_view.attachments
+    ]
+
     return {
         "learner": {
             "username": profile.username,
@@ -132,6 +147,7 @@ def _payload_for_agent(
             "submission_id": submission.submission_id,
             "submitted_at": submission.submitted_at.isoformat(),
             "metadata": submission.metadata,
+            "attachments": attachments_payload,
         },
         "responses": responses,
     }

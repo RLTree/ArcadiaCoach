@@ -2,7 +2,6 @@ openai-chatkit-advanced-samples
 openai-agents-python
 __pycache__
 .env
-AGENTS.md
 .build/
 .venv/
 node_modules/

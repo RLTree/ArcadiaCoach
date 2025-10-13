@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Literal, Set
+from typing import Dict, List, Literal, Optional, Set
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .agent_models import (
     AssessmentGradingPayload,
+    AssessmentSubmissionAttachmentPayload,
     AssessmentSubmissionPayload,
     LearnerProfilePayload,
     OnboardingAssessmentPayload,
@@ -18,7 +20,13 @@ from .agent_models import (
 from .config import Settings, get_settings
 from .learner_profile import profile_store
 from .assessment_grading import grade_submission
-from .assessment_submission import AssessmentTaskResponse, submission_payload, submission_store
+from .assessment_submission import (
+    AssessmentSubmissionAttachment,
+    AssessmentTaskResponse,
+    submission_payload,
+    submission_store,
+)
+from .assessment_attachments import attachment_store, PendingAssessmentAttachment
 from .onboarding_assessment import generate_onboarding_bundle
 from .tools import _profile_payload  # type: ignore[attr-defined]
 
@@ -53,6 +61,127 @@ class AssessmentTaskResponseInput(BaseModel):
 class AssessmentSubmissionRequest(BaseModel):
     responses: List[AssessmentTaskResponseInput] = Field(..., min_length=1)
     metadata: Dict[str, str] = Field(default_factory=dict)
+
+
+class AssessmentAttachmentLinkRequest(BaseModel):
+    name: Optional[str] = None
+    url: str = Field(..., min_length=1)
+    description: Optional[str] = None
+
+
+def _attachment_payload(username: str, entry: PendingAssessmentAttachment) -> AssessmentSubmissionAttachmentPayload:
+    structured = AssessmentSubmissionAttachment.from_pending(entry)
+    return structured.as_payload(username)
+
+
+@router.get(
+    "/{username}/assessment/attachments",
+    response_model=List[AssessmentSubmissionAttachmentPayload],
+    status_code=status.HTTP_200_OK,
+)
+def list_pending_assessment_attachments(username: str) -> List[AssessmentSubmissionAttachmentPayload]:
+    entries = attachment_store.list_pending(username)
+    return [_attachment_payload(username, entry) for entry in entries]
+
+
+@router.post(
+    "/{username}/assessment/attachments/files",
+    response_model=AssessmentSubmissionAttachmentPayload,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_assessment_attachment_file(
+    username: str,
+    file: UploadFile = File(...),
+    description: Optional[str] = Form(default=None),
+) -> AssessmentSubmissionAttachmentPayload:
+    data = await file.read()
+    entry = attachment_store.add_file(
+        username=username,
+        filename=file.filename or "attachment",
+        content=data,
+        content_type=file.content_type,
+        description=description,
+    )
+    return _attachment_payload(username, entry)
+
+
+@router.post(
+    "/{username}/assessment/attachments/links",
+    response_model=AssessmentSubmissionAttachmentPayload,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_assessment_attachment_link(
+    username: str,
+    payload: AssessmentAttachmentLinkRequest,
+) -> AssessmentSubmissionAttachmentPayload:
+    entry = attachment_store.add_link(
+        username=username,
+        name=payload.name or payload.url,
+        url=payload.url,
+        description=payload.description,
+    )
+    return _attachment_payload(username, entry)
+
+
+@router.delete(
+    "/{username}/assessment/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_pending_assessment_attachment(username: str, attachment_id: str) -> Response:
+    attachment_store.delete(username, attachment_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/{username}/assessment/attachments/{attachment_id}/download",
+    status_code=status.HTTP_200_OK,
+)
+def download_assessment_attachment(username: str, attachment_id: str) -> FileResponse:
+    trimmed = attachment_id.strip()
+    if not trimmed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment not found.",
+        )
+
+    # Check pending attachments first.
+    for entry in attachment_store.list_pending(username):
+        if entry.attachment_id == trimmed and entry.kind == "file" and entry.stored_path:
+            try:
+                path = attachment_store.resolve_stored_path(entry.stored_path)
+            except (FileNotFoundError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Attachment file is unavailable.",
+                ) from exc
+            return FileResponse(
+                path,
+                media_type=entry.content_type or "application/octet-stream",
+                filename=entry.name,
+            )
+
+    # Fallback to persisted submissions.
+    submissions = submission_store.list_user(username)
+    for submission in submissions:
+        for attachment in submission.attachments:
+            if attachment.attachment_id == trimmed and attachment.kind == "file" and attachment.stored_path:
+                try:
+                    path = attachment_store.resolve_stored_path(attachment.stored_path)
+                except (FileNotFoundError, ValueError) as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Attachment file is unavailable.",
+                    ) from exc
+                return FileResponse(
+                    path,
+                    media_type=attachment.content_type or "application/octet-stream",
+                    filename=attachment.name,
+                )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Attachment not found.",
+    )
 
 
 @router.post("/plan", response_model=LearnerProfilePayload, status_code=status.HTTP_200_OK)
@@ -261,7 +390,17 @@ async def create_assessment_submission(
         for key, value in payload.metadata.items()
         if isinstance(key, str) and isinstance(value, str) and value.strip()
     }
-    submission = submission_store.record(username, responses, metadata=cleaned_metadata)
+    pending_attachments = attachment_store.consume(username)
+    structured_attachments = [
+        AssessmentSubmissionAttachment.from_pending(entry) for entry in pending_attachments
+    ]
+
+    submission = submission_store.record(
+        username,
+        responses,
+        metadata=cleaned_metadata,
+        attachments=structured_attachments,
+    )
 
     grading_result, rating_updates = await grade_submission(
         settings=settings,

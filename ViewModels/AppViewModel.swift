@@ -13,6 +13,7 @@ final class AppViewModel: ObservableObject {
     // Phase 8 – Track submission/grading history for dashboard + chat surfaces.
     @Published var assessmentHistory: [AssessmentSubmissionRecord] = []
     @Published var assessmentResponses: [String:String] = [:]
+    @Published var pendingAssessmentAttachments: [AssessmentSubmissionRecord.Attachment] = []
     @Published var showingAssessmentFlow: Bool = false
     @Published var focusedSubmission: AssessmentSubmissionRecord?
     @Published var latestLesson: EndLearn?
@@ -181,8 +182,103 @@ final class AppViewModel: ObservableObject {
             onboardingAssessment = updated
             assessmentResponses.removeAll()
             showingAssessmentFlow = false
+            pendingAssessmentAttachments.removeAll()
             await loadProfile(baseURL: baseURL, username: username)
             error = nil
+            return true
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            return false
+        }
+    }
+
+    func refreshPendingAssessmentAttachments(
+        baseURL: String,
+        username: String
+    ) async {
+        guard let trimmedBase = BackendService.trimmed(url: baseURL) else {
+            pendingAssessmentAttachments = []
+            return
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            pendingAssessmentAttachments = []
+            return
+        }
+        do {
+            let attachments = try await BackendService.listAssessmentAttachments(
+                baseURL: trimmedBase,
+                username: trimmedUsername
+            )
+            pendingAssessmentAttachments = attachments
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func uploadAssessmentAttachmentFile(
+        baseURL: String,
+        username: String,
+        fileURL: URL,
+        description: String? = nil
+    ) async -> Bool {
+        do {
+            _ = try await BackendService.uploadAssessmentAttachment(
+                baseURL: baseURL,
+                username: username,
+                fileURL: fileURL,
+                description: description
+            )
+            await refreshPendingAssessmentAttachments(baseURL: baseURL, username: username)
+            return true
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func addAssessmentAttachmentLink(
+        baseURL: String,
+        username: String,
+        name: String?,
+        url: String,
+        description: String?
+    ) async -> Bool {
+        do {
+            _ = try await BackendService.createAssessmentAttachmentLink(
+                baseURL: baseURL,
+                username: username,
+                name: name,
+                url: url,
+                description: description
+            )
+            await refreshPendingAssessmentAttachments(baseURL: baseURL, username: username)
+            return true
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeAssessmentAttachment(
+        baseURL: String,
+        username: String,
+        attachmentId: String
+    ) async -> Bool {
+        do {
+            try await BackendService.deleteAssessmentAttachment(
+                baseURL: baseURL,
+                username: username,
+                attachmentId: attachmentId
+            )
+            await refreshPendingAssessmentAttachments(baseURL: baseURL, username: username)
             return true
         } catch {
             let nsError = error as NSError
@@ -212,6 +308,7 @@ final class AppViewModel: ObservableObject {
         showingAssessmentFlow = false
         focusedSubmission = nil
         clearSessionContent()
+        pendingAssessmentAttachments.removeAll()
     }
 
     var requiresAssessment: Bool {

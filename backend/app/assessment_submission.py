@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Dict, Iterable, List, Literal, Optional, cast
+from typing import Dict, Iterable, List, Literal, Optional, Sequence, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -22,6 +22,7 @@ from .agent_models import (
     AssessmentTaskResponsePayload,
 )
 from .assessment_result import AssessmentGradingResult
+from .assessment_attachments import PendingAssessmentAttachment
 
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,69 @@ class AssessmentTaskResponse(BaseModel):
     word_count: int = Field(default=0, ge=0)
 
 
+class AssessmentSubmissionAttachment(BaseModel):
+    attachment_id: str
+    kind: Literal["file", "link", "note"] = "file"
+    name: str
+    description: Optional[str] = None
+    url: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = Field(default=None, ge=0)
+    stored_path: Optional[str] = None
+    source: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @classmethod
+    def from_pending(cls, entry: PendingAssessmentAttachment) -> "AssessmentSubmissionAttachment":
+        return cls(
+            attachment_id=entry.attachment_id,
+            kind=entry.kind,
+            name=entry.name,
+            description=entry.description,
+            url=entry.url if entry.kind != "file" else None,
+            content_type=entry.content_type,
+            size_bytes=entry.size_bytes,
+            stored_path=entry.stored_path,
+            source="structured",
+            created_at=entry.created_at,
+        )
+
+    def to_pending(self, username: str) -> PendingAssessmentAttachment:
+        return PendingAssessmentAttachment(
+            attachment_id=self.attachment_id,
+            username=username.lower().strip(),
+            kind=self.kind,
+            name=self.name,
+            description=self.description,
+            url=self.url if self.kind != "file" else None,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+            stored_path=self.stored_path,
+            created_at=self.created_at,
+        )
+
+    def as_payload(self, username: str) -> AssessmentSubmissionAttachmentPayload:
+        download_url: Optional[str] = None
+        if self.kind == "file":
+            download_url = f"/api/onboarding/{username}/assessment/attachments/{self.attachment_id}/download"
+        return AssessmentSubmissionAttachmentPayload(
+            attachment_id=self.attachment_id,
+            name=self.name,
+            kind=self.kind,
+            url=self.url or download_url,
+            description=self.description,
+            source=self.source,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+        )
+
+
 class AssessmentSubmission(BaseModel):
     submission_id: str
     username: str
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     responses: List[AssessmentTaskResponse] = Field(default_factory=list)
+    attachments: List[AssessmentSubmissionAttachment] = Field(default_factory=list)
     metadata: Dict[str, str] = Field(default_factory=dict)
     grading: Optional[AssessmentGradingResult] = None
 
@@ -169,6 +228,7 @@ class AssessmentSubmissionStore:
         username: str,
         responses: Iterable[AssessmentTaskResponse],
         metadata: Dict[str, str] | None = None,
+        attachments: Sequence[AssessmentSubmissionAttachment] | None = None,
     ) -> AssessmentSubmission:
         normalized = username.lower().strip()
         if not normalized:
@@ -179,6 +239,7 @@ class AssessmentSubmissionStore:
             username=normalized,
             submitted_at=datetime.now(timezone.utc),
             responses=[response.model_copy(deep=True) for response in responses],
+            attachments=[attachment.model_copy(deep=True) for attachment in attachments or []],
             metadata=dict(metadata or {}),
         )
         for response in submission.responses:
@@ -328,7 +389,21 @@ def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmission
             ],
         )
 
-    attachments = _parse_attachment_metadata(submission.metadata)
+    payload_attachments: List[AssessmentSubmissionAttachmentPayload] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def _append(value: AssessmentSubmissionAttachmentPayload) -> None:
+        key = (value.name.strip(), (value.url or "").strip(), value.kind)
+        if key in seen:
+            return
+        seen.add(key)
+        payload_attachments.append(value)
+
+    for attachment in submission.attachments:
+        _append(attachment.as_payload(submission.username))
+
+    for legacy in _parse_attachment_metadata(submission.metadata):
+        _append(legacy)
 
     return AssessmentSubmissionPayload(
         submission_id=submission.submission_id,
@@ -346,7 +421,7 @@ def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmission
             for response in submission.responses
         ],
         grading=grading_payload,
-        attachments=attachments,
+        attachments=payload_attachments,
     )
 
 
@@ -354,6 +429,7 @@ submission_store = AssessmentSubmissionStore(DATA_PATH)
 
 __all__ = [
     "AssessmentGradingResult",
+    "AssessmentSubmissionAttachment",
     "AssessmentSubmission",
     "AssessmentSubmissionStore",
     "AssessmentTaskResponse",

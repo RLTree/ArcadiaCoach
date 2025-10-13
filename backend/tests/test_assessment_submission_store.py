@@ -8,15 +8,22 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import assessment_submission, developer_routes, onboarding_routes, profile_routes, session_routes
+from app import assessment_attachments, assessment_submission, developer_routes, onboarding_routes, profile_routes, session_routes
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult, RubricCriterionResult, TaskGradingResult
 from app.assessment_submission import AssessmentSubmissionStore, AssessmentTaskResponse, submission_payload
+from app.assessment_attachments import AssessmentAttachmentStore
 from app.learner_profile import AssessmentTask, LearnerProfile, LearnerProfileStore, OnboardingAssessment
 from app.main import app
 
 
 def _store(path: Path) -> AssessmentSubmissionStore:
     return AssessmentSubmissionStore(path)
+
+
+def _attachment_store(root: Path) -> AssessmentAttachmentStore:
+    files_dir = root / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    return AssessmentAttachmentStore(root / "attachments.json", files_dir)
 
 
 def test_submission_store_round_trip(tmp_path: Path) -> None:
@@ -100,6 +107,7 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
 
     profile_store = LearnerProfileStore(profile_path)
     submission_store = AssessmentSubmissionStore(submissions_path)
+    attachment_store = _attachment_store(tmp_path / "attachments")
 
     monkeypatch.setattr(onboarding_routes, "profile_store", profile_store, raising=False)
     monkeypatch.setattr(profile_routes, "profile_store", profile_store, raising=False)
@@ -108,6 +116,9 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr(onboarding_routes, "submission_store", submission_store, raising=False)
     monkeypatch.setattr(developer_routes, "submission_store", submission_store, raising=False)
     monkeypatch.setattr(assessment_submission, "submission_store", submission_store, raising=False)
+    monkeypatch.setattr(onboarding_routes, "attachment_store", attachment_store, raising=False)
+    monkeypatch.setattr(developer_routes, "attachment_store", attachment_store, raising=False)
+    monkeypatch.setattr(assessment_attachments, "attachment_store", attachment_store, raising=False)
 
     async def _fake_grade_submission(settings, profile, submission, tasks):
         return (
@@ -202,6 +213,33 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
 
     client = TestClient(app)
 
+    file_bytes = b"%PDF-1.4\n%Arcadia test\n"
+    upload = client.post(
+        "/api/onboarding/tester/assessment/attachments/files",
+        data={"description": "Uploaded reference"},
+        files={"file": ("analysis.pdf", file_bytes, "application/pdf")},
+    )
+    assert upload.status_code == 201, upload.text
+    uploaded_file = upload.json()
+    assert uploaded_file["attachment_id"]
+    assert uploaded_file["name"] == "analysis.pdf"
+    assert uploaded_file["description"] == "Uploaded reference"
+    assert uploaded_file["size_bytes"] == len(file_bytes)
+
+    link_resp = client.post(
+        "/api/onboarding/tester/assessment/attachments/links",
+        json={"url": "https://files.example/design-notes", "name": "Design Notes"},
+    )
+    assert link_resp.status_code == 201, link_resp.text
+    link_attachment = link_resp.json()
+    assert link_attachment["kind"] == "link"
+    assert link_attachment["url"] == "https://files.example/design-notes"
+
+    pending = client.get("/api/onboarding/tester/assessment/attachments")
+    assert pending.status_code == 200
+    pending_items = pending.json()
+    assert len(pending_items) == 2
+
     submission_payload = {
         "responses": [
             {"task_id": "concept-1", "response": "Async tasks must guard shared state with locks."},
@@ -209,9 +247,6 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
         ],
         "metadata": {
             "client_version": "dev-main",
-            "attachments": json.dumps([
-                {"name": "analysis.pdf", "url": "https://files.example/analysis.pdf", "description": "Uploaded reference"}
-            ]),
         },
     }
 
@@ -225,8 +260,13 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     assert body["grading"]["category_outcomes"][0]["initial_rating"] == 1232
     assert body["grading"]["category_outcomes"][0]["starting_rating"] == 1100
     assert body["grading"]["category_outcomes"][0]["rating_delta"] == 132
-    assert body["attachments"][0]["name"] == "analysis.pdf"
-    assert body["attachments"][0]["url"] == "https://files.example/analysis.pdf"
+    assert len(body["attachments"]) == 2
+    file_attachment = next(item for item in body["attachments"] if item["kind"] == "file")
+    assert file_attachment["name"] == "analysis.pdf"
+    assert file_attachment["url"].endswith(f"/{uploaded_file['attachment_id']}/download")
+    assert file_attachment["size_bytes"] == len(file_bytes)
+    link_attachment = next(item for item in body["attachments"] if item["kind"] == "link")
+    assert link_attachment["url"] == "https://files.example/design-notes"
 
     refreshed_profile = profile_store.get("tester")
     assert refreshed_profile is not None
@@ -245,6 +285,17 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     assert len(records) == 1
     assert records[0]["metadata"]["client_version"] == "dev-main"
     assert records[0]["grading"]["task_results"][0]["score"] == pytest.approx(0.9)
+    assert len(records[0]["attachments"]) == 2
+
+    # Pending attachments should be cleared after submission.
+    cleared = client.get("/api/onboarding/tester/assessment/attachments")
+    assert cleared.status_code == 200
+    assert cleared.json() == []
+
+    download = client.get(f"/api/onboarding/tester/assessment/attachments/{uploaded_file['attachment_id']}/download")
+    assert download.status_code == 200
+    assert download.content == file_bytes
+    assert download.headers["content-type"] == "application/pdf"
 
     reset = client.post("/api/developer/reset", json={"username": "tester"})
     assert reset.status_code == 204
