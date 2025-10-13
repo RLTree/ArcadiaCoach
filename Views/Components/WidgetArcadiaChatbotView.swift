@@ -104,7 +104,10 @@ struct WidgetArcadiaChatbotView: View {
                 sessionId: sessionKey,
                 history: history,
                 message: text,
-                metadata: metadataPayload()
+                metadata: metadataPayload(),
+                webEnabled: props.webEnabled,
+                reasoningLevel: props.level,
+                attachments: []
             )
             await MainActor.run {
                 if let chat = envelope.widgets.first(where: { $0.type == .ArcadiaChatbot || $0.type == .MiniChatbot })?.propsArcadiaChatbot {
@@ -142,6 +145,8 @@ struct WidgetArcadiaChatbotView: View {
         if !useCase.isEmpty {
             metadata["use_case"] = useCase
         }
+        metadata["web_enabled"] = props.webEnabled ? "true" : "false"
+        metadata["reasoning_level"] = props.level
         return metadata
     }
 }

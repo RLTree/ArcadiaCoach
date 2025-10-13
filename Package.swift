@@ -46,12 +46,14 @@ let package = Package(
             sources: [
                 "Models/EloEngine.swift",
                 "Models/EloPlan.swift",
-                "Models/AssessmentGrading.swift",
                 "Models/AssessmentSubmission.swift",
                 "Models/OnboardingAssessment.swift",
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",
+                "Models/ChatAttachment.swift",
+                "Models/ChatTranscript.swift",
                 "Services/BackendService.swift",
+                "Services/ChatHistoryStore.swift",
                 "ViewModels/AgentChatViewModel.swift",
             ],
             swiftSettings: [

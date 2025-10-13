@@ -42,6 +42,6 @@ This phase automates curriculum planning at the end of onboarding, persists the 
 
 - Consider persisting `assessmentResponses` between launches (e.g., via `AppStorage`) so drafts survive app restarts.
 - Update agent instructions (`constants.py`) to explicitly call out the new onboarding tools and fallback expectations before production deploy.
-- Expand backend unit coverage to include route-level tests once FastAPI test harness lands in Phase 7.
-- Automated grading and initial ratings remain for Phase 4.
-- Default web search enablement across agents is tracked under Phase 7.
+- Expand backend unit coverage to include route-level tests once FastAPI test harness lands in Phase 11.
+- Automated grading and initial ratings moved to Phase 5 (now complete).
+- Default web search enablement across agents is tracked under Phase 12.

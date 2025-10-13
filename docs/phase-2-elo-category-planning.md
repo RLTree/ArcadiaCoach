@@ -45,8 +45,8 @@ struct EloCategoryPlan: Codable, Hashable {
 ## Outstanding / Next Phase Hooks
 
 - Agent instructions still need explicit guidance for when to trigger `learner_elo_category_plan_set`. A future prompt tuning pass should add that once the Phase 3 assessment workflows land.
-- Plan storage remains JSON-backed; database migration stays scheduled for Phase 7.
-- Tests continue to mock network responses. Add backend unit coverage for profile routes when we expand the FastAPI test suite (Phase 7 scope).
+- Plan storage remains JSON-backed; database migration stays scheduled for Phase 11.
+- Tests continue to mock network responses. Add backend unit coverage for profile routes when we expand the FastAPI test suite (Phase 11 scope).
 
 ## Validation
 

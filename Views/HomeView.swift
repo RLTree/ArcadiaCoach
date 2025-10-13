@@ -255,6 +255,9 @@ struct HomeView: View {
                         if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
                             assessmentBanner(status: bundle.status)
                         }
+                        if let result = appVM.assessmentResult {
+                            assessmentResultsCard(result: result)
+                        }
                         if !settings.minimalMode && !allEloItems.isEmpty {
                             WidgetStatRowView(props: .init(items: allEloItems))
                                 .environmentObject(settings)
@@ -300,7 +303,7 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     Text("Onboarding assessment completed")
                         .font(.title2.bold())
-                    Text("Reopen the assessment from the dashboard if you want to review your responses.")
+                    Text("Review your grading summary and curriculum on the Dashboard tab, or reopen the assessment from there if you need to revisit your responses.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
@@ -362,5 +365,108 @@ struct HomeView: View {
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func assessmentResultsCard(result: AssessmentGradingResult) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                Label("Assessment Results", systemImage: "chart.bar.doc.horizontal")
+                    .labelStyle(.titleAndIcon)
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Text(result.evaluatedAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(result.overallFeedback)
+                .font(.body)
+
+            if !result.strengths.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Strengths")
+                        .font(.subheadline.bold())
+                    ForEach(result.strengths, id: \.self) { item in
+                        Text("• \(item)")
+                            .font(.footnote)
+                    }
+                }
+            }
+
+            if !result.focusAreas.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Focus Next")
+                        .font(.subheadline.bold())
+                    ForEach(result.focusAreas, id: \.self) { item in
+                        Text("• \(item)")
+                            .font(.footnote)
+                    }
+                }
+            }
+
+            if !result.categoryOutcomes.isEmpty {
+                let columns = [GridItem(.adaptive(minimum: 160), spacing: 12, alignment: .top)]
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                    ForEach(result.categoryOutcomes) { outcome in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(categoryLabels[outcome.categoryKey] ?? outcome.categoryKey)
+                                .font(.headline)
+                            Text("Rating \(outcome.initialRating)")
+                                .font(.subheadline)
+                            Text("Avg score \(Int((outcome.averageScore * 100).rounded()))%")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let rationale = outcome.rationale, !rationale.isEmpty {
+                                Text(rationale)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+
+            if !result.taskResults.isEmpty {
+                DisclosureGroup("Task-by-task notes") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(result.taskResults) { task in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(task.taskId)
+                                        .font(.subheadline.bold())
+                                    Spacer()
+                                    Text("Score \(Int((task.score * 100).rounded()))% · \(task.confidence.rawValue.capitalized)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(task.feedback)
+                                    .font(.footnote)
+                                if !task.strengths.isEmpty {
+                                    Text("Strengths: \(task.strengths.joined(separator: ", "))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if !task.improvements.isEmpty {
+                                    Text("Improve: \(task.improvements.joined(separator: ", "))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(10)
+                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .contain)
     }
 }

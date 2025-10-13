@@ -12,6 +12,12 @@ struct ArcadiaChatbotView: View {
     var showTonePicker: Bool
     var levels: [ArcadiaChatbotLevelOption]
     var selectedLevel: String
+    var onSelectLevel: ((String) -> Void)? = nil
+    var onToggleWeb: ((Bool) -> Void)? = nil
+    var attachments: [ChatAttachment] = []
+    var isAttachmentUploading: Bool = false
+    var onAddAttachment: (() -> Void)? = nil
+    var onRemoveAttachment: ((String) -> Void)? = nil
     var onSubmit: (String) async -> Void
 
     @State private var draft: String = ""
@@ -25,6 +31,7 @@ struct ArcadiaChatbotView: View {
             tonePickerSection
             Divider()
             statusRow
+            attachmentsSection
             inputArea
         }
         .padding(18)
@@ -131,21 +138,18 @@ struct ArcadiaChatbotView: View {
                     .foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
                     ForEach(levels, id: \.value) { level in
-                        Text(level.label)
-                            .font(.footnote.weight(level.value == selectedLevel ? .semibold : .regular))
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 12)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                (level.value == selectedLevel ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)),
-                                in: Capsule()
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(level.value == selectedLevel ? Color.accentColor : Color.clear, lineWidth: 1)
-                            )
-                            .foregroundStyle(level.value == selectedLevel ? Color.accentColor : Color.primary)
-                            .accessibilityLabel("Reasoning effort \(level.label)")
+                        let isSelected = level.value == selectedLevel
+                        if let onSelectLevel {
+                            Button {
+                                onSelectLevel(level.value)
+                            } label: {
+                                levelChip(for: level, isSelected: isSelected)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("Reasoning-\(level.value)")
+                        } else {
+                            levelChip(for: level, isSelected: isSelected)
+                        }
                     }
                 }
             }
@@ -164,16 +168,125 @@ struct ArcadiaChatbotView: View {
             .padding(.vertical, 6)
             .background(Color.secondary.opacity(0.12), in: Capsule())
 
-            Label {
-                Text(webEnabled ? "Web search on" : "Web search off")
-            } icon: {
-                Image(systemName: "globe")
+            if let onToggleWeb {
+                Toggle(isOn: Binding(get: { webEnabled }, set: { newValue in onToggleWeb(newValue) })) {
+                    Label {
+                        Text(webEnabled ? "Web search on" : "Web search off")
+                    } icon: {
+                        Image(systemName: "globe")
+                    }
+                    .font(.footnote)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            } else {
+                Label {
+                    Text(webEnabled ? "Web search on" : "Web search off")
+                } icon: {
+                    Image(systemName: "globe")
+                }
+                .font(.footnote)
+                .foregroundStyle(webEnabled ? Color.accentColor : Color.secondary)
             }
-            .font(.footnote)
-            .foregroundStyle(webEnabled ? Color.accentColor : Color.secondary)
 
             Spacer()
         }
+    }
+
+    @ViewBuilder
+    private var attachmentsSection: some View {
+        if onAddAttachment != nil || !attachments.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Attachments", systemImage: "paperclip")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let onAddAttachment {
+                        Button {
+                            onAddAttachment()
+                        } label: {
+                            Label("Add file", systemImage: "plus")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isAttachmentUploading)
+                        if isAttachmentUploading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .progressViewStyle(.circular)
+                                .padding(.leading, 4)
+                        }
+                    }
+                }
+                if attachments.isEmpty {
+                    Text("No files attached.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(attachments) { attachment in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .center, spacing: 8) {
+                                    Image(systemName: attachment.iconSystemName)
+                                        .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(attachment.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Text("\(attachment.sizeLabel) • \(attachment.mimeType)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if let onRemoveAttachment {
+                                        Button {
+                                            onRemoveAttachment(attachment.id)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.title3)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(Color.secondary)
+                                        .accessibilityLabel("Remove \(attachment.name)")
+                                    }
+                                }
+                                if let snippet = attachment.previewSnippet {
+                                    Text(snippet)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                    }
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    @ViewBuilder
+    private func levelChip(for level: ArcadiaChatbotLevelOption, isSelected: Bool) -> some View {
+        Text(level.label)
+            .font(.footnote.weight(isSelected ? .semibold : .regular))
+            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
+            .background(
+                (isSelected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+            )
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .accessibilityLabel("Reasoning effort \(level.label)")
     }
 
     private var statusImageName: String {

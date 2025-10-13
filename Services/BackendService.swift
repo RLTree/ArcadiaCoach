@@ -1,5 +1,8 @@
 import Foundation
 import OSLog
+#if canImport(UniformTypeIdentifiers)
+import UniformTypeIdentifiers
+#endif
 
 private let pathAllowed = CharacterSet.urlPathAllowed
 
@@ -41,6 +44,9 @@ final class BackendService {
         var sessionId: String?
         var history: [BackendChatTurn]
         var metadata: [String: String]?
+        var webEnabled: Bool?
+        var reasoningLevel: String?
+        var attachments: [ChatAttachmentPayload]?
     }
 
     private struct ResetPayload: Encodable {
@@ -71,6 +77,24 @@ final class BackendService {
 
     private struct DeveloperResetPayload: Encodable {
         var username: String
+    }
+
+    private struct ChatAttachmentPayload: Encodable {
+        var fileId: String
+        var name: String
+        var mimeType: String
+        var size: Int
+        var preview: String?
+        var openaiFileId: String?
+    }
+
+    private struct ChatAttachmentUploadResponse: Decodable {
+        var fileId: String
+        var name: String
+        var mimeType: String
+        var size: Int
+        var preview: String?
+        var openaiFileId: String?
     }
 
     struct OnboardingStatusSnapshot: Decodable {
@@ -415,21 +439,93 @@ final class BackendService {
         }
     }
 
+    static func uploadChatAttachment(
+        baseURL: String,
+        fileURL: URL
+    ) async throws -> ChatAttachment {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/chatkit/upload") else {
+            throw BackendServiceError.invalidURL
+        }
+        let data = try Data(contentsOf: fileURL)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        let filename = fileURL.lastPathComponent
+        let mimeType = mimeType(for: fileURL)
+        body.append("--\(boundary)\r\n")
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
+        body.append("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(data)
+        body.append("\r\n")
+        body.append("--\(boundary)--\r\n")
+        request.httpBody = body
+
+        logger.debug("POST \(url.absoluteString, privacy: .public) [upload]")
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: responseData, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            let decoded = try decoder.decode(ChatAttachmentUploadResponse.self, from: responseData)
+            return ChatAttachment(
+                id: decoded.fileId,
+                name: decoded.name,
+                mimeType: decoded.mimeType,
+                size: decoded.size,
+                preview: decoded.preview,
+                openAIFileId: decoded.openaiFileId,
+                addedAt: Date()
+            )
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
     static func sendChat(
         baseURL: String,
         sessionId: String?,
         history: [BackendChatTurn],
         message: String,
-        metadata: [String: String] = [:]
+        metadata: [String: String] = [:],
+        webEnabled: Bool = false,
+        reasoningLevel: String = "medium",
+        attachments: [ChatAttachment] = []
     ) async throws -> WidgetEnvelope {
-        try await post(
+        let attachmentPayloads = attachments.map { attachment in
+            ChatAttachmentPayload(
+                fileId: attachment.id,
+                name: attachment.name,
+                mimeType: attachment.mimeType,
+                size: attachment.size,
+                preview: attachment.preview,
+                openaiFileId: attachment.openAIFileId
+            )
+        }
+        return try await post(
             baseURL: baseURL,
             path: "api/session/chat",
             body: ChatPayload(
                 message: message,
                 sessionId: sessionId,
                 history: history,
-                metadata: metadata.isEmpty ? nil : metadata
+                metadata: metadata.isEmpty ? nil : metadata,
+                webEnabled: webEnabled,
+                reasoningLevel: reasoningLevel,
+                attachments: attachmentPayloads.isEmpty ? nil : attachmentPayloads
             ),
             expecting: WidgetEnvelope.self
         )
@@ -472,6 +568,18 @@ final class BackendService {
         }
     }
 
+    private static func mimeType(for fileURL: URL) -> String {
+        #if canImport(UniformTypeIdentifiers)
+        if #available(macOS 11.0, *) {
+            if let type = UTType(filenameExtension: fileURL.pathExtension.lowercased()),
+               let preferred = type.preferredMIMEType {
+                return preferred
+            }
+        }
+        #endif
+        return "application/octet-stream"
+    }
+
     static func endpoint(baseURL: String, path: String) -> URL? {
         guard let base = URL(string: baseURL) else { return nil }
         return base.appendingPathComponent(path, isDirectory: false)
@@ -480,6 +588,14 @@ final class BackendService {
     static func trimmed(url: String) -> String? {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Data {
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
     }
 }
 

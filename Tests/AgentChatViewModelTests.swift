@@ -28,6 +28,59 @@ final class AgentChatViewModelTests: XCTestCase {
         XCTAssertEqual(AgentChatViewModel.extractReply(from: widget), "Hello!")
     }
 
+    func testUpdatePreferencesPersistsToHistory() throws {
+        let suiteName = "AgentChatTests-" + UUID().uuidString
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated UserDefaults")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ChatHistoryStore(userDefaults: defaults)
+        let viewModel = AgentChatViewModel(historyStore: store)
+        viewModel.prepareWelcomeMessage(isBackendReady: true)
+        viewModel.updatePreferences(webEnabled: true, reasoningLevel: "high")
+
+        guard let summary = viewModel.recents.first else {
+            XCTFail("Expected a transcript summary to be recorded")
+            return
+        }
+        XCTAssertTrue(summary.webEnabled)
+        XCTAssertEqual(summary.reasoningLevel, "high")
+
+        let persisted = store.load()
+        XCTAssertEqual(persisted.first?.reasoningLevel, "high")
+    }
+
+    func testAddAttachmentPersistsToHistory() throws {
+        let suiteName = "AgentChatAttachment-" + UUID().uuidString
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated UserDefaults")
+            return
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ChatHistoryStore(userDefaults: defaults)
+        let viewModel = AgentChatViewModel(historyStore: store)
+        viewModel.prepareWelcomeMessage(isBackendReady: true)
+
+        let attachment = ChatAttachment(
+            id: "file-1",
+            name: "notes.md",
+            mimeType: "text/markdown",
+            size: 2048,
+            preview: "A quick summary of the learner portfolio.",
+            openAIFileId: nil
+        )
+        viewModel.addAttachment(attachment)
+
+        XCTAssertEqual(viewModel.attachments.count, 1)
+        let persisted = store.load()
+        XCTAssertEqual(persisted.first?.attachments.first?.name, "notes.md")
+    }
+
     // MARK: - Helpers
 
     private func makeCardWidget(title: String, sections: [WidgetCardSection]) throws -> Widget {

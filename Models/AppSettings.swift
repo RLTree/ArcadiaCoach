@@ -10,6 +10,8 @@ final class AppSettings: ObservableObject {
     @AppStorage("minimalMode") var minimalMode: Bool = false
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
     @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
+    @AppStorage("chatWebSearchEnabled") var chatWebSearchEnabled: Bool = false
+    @AppStorage("chatReasoningLevel") var chatReasoningLevel: String = "medium"
     @AppStorage("openaiApiKey") var openaiApiKey: String = ""
     @AppStorage("arcadiaUsername") var arcadiaUsername: String = ""
     @AppStorage("learnerGoal") var learnerGoal: String = ""

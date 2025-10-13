@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar, cast
+from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
@@ -15,7 +15,7 @@ import logging
 from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, ConfigDict
 
 from .agent_models import EndLearn, EndMilestone, EndQuiz, WidgetEnvelope
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
@@ -68,10 +68,21 @@ async def _run_structured(
     message: str,
     expecting: Type[T],
     metadata: Dict[str, Any] | None = None,
+    web_enabled_override: bool | None = None,
+    reasoning_level_override: str | None = None,
+    attachments: Sequence[Dict[str, Any]] | None = None,
+    augment_with_preferences: bool = False,
 ) -> T:
     state = _session_state(session_id)
-    agent = get_arcadia_agent(
-        settings.arcadia_agent_model, settings.arcadia_agent_enable_web)
+    web_enabled = (
+        web_enabled_override
+        if web_enabled_override is not None
+        else settings.arcadia_agent_enable_web
+    )
+    reasoning_level = _effort(
+        reasoning_level_override or settings.arcadia_agent_reasoning
+    )
+    agent = get_arcadia_agent(settings.arcadia_agent_model, web_enabled)
     metadata_payload: Dict[str, Any] = dict(metadata or {})
     if session_id:
         metadata_payload.setdefault("session_id", session_id)
@@ -82,6 +93,34 @@ async def _run_structured(
         profile = profile_store.apply_metadata(username, metadata_payload)
         profile_snapshot = profile.model_dump(mode="json")
 
+    attachments_payload: list[Dict[str, Any]] = []
+    if attachments:
+        attachments_payload = [
+            {
+                "file_id": item.get("file_id"),
+                "name": item.get("name"),
+                "mime_type": item.get("mime_type"),
+                "size": item.get("size"),
+                "preview": item.get("preview"),
+                "openai_file_id": item.get("openai_file_id"),
+            }
+            for item in attachments
+        ]
+        if attachments_payload and "attachments" not in metadata_payload:
+            metadata_payload["attachments"] = [
+                {k: v for k, v in attachment.items() if k != "file_id"}
+                for attachment in attachments_payload
+            ]
+    if augment_with_preferences:
+        message = _augment_prompt_with_preferences(
+            message,
+            attachments_payload,
+            web_enabled=web_enabled,
+            reasoning_level=reasoning_level,
+        )
+    metadata_payload.setdefault("web_enabled", web_enabled)
+    metadata_payload.setdefault("reasoning_level", reasoning_level)
+
     context = ArcadiaAgentContext.model_construct(
         thread=state.thread,
         store=state.store,
@@ -90,9 +129,9 @@ async def _run_structured(
             "profile": profile_snapshot,
         },
         sanitized_input=None,
-        web_enabled=settings.arcadia_agent_enable_web,
-        reasoning_level=settings.arcadia_agent_reasoning,
-        attachments=[],
+        web_enabled=web_enabled,
+        reasoning_level=reasoning_level,
+        attachments=attachments_payload,
     )
     try:
         result = await Runner.run(
@@ -102,8 +141,7 @@ async def _run_structured(
             run_config=RunConfig(
                 model_settings=ModelSettings(
                     reasoning=Reasoning(
-                        effort=cast(ReasoningEffort, _effort(
-                            settings.arcadia_agent_reasoning)),
+                        effort=cast(ReasoningEffort, reasoning_level),
                         summary="auto",
                     ),
                 )
@@ -240,11 +278,25 @@ class ChatMessage(BaseModel):
     text: str
 
 
+class ChatAttachment(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    file_id: str = Field(..., alias="file_id", min_length=1)
+    name: str = Field(..., min_length=1)
+    mime_type: str = Field(..., alias="mime_type", min_length=1)
+    size: int = Field(..., ge=0)
+    preview: str | None = None
+    openai_file_id: str | None = Field(default=None, alias="openai_file_id")
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     session_id: Optional[str] = None
     history: List[ChatMessage] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    web_enabled: Optional[bool] = None
+    reasoning_level: Optional[str] = Field(default=None)
+    attachments: List[ChatAttachment] = Field(default_factory=list)
 
 
 def _compose_chat_prompt(history: List[ChatMessage], latest: str) -> str:
@@ -256,6 +308,36 @@ def _compose_chat_prompt(history: List[ChatMessage], latest: str) -> str:
     parts.append(f"User: {latest}")
     parts.append("Assistant:")
     return "\n".join(parts)
+
+
+def _augment_prompt_with_preferences(
+    prompt: str,
+    attachments: Sequence[Dict[str, Any]],
+    *,
+    web_enabled: bool,
+    reasoning_level: str,
+) -> str:
+    augmented = prompt
+    if attachments:
+        augmented += "\n\nUploaded files:"
+        for attachment in attachments:
+            name = attachment.get("name") or "Attachment"
+            mime_type = attachment.get("mime_type") or "application/octet-stream"
+            size = attachment.get("size")
+            size_label = f"{size} bytes" if isinstance(size, int) else "size unknown"
+            preview = attachment.get("preview") or ""
+            augmented += f"\n- {name} ({mime_type}, {size_label})"
+            if preview:
+                augmented += f"\n  Summary: {preview}"
+    if web_enabled:
+        augmented += "\n\nWeb search is enabled. Use the web_search tool freely when it can improve answers."
+    else:
+        augmented += "\n\nWeb search is disabled; rely on internal knowledge and any uploaded files."
+    augmented += (
+        f"\n\nReasoning effort target: {reasoning_level}. "
+        "Balance depth with timely responses."
+    )
+    return augmented
 
 
 @router.post("/lesson", response_model=EndLearn, status_code=status.HTTP_200_OK)
@@ -327,12 +409,17 @@ async def chat_with_agent(
     metadata = dict(payload.metadata)
     if payload.session_id:
         metadata.setdefault("session_id", payload.session_id)
+    attachments = [attachment.model_dump(mode="json") for attachment in payload.attachments]
     return await _run_structured(
         settings,
         payload.session_id,
         prompt,
         WidgetEnvelope,
         metadata=metadata,
+        web_enabled_override=payload.web_enabled,
+        reasoning_level_override=payload.reasoning_level,
+        attachments=attachments,
+        augment_with_preferences=True,
     )
 
 

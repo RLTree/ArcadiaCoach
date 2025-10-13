@@ -1,6 +1,4 @@
-<!-- Status will be flipped to “completed” once user sign-off is captured for Phase 5 -->
-
-# Phase 5 – Automated Grading & Initial Ratings *(awaiting sign-off)*
+# Phase 5 – Automated Grading & Initial Ratings *(completed October 12, 2025)*
 
 ## Backend
 - Added `backend/app/assessment_grading.py` to orchestrate grading runs through the Arcadia agent. It normalises rubric data, requests structured JSON (feedback + scores), and falls back gracefully if the agent call fails.
@@ -17,6 +15,7 @@
 
 ## macOS Client
 - Added `AssessmentGradingResult` models, plumbed through `BackendService` and `AppViewModel`, and taught the dashboard to block ELO stats with a centered “Waiting for assessment results…” spinner until grading completes.
+- Once grading lands, the Dashboard now surfaces an “Assessment Results” card with overall feedback, strengths/focus areas, per-category ratings, and optional task-level notes.
 - Developer Submissions dashboard now shows the agent’s overall feedback and per-category outcomes for each stored submission.
 
 ## Testing

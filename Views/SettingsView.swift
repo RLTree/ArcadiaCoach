@@ -7,11 +7,12 @@ struct SettingsView: View {
     @StateObject private var developerTools = DeveloperToolsViewModel()
     @State private var apiKey: String = ""
     @State private var backendURL: String = ""
-    @State private var domainKey: String = ""
-    @State private var learnerGoal: String = ""
-    @State private var learnerUseCase: String = ""
-    @State private var showDeveloperDashboard = false
-    @State private var showDeveloperResetConfirmation = false
+   @State private var domainKey: String = ""
+   @State private var learnerGoal: String = ""
+   @State private var learnerUseCase: String = ""
+   @State private var showDeveloperDashboard = false
+   @State private var showDeveloperResetConfirmation = false
+    private let reasoningOptions = ArcadiaChatbotProps.defaultLevels
 
     var body: some View {
         ScrollView {
@@ -47,6 +48,19 @@ struct SettingsView: View {
                         domainKey = trimmedDomain
                     }
                     Text("Arcadia Coach connects directly to your ChatKit server. Add the domain key from the ChatKit dashboard so custom backends render correctly.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                SettingsSection(title: "Agent Chat Preferences") {
+                    Toggle("Enable web search by default", isOn: $settings.chatWebSearchEnabled)
+                    Picker("Default reasoning effort", selection: $settings.chatReasoningLevel) {
+                        ForEach(reasoningOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("These defaults apply whenever you open Agent Chat. You can still adjust them during a session.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
