@@ -203,40 +203,51 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         sanitized_text = payload if isinstance(payload, str) else message_text
 
         model_name = MODEL_FOR_LEVEL.get(prefs.reasoning_level, "gpt-5")
-        augmented_input = self._augment_input_with_preferences(
-            sanitized_text,
-            prefs,
-            model_name,
-        )
+        attachments_payload = [
+            {
+                "name": ref.name,
+                "mime_type": ref.mime_type,
+                "size": ref.size,
+                "preview": ref.preview,
+                "openai_file_id": ref.openai_file_id,
+            }
+            for ref in prefs.uploaded_files
+        ]
 
         agent_context = ArcadiaAgentContext(
             thread=thread,
             store=self.store,
             request_context=context,
-            sanitized_input=augmented_input,
+            sanitized_input=sanitized_text,
             web_enabled=prefs.web_enabled,
             reasoning_level=prefs.reasoning_level,
-            attachments=[
-                {
-                    "name": ref.name,
-                    "mime_type": ref.mime_type,
-                    "preview": ref.preview,
-                    "openai_file_id": ref.openai_file_id,
-                }
-                for ref in prefs.uploaded_files
-            ],
+            attachments=attachments_payload,
         )
 
         agent_input = await self._to_agent_input(thread, item)
-        if not agent_input:
-            agent_input = augmented_input
+        if isinstance(agent_input, str) and agent_input.strip():
+            prompt_with_preferences = apply_preferences_overlay(
+                agent_input,
+                attachments_payload,
+                web_enabled=prefs.web_enabled,
+                reasoning_level=prefs.reasoning_level,
+                model=model_name,
+            )
+        else:
+            prompt_with_preferences = apply_preferences_overlay(
+                sanitized_text,
+                attachments_payload,
+                web_enabled=prefs.web_enabled,
+                reasoning_level=prefs.reasoning_level,
+                model=model_name,
+            )
 
         agent = get_arcadia_agent(model_name, prefs.web_enabled)
         reasoning_effort = REASONING_FOR_LEVEL.get(prefs.reasoning_level, "medium")
 
         result = Runner.run_streamed(
             agent,
-            agent_input,
+            prompt_with_preferences,
             context=agent_context,
             run_config=RunConfig(
                 model_settings=ModelSettings(
@@ -387,30 +398,6 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             created_at=datetime.utcnow(),
             role="assistant",
             content=[{"type": "output_text", "text": content}],
-        )
-
-    def _augment_input_with_preferences(
-        self,
-        text: str,
-        prefs: ChatPreferences,
-        model_name: str,
-    ) -> str:
-        attachments = [
-            {
-                "name": ref.name,
-                "mime_type": ref.mime_type,
-                "size": ref.size,
-                "preview": ref.preview,
-                "openai_file_id": ref.openai_file_id,
-            }
-            for ref in prefs.uploaded_files
-        ]
-        return apply_preferences_overlay(
-            text,
-            attachments,
-            web_enabled=prefs.web_enabled,
-            reasoning_level=prefs.reasoning_level,
-            model=model_name,
         )
 
     async def _emit_widget(
