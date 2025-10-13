@@ -53,11 +53,28 @@ struct AssessmentTaskSubmission: Codable, Identifiable, Hashable {
 }
 
 struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
+    struct Attachment: Codable, Hashable, Identifiable {
+        enum Kind: String, Codable {
+            case file
+            case link
+            case note
+        }
+
+        var name: String
+        var kind: Kind
+        var url: String?
+        var description: String?
+        var source: String?
+
+        var id: String { "\(name)|\(url ?? "")|\(kind.rawValue)" }
+    }
+
     var submissionId: String
     var username: String
     var submittedAt: Date
     var responses: [AssessmentTaskSubmission]
     var metadata: [String:String]
+    var attachments: [Attachment]
     var grading: AssessmentGradingResult?
 
     var id: String { submissionId }
@@ -67,6 +84,8 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
     var gradedAt: Date? {
         grading?.evaluatedAt
     }
+
+    var hasAttachments: Bool { !attachments.isEmpty }
 
     var averageScore: Double? {
         guard let grading else { return nil }
@@ -91,6 +110,7 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
         case submittedAt
         case responses
         case metadata
+        case attachments
         case grading
     }
 
@@ -100,6 +120,7 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
         submittedAt: Date,
         responses: [AssessmentTaskSubmission],
         metadata: [String:String],
+        attachments: [Attachment] = [],
         grading: AssessmentGradingResult?
     ) {
         self.submissionId = submissionId
@@ -107,6 +128,7 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
         self.submittedAt = submittedAt
         self.responses = responses
         self.metadata = metadata
+        self.attachments = attachments
         self.grading = grading
     }
 
@@ -117,6 +139,7 @@ struct AssessmentSubmissionRecord: Codable, Identifiable, Hashable {
         submittedAt = try container.decode(Date.self, forKey: .submittedAt)
         responses = try container.decodeIfPresent([AssessmentTaskSubmission].self, forKey: .responses) ?? []
         metadata = try container.decodeIfPresent([String:String].self, forKey: .metadata) ?? [:]
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
         grading = try container.decodeIfPresent(AssessmentGradingResult.self, forKey: .grading)
     }
 }

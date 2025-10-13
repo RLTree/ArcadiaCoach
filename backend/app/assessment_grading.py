@@ -204,6 +204,8 @@ def _fallback_result(
                 category_key=category_key,
                 average_score=round(avg, 4),
                 initial_rating=rating,
+                starting_rating=1100,
+                rating_delta=rating - 1100,
                 rationale="Fallback result; replace once automated grading completes.",
             )
         )
@@ -287,6 +289,8 @@ def _compute_category_outcomes(
                 category_key=category_key,
                 average_score=round(average, 4),
                 initial_rating=rating,
+                starting_rating=starting,
+                rating_delta=delta,
                 rationale=rationale,
             )
         )
@@ -301,6 +305,8 @@ def _compute_category_outcomes(
                         category_key=entry.key,
                         average_score=0.5,
                         initial_rating=int(entry.starting_rating),
+                        starting_rating=int(entry.starting_rating),
+                        rating_delta=0,
                         rationale="No tasks submitted for this category; initial rating preserved.",
                     )
                 )

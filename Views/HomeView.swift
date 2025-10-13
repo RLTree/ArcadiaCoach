@@ -14,6 +14,7 @@ struct HomeView: View {
     @StateObject var session = SessionViewModel()
     @State private var showOnboarding = false
     @State private var selectedTab: MainTab = .dashboard
+    @State private var sessionContentExpanded = false
 
     private var allEloItems: [WidgetStatItem] {
         let labels = categoryLabels
@@ -72,14 +73,18 @@ struct HomeView: View {
             }
         }
         .onReceive(session.$lesson.compactMap { $0 }) { lesson in
-            appVM.lastEnvelope = .init(display: lesson.display, widgets: lesson.widgets, citations: lesson.citations)
+            appVM.recordLesson(lesson)
+            sessionContentExpanded = true
         }
         .onReceive(session.$quiz.compactMap { $0 }) { quiz in
             let before = appVM.game.elo
             appVM.applyElo(updated: quiz.elo, delta: delta(from: before, to: quiz.elo))
+            appVM.recordQuiz(quiz)
+            sessionContentExpanded = true
         }
         .onReceive(session.$milestone.compactMap { $0 }) { milestone in
-            appVM.lastEnvelope = .init(display: milestone.display, widgets: milestone.widgets, citations: nil)
+            appVM.recordMilestone(milestone)
+            sessionContentExpanded = true
         }
         .onChange(of: settings.chatkitBackendURL) { newValue in
             Task {
@@ -128,6 +133,26 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .developerResetCompleted)) { _ in
             selectedTab = .assessment
             showOnboarding = true
+        }
+        .sheet(
+            item: Binding(
+                get: { appVM.focusedSubmission },
+                set: { newValue in
+                    if let submission = newValue {
+                        appVM.focus(on: submission)
+                    } else {
+                        appVM.dismissSubmissionFocus()
+                    }
+                }
+            )
+        ) { submission in
+            AssessmentSubmissionDetailView(
+                submission: submission,
+                plan: appVM.eloPlan,
+                curriculum: appVM.curriculumPlan
+            )
+            .environmentObject(settings)
+            .environmentObject(appVM)
         }
     }
 
@@ -288,6 +313,7 @@ struct HomeView: View {
                                 .transition(.opacity)
                         }
                         sessionControls
+                        sessionContentSection
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(24)
@@ -499,6 +525,68 @@ struct HomeView: View {
     }
 
     @ViewBuilder
+    private var sessionContentSection: some View {
+        let hasLesson = appVM.latestLesson != nil
+        let hasQuiz = appVM.latestQuiz != nil
+        let hasMilestone = appVM.latestMilestone != nil
+        if !(hasLesson || hasQuiz || hasMilestone) {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                DisclosureGroup(isExpanded: $sessionContentExpanded) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if let lesson = appVM.latestLesson {
+                            LessonView(
+                                envelope: WidgetEnvelope(
+                                    display: lesson.display,
+                                    widgets: lesson.widgets,
+                                    citations: lesson.citations
+                                )
+                            )
+                            .environmentObject(settings)
+                            .frame(maxWidth: .infinity)
+                        }
+                        if let quiz = appVM.latestQuiz {
+                            QuizSummaryView(elo: quiz.elo, widgets: quiz.widgets, last: quiz.last_quiz)
+                                .environmentObject(settings)
+                                .environmentObject(appVM)
+                                .frame(maxWidth: .infinity)
+                        }
+                        if let milestone = appVM.latestMilestone {
+                            MilestoneView(content: milestone)
+                                .environmentObject(settings)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.top, 8)
+                } label: {
+                    HStack {
+                        Label("Latest Session Content", systemImage: "sparkles")
+                            .font(.headline)
+                        Spacer()
+                        Text(sessionContentExpanded ? "Hide" : "Show")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button {
+                    appVM.clearSessionContent()
+                    sessionContentExpanded = false
+                } label: {
+                    Label("Clear cached content", systemImage: "xmark.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.link)
+                .accessibilityLabel("Clear cached lesson, quiz, and milestone content")
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+
+    @ViewBuilder
     private func assessmentHistoryRow(for submission: AssessmentSubmissionRecord, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -529,6 +617,20 @@ struct HomeView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if submission.hasAttachments {
+                    Label("\(submission.attachments.count) attachment\(submission.attachments.count == 1 ? "" : "s")", systemImage: "paperclip")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let outcomes = submission.grading?.categoryOutcomes {
+                    let totalDelta = outcomes.reduce(0) { $0 + $1.ratingDelta }
+                    if totalDelta != 0 {
+                        let label = totalDelta > 0 ? "+\(totalDelta)" : "\(totalDelta)"
+                        Label("ΔELO \(label)", systemImage: totalDelta > 0 ? "arrow.up" : "arrow.down")
+                            .font(.caption)
+                            .foregroundStyle(totalDelta > 0 ? .green : .orange)
+                    }
+                }
             }
 
             if let grading = submission.grading {
@@ -554,6 +656,17 @@ struct HomeView: View {
                 Text("Arcadia Coach is grading this submission.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    appVM.focus(on: submission)
+                } label: {
+                    Label("View details", systemImage: "arrow.right.circle")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

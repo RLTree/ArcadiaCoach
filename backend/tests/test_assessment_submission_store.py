@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import assessment_submission, developer_routes, onboarding_routes, profile_routes, session_routes
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult, RubricCriterionResult, TaskGradingResult
-from app.assessment_submission import AssessmentSubmissionStore, AssessmentTaskResponse
+from app.assessment_submission import AssessmentSubmissionStore, AssessmentTaskResponse, submission_payload
 from app.learner_profile import AssessmentTask, LearnerProfile, LearnerProfileStore, OnboardingAssessment
 from app.main import app
 
@@ -27,7 +28,17 @@ def test_submission_store_round_trip(tmp_path: Path) -> None:
         task_type="concept_check",
     )
 
-    created = store.record("Learner-One", [response], metadata={"client_version": "dev"})
+    created = store.record(
+        "Learner-One",
+        [response],
+        metadata={
+            "client_version": "dev",
+            "attachments": json.dumps([
+                {"name": "solution.py", "url": "https://files.example/solution.py"},
+                "notes.txt",
+            ]),
+        },
+    )
     assert created.username == "learner-one"
     assert created.responses[0].word_count == 8
 
@@ -60,6 +71,8 @@ def test_submission_store_round_trip(tmp_path: Path) -> None:
                 category_key="backend-foundations",
                 average_score=0.8,
                 initial_rating=1240,
+                starting_rating=1100,
+                rating_delta=140,
                 rationale="Starting rating 1100 adjusted upward based on rubric alignment.",
             )
         ],
@@ -67,6 +80,12 @@ def test_submission_store_round_trip(tmp_path: Path) -> None:
     updated = store.apply_grading("Learner-One", created.submission_id, grading)
     assert updated.grading is not None
     assert updated.grading.overall_feedback.startswith("Solid explanation")
+    payload = submission_payload(updated)
+    assert payload.attachments[0].name == "solution.py"
+    assert payload.attachments[0].url == "https://files.example/solution.py"
+    assert payload.attachments[1].name == "notes.txt"
+    assert payload.grading.category_outcomes[0].starting_rating == 1100
+    assert payload.grading.category_outcomes[0].rating_delta == 140
 
     items = store.list_user("learner-one")
     assert len(items) == 1
@@ -136,15 +155,17 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
                     ),
                 ],
                 category_outcomes=[
-                    AssessmentCategoryOutcome(
-                        category_key="backend-foundations",
-                        average_score=0.8,
-                        initial_rating=1232,
-                        rationale="Starting rating 1100 adjusted by +132 after averaging task scores.",
-                    )
-                ],
-            ),
-            {"backend-foundations": 1232},
+                AssessmentCategoryOutcome(
+                    category_key="backend-foundations",
+                    average_score=0.8,
+                    initial_rating=1232,
+                    starting_rating=1100,
+                    rating_delta=132,
+                    rationale="Starting rating 1100 adjusted by +132 after averaging task scores.",
+                )
+            ],
+        ),
+        {"backend-foundations": 1232},
         )
 
     monkeypatch.setattr(onboarding_routes, "grade_submission", _fake_grade_submission, raising=False)
@@ -186,7 +207,12 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
             {"task_id": "concept-1", "response": "Async tasks must guard shared state with locks."},
             {"task_id": "code-1", "response": "for attempt in range(3):\n    print(attempt)"},
         ],
-        "metadata": {"client_version": "dev-main"},
+        "metadata": {
+            "client_version": "dev-main",
+            "attachments": json.dumps([
+                {"name": "analysis.pdf", "url": "https://files.example/analysis.pdf", "description": "Uploaded reference"}
+            ]),
+        },
     }
 
     create = client.post("/api/onboarding/tester/assessment/submissions", json=submission_payload)
@@ -197,6 +223,10 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     assert body["responses"][0]["word_count"] > 0
     assert body["grading"]["overall_feedback"].startswith("Great progress")
     assert body["grading"]["category_outcomes"][0]["initial_rating"] == 1232
+    assert body["grading"]["category_outcomes"][0]["starting_rating"] == 1100
+    assert body["grading"]["category_outcomes"][0]["rating_delta"] == 132
+    assert body["attachments"][0]["name"] == "analysis.pdf"
+    assert body["attachments"][0]["url"] == "https://files.example/analysis.pdf"
 
     refreshed_profile = profile_store.get("tester")
     assert refreshed_profile is not None

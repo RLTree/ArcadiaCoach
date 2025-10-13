@@ -170,6 +170,26 @@ struct ChatPanel: View {
                 selectedTranscriptId = active
             }
         }
+        .sheet(
+            item: Binding(
+                get: { appVM.focusedSubmission },
+                set: { newValue in
+                    if let submission = newValue {
+                        appVM.focus(on: submission)
+                    } else {
+                        appVM.dismissSubmissionFocus()
+                    }
+                }
+            )
+        ) { submission in
+            AssessmentSubmissionDetailView(
+                submission: submission,
+                plan: appVM.eloPlan,
+                curriculum: appVM.curriculumPlan
+            )
+            .environmentObject(settings)
+            .environmentObject(appVM)
+        }
     }
 
     private var sidebar: some View {
@@ -274,25 +294,44 @@ struct ChatPanel: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(recentHistory, id: \.submissionId) { submission in
-                        HStack {
-                            Text(submission.submittedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            let badgeColor: Color = submission.grading == nil ? .orange : .green
-                            Text(submission.statusLabel)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(badgeColor)
+                        Button {
+                            appVM.focus(on: submission)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(submission.submittedAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    let badgeColor: Color = submission.grading == nil ? .orange : .green
+                                    Text(submission.statusLabel)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(badgeColor)
+                                }
+                                if let average = submission.averageScoreLabel, submission.grading != nil {
+                                    Text("Avg \(average)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                } else if submission.grading == nil {
+                                    Text("Grading in progress")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let outcomes = submission.grading?.categoryOutcomes {
+                                    let delta = outcomes.reduce(0) { $0 + $1.ratingDelta }
+                                    if delta != 0 {
+                                        let label = delta > 0 ? "+\(delta)" : "\(delta)"
+                                        Text("ΔELO \(label)")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(delta > 0 ? .green : .orange)
+                                    }
+                                }
+                            }
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                         }
-                        if let average = submission.averageScoreLabel, submission.grading != nil {
-                            Text("Avg \(average)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        } else if submission.grading == nil {
-                            Text("Grading in progress")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

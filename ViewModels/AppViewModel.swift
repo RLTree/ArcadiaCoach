@@ -14,6 +14,10 @@ final class AppViewModel: ObservableObject {
     @Published var assessmentHistory: [AssessmentSubmissionRecord] = []
     @Published var assessmentResponses: [String:String] = [:]
     @Published var showingAssessmentFlow: Bool = false
+    @Published var focusedSubmission: AssessmentSubmissionRecord?
+    @Published var latestLesson: EndLearn?
+    @Published var latestQuiz: EndQuiz?
+    @Published var latestMilestone: EndMilestone?
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -85,6 +89,39 @@ final class AppViewModel: ObservableObject {
         if let starter = task.starterCode, !starter.isEmpty {
             assessmentResponses[task.taskId] = starter
         }
+    }
+
+    func recordLesson(_ lesson: EndLearn) {
+        latestLesson = lesson
+        lastEnvelope = WidgetEnvelope(display: lesson.display, widgets: lesson.widgets, citations: lesson.citations)
+    }
+
+    func recordQuiz(_ quiz: EndQuiz) {
+        latestQuiz = quiz
+    }
+
+    func recordMilestone(_ milestone: EndMilestone) {
+        latestMilestone = milestone
+        lastEnvelope = WidgetEnvelope(display: milestone.display, widgets: milestone.widgets, citations: nil)
+    }
+
+    func clearSessionContent() {
+        latestLesson = nil
+        latestQuiz = nil
+        latestMilestone = nil
+        lastEnvelope = nil
+    }
+
+    func focus(on submission: AssessmentSubmissionRecord) {
+        focusedSubmission = submission
+    }
+
+    func focusSubmission(by id: String) {
+        focusedSubmission = assessmentHistory.first { $0.submissionId == id }
+    }
+
+    func dismissSubmissionFocus() {
+        focusedSubmission = nil
     }
 
     func isAssessmentTaskAnswered(_ task: OnboardingAssessmentTask) -> Bool {
@@ -164,7 +201,6 @@ final class AppViewModel: ObservableObject {
 
     func resetAfterDeveloperClear() {
         game = GameState()
-        lastEnvelope = nil
         busy = false
         error = nil
         eloPlan = nil
@@ -174,6 +210,8 @@ final class AppViewModel: ObservableObject {
         assessmentHistory = []
         assessmentResponses.removeAll()
         showingAssessmentFlow = false
+        focusedSubmission = nil
+        clearSessionContent()
     }
 
     var requiresAssessment: Bool {
@@ -236,6 +274,20 @@ final class AppViewModel: ObservableObject {
         latestAssessmentSubmission?.submittedAt
     }
 
+    var categoryLabelMap: [String:String] {
+        guard let plan = eloPlan else { return [:] }
+        return Dictionary(uniqueKeysWithValues: plan.categories.map { ($0.key, $0.label) })
+    }
+
+    func label(for categoryKey: String) -> String {
+        categoryLabelMap[categoryKey] ?? categoryKey
+    }
+
+    var modulesByCategory: [String:[OnboardingCurriculumModule]] {
+        guard let modules = curriculumPlan?.modules else { return [:] }
+        return Dictionary(grouping: modules, by: { $0.categoryKey })
+    }
+
     private func alignEloSnapshotWithPlan() {
         guard let plan = eloPlan else { return }
         var aligned: [String:Int] = [:]
@@ -253,6 +305,9 @@ final class AppViewModel: ObservableObject {
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult
         assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }
+        if let currentFocusId = focusedSubmission?.submissionId {
+            focusedSubmission = assessmentHistory.first { $0.submissionId == currentFocusId }
+        }
         alignEloSnapshotWithPlan()
         pruneAssessmentResponses()
     }
@@ -282,17 +337,16 @@ final class AppViewModel: ObservableObject {
         return items
     }
 
-private func submissionMetadata() -> [String: String] {
-    var metadata: [String: String] = ["platform": "macOS"]
-    if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String, !version.isEmpty {
-        metadata["client_version"] = version
-    }
+    private func submissionMetadata() -> [String: String] {
+        var metadata: [String: String] = ["platform": "macOS"]
+        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String, !version.isEmpty {
+            metadata["client_version"] = version
+        }
         if let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String, !build.isEmpty {
             metadata["build"] = build
         }
         return metadata
     }
-
 }
 
 extension AppViewModel.AssessmentReadinessStatus {

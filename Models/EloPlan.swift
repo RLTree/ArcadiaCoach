@@ -33,9 +33,56 @@ struct AssessmentCategoryOutcome: Codable, Hashable, Identifiable {
     var categoryKey: String
     var averageScore: Double
     var initialRating: Int
+    var startingRating: Int
+    var ratingDelta: Int
     var rationale: String?
 
     var id: String { categoryKey }
+
+    private enum CodingKeys: String, CodingKey {
+        case categoryKey
+        case averageScore
+        case initialRating
+        case startingRating
+        case ratingDelta
+        case rationale
+    }
+
+    init(
+        categoryKey: String,
+        averageScore: Double,
+        initialRating: Int,
+        startingRating: Int,
+        ratingDelta: Int,
+        rationale: String?
+    ) {
+        self.categoryKey = categoryKey
+        self.averageScore = averageScore
+        self.initialRating = initialRating
+        self.startingRating = startingRating
+        self.ratingDelta = ratingDelta
+        self.rationale = rationale
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        categoryKey = try container.decode(String.self, forKey: .categoryKey)
+        averageScore = try container.decodeIfPresent(Double.self, forKey: .averageScore) ?? 0.5
+        initialRating = try container.decodeIfPresent(Int.self, forKey: .initialRating) ?? 1100
+        startingRating = try container.decodeIfPresent(Int.self, forKey: .startingRating) ?? initialRating
+        ratingDelta = try container.decodeIfPresent(Int.self, forKey: .ratingDelta) ?? (initialRating - startingRating)
+        rationale = try container.decodeIfPresent(String.self, forKey: .rationale)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(categoryKey, forKey: .categoryKey)
+        try container.encode(averageScore, forKey: .averageScore)
+        try container.encode(initialRating, forKey: .initialRating)
+        try container.encode(startingRating, forKey: .startingRating)
+        try container.encode(ratingDelta, forKey: .ratingDelta)
+        try container.encodeIfPresent(rationale, forKey: .rationale)
+    }
 }
 
 struct AssessmentGradingResult: Codable, Hashable {

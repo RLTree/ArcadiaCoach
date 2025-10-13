@@ -40,6 +40,8 @@ class AssessmentCategoryOutcome(BaseModel):
     category_key: str
     average_score: float = Field(ge=0.0, le=1.0)
     initial_rating: int = Field(ge=0)
+    starting_rating: int = Field(default=1100, ge=0)
+    rating_delta: int = 0
     rationale: Optional[str] = None
 
 

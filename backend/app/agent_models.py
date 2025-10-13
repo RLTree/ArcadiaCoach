@@ -155,6 +155,8 @@ class AssessmentCategoryOutcomePayload(BaseModel):
     category_key: str
     average_score: float = Field(ge=0.0, le=1.0)
     initial_rating: int = Field(ge=0)
+    starting_rating: int = Field(default=1100, ge=0)
+    rating_delta: int = 0
     rationale: Optional[str] = None
 
 
@@ -168,6 +170,14 @@ class AssessmentGradingPayload(BaseModel):
     category_outcomes: List[AssessmentCategoryOutcomePayload] = Field(default_factory=list)
 
 
+class AssessmentSubmissionAttachmentPayload(BaseModel):
+    name: str
+    kind: Literal["file", "link", "note"] = "file"
+    url: Optional[str] = None
+    description: Optional[str] = None
+    source: Optional[str] = None
+
+
 class AssessmentSubmissionPayload(BaseModel):
     submission_id: str
     username: str
@@ -175,6 +185,7 @@ class AssessmentSubmissionPayload(BaseModel):
     responses: List[AssessmentTaskResponsePayload] = Field(default_factory=list)
     metadata: Dict[str, str] = Field(default_factory=dict)
     grading: Optional[AssessmentGradingPayload] = None
+    attachments: List[AssessmentSubmissionAttachmentPayload] = Field(default_factory=list)
 
 
 class OnboardingPlanPayload(BaseModel):

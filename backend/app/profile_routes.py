@@ -129,6 +129,8 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                     category_key=outcome.category_key,
                     average_score=outcome.average_score,
                     initial_rating=outcome.initial_rating,
+                    starting_rating=outcome.starting_rating,
+                    rating_delta=outcome.rating_delta,
                     rationale=outcome.rationale,
                 )
                 for outcome in result.category_outcomes
