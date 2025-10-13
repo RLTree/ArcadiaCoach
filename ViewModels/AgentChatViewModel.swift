@@ -108,6 +108,11 @@ struct ChatTranscriptSummary: Identifiable, Hashable {
     }
 }
 
+struct ChatModelCapability {
+    var supportsWeb: Bool
+    var supportsAttachments: Bool
+}
+
 /// Stores per-session chat transcripts for the Phase 6 sidebar experience.
 /// Phase 6 – Frontend Chat & Accessibility Enhancements (Oct 2025).
 final class ChatHistoryStore {
@@ -176,6 +181,9 @@ final class AgentChatViewModel: ObservableObject {
     @Published var webSearchEnabled: Bool
     @Published var reasoningLevel: String
     @Published var composerAttachments: [ChatAttachment] = []
+    @Published var selectedModel: String
+    @Published private(set) var modelSupportsWeb: Bool
+    @Published private(set) var modelSupportsAttachments: Bool
     @Published private(set) var recents: [ChatTranscriptSummary] = []
     @Published var previewTranscript: ChatTranscript?
     @Published var isUploadingAttachment: Bool = false
@@ -201,11 +209,17 @@ final class AgentChatViewModel: ObservableObject {
     init(
         historyStore: ChatHistoryStore = .shared,
         initialWebEnabled: Bool = false,
-        initialReasoningLevel: String = "medium"
+        initialReasoningLevel: String = "medium",
+        initialModel: String = "gpt-5",
+        initialModelSupportsWeb: Bool = true,
+        initialModelSupportsAttachments: Bool = true
     ) {
         self.historyStore = historyStore
         self.webSearchEnabled = initialWebEnabled
         self.reasoningLevel = initialReasoningLevel
+        self.selectedModel = initialModel
+        self.modelSupportsWeb = initialModelSupportsWeb
+        self.modelSupportsAttachments = initialModelSupportsAttachments
         self.transcripts = historyStore.load()
         self.sessionKey = UUID().uuidString
         refreshSummaries()
@@ -302,12 +316,16 @@ final class AgentChatViewModel: ObservableObject {
             self.reasoningLevel = reasoningLevel
             changed = true
         }
+        if !modelSupportsWeb && webSearchEnabled {
+            webSearchEnabled = false
+        }
         if changed {
             updateCurrentTranscript { _ in }
         }
     }
 
     func toggleWebSearch(_ enabled: Bool) {
+        guard modelSupportsWeb else { return }
         guard webSearchEnabled != enabled else { return }
         webSearchEnabled = enabled
         updateCurrentTranscript { _ in }
@@ -320,7 +338,44 @@ final class AgentChatViewModel: ObservableObject {
         updateCurrentTranscript { _ in }
     }
 
+    func applyModel(
+        _ model: String,
+        capability: ChatModelCapability,
+        backendURL: String
+    ) {
+        let trimmedBackend = backendURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capabilitiesChanged = modelSupportsWeb != capability.supportsWeb || modelSupportsAttachments != capability.supportsAttachments
+        let modelChanged = selectedModel != model
+        guard modelChanged || capabilitiesChanged else { return }
+
+        selectedModel = model
+        modelSupportsWeb = capability.supportsWeb
+        modelSupportsAttachments = capability.supportsAttachments
+        if !modelSupportsWeb {
+            webSearchEnabled = false
+        }
+        if !modelSupportsAttachments {
+            composerAttachments.removeAll()
+        }
+
+        welcomed = false
+        messages.removeAll()
+        previewTranscript = nil
+        isSending = false
+        lastError = nil
+
+        let previousKey = sessionKey
+        if let backend = BackendService.trimmed(url: trimmedBackend) {
+            Task { await BackendService.resetSession(baseURL: backend, sessionId: previousKey) }
+        }
+        sessionKey = sessionIdentifier()
+
+        ensureTranscript(for: sessionKey)
+        prepareWelcomeMessage(isBackendReady: !trimmedBackend.isEmpty)
+    }
+
     func addAttachment(_ attachment: ChatAttachment) {
+        guard modelSupportsAttachments else { return }
         composerAttachments.append(attachment)
     }
 
@@ -330,6 +385,10 @@ final class AgentChatViewModel: ObservableObject {
     }
 
     func uploadAttachment(from url: URL) async {
+        guard modelSupportsAttachments else {
+            lastError = "\(selectedModel) does not support attaching files."
+            return
+        }
         guard let backend = BackendService.trimmed(url: backendURL) else {
             lastError = "Configure the Arcadia backend URL in Settings before uploading files."
             return
@@ -360,7 +419,8 @@ final class AgentChatViewModel: ObservableObject {
 
         ensureTranscript(for: sessionKey)
 
-        let outgoingAttachments = composerAttachments
+        let outgoingAttachments = modelSupportsAttachments ? composerAttachments : []
+        let outgoingAttachmentCount = outgoingAttachments.count
         let userMessage = ChatMessage(role: .user, text: trimmed, attachments: outgoingAttachments)
         messages.append(userMessage)
         recordMessage(userMessage)
@@ -379,9 +439,10 @@ final class AgentChatViewModel: ObservableObject {
                 sessionId: sessionKey,
                 history: history,
                 message: trimmed,
-                metadata: metadataPayload(),
+                metadata: metadataPayload(attachmentCount: outgoingAttachmentCount),
                 webEnabled: webSearchEnabled,
                 reasoningLevel: reasoningLevel,
+                model: selectedModel,
                 attachments: outgoingAttachments
             )
             let reply = Self.extractReply(from: envelope)
@@ -398,18 +459,24 @@ final class AgentChatViewModel: ObservableObject {
             messages.append(apologetic)
             recordMessage(apologetic)
             lastError = failure
-            composerAttachments = outgoingAttachments
+            if modelSupportsAttachments {
+                composerAttachments = outgoingAttachments
+            }
         }
         isSending = false
     }
 
     private func sessionIdentifier() -> String {
-        guard !username.isEmpty else { return UUID().uuidString }
+        let modelSlug = sanitizedModelIdentifier()
+        if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "chat-\(modelSlug)-\(UUID().uuidString.prefix(8))"
+        }
         let allowed = username.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
-        return allowed.isEmpty ? UUID().uuidString : "chat-\(allowed)"
+        let base = allowed.isEmpty ? "guest" : allowed
+        return "chat-\(base)-\(modelSlug)-\(UUID().uuidString.prefix(6))"
     }
 
-    private func metadataPayload() -> [String: String] {
+    private func metadataPayload(attachmentCount: Int) -> [String: String] {
         var metadata: [String: String] = [:]
         if !username.isEmpty {
             metadata["username"] = username
@@ -425,13 +492,16 @@ final class AgentChatViewModel: ObservableObject {
         }
         metadata["web_enabled"] = webSearchEnabled ? "true" : "false"
         metadata["reasoning_level"] = reasoningLevel
-        if let transcript = transcripts.first(where: { $0.id == sessionKey }) {
-            let attachmentCount = transcript.attachments.count
-            if attachmentCount > 0 {
-                metadata["attachments_count"] = String(attachmentCount)
-            }
+        metadata["model"] = selectedModel
+        if attachmentCount > 0 {
+            metadata["attachments_count"] = String(attachmentCount)
         }
         return metadata
+    }
+
+    private func sanitizedModelIdentifier() -> String {
+        let slug = selectedModel.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        return slug.isEmpty ? "gpt" : slug
     }
 
     func recordMessage(_ message: ChatMessage) {

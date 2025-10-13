@@ -46,6 +46,7 @@ final class BackendService {
         var metadata: [String: String]?
         var webEnabled: Bool?
         var reasoningLevel: String?
+        var model: String?
         var attachments: [ChatAttachmentPayload]?
     }
 
@@ -503,6 +504,7 @@ final class BackendService {
         metadata: [String: String] = [:],
         webEnabled: Bool = false,
         reasoningLevel: String = "medium",
+        model: String? = nil,
         attachments: [ChatAttachment] = []
     ) async throws -> WidgetEnvelope {
         let attachmentPayloads = attachments.map { attachment in
@@ -525,6 +527,7 @@ final class BackendService {
                 metadata: metadata.isEmpty ? nil : metadata,
                 webEnabled: webEnabled,
                 reasoningLevel: reasoningLevel,
+                model: model,
                 attachments: attachmentPayloads.isEmpty ? nil : attachmentPayloads
             ),
             expecting: WidgetEnvelope.self

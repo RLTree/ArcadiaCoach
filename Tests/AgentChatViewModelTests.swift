@@ -85,6 +85,19 @@ final class AgentChatViewModelTests: XCTestCase {
         XCTAssertEqual(persisted.first?.attachments.first?.name, "notes.md")
     }
 
+    func testApplyModelDisablesUnsupportedFeatures() throws {
+        let viewModel = AgentChatViewModel(initialWebEnabled: true, initialReasoningLevel: "medium")
+        viewModel.composerAttachments = [ChatAttachment(id: "file-1", name: "doc.txt", mimeType: "text/plain", size: 12, preview: nil, openAIFileId: nil)]
+
+        let capability = ChatModelCapability(supportsWeb: false, supportsAttachments: false)
+        viewModel.applyModel("gpt-5-codex", capability: capability, backendURL: "")
+
+        XCTAssertFalse(viewModel.modelSupportsWeb)
+        XCTAssertFalse(viewModel.webSearchEnabled)
+        XCTAssertFalse(viewModel.modelSupportsAttachments)
+        XCTAssertTrue(viewModel.composerAttachments.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func makeCardWidget(title: String, sections: [WidgetCardSection]) throws -> Widget {

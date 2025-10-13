@@ -10,6 +10,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("minimalMode") var minimalMode: Bool = false
     @AppStorage("chatkitBackendURL") var chatkitBackendURL: String = ""
     @AppStorage("chatkitDomainKey") var chatkitDomainKey: String = ""
+    @AppStorage("chatModel") var chatModel: String = "gpt-5"
     @AppStorage("chatWebSearchEnabled") var chatWebSearchEnabled: Bool = false
     @AppStorage("chatReasoningLevel") var chatReasoningLevel: String = "medium"
     @AppStorage("openaiApiKey") var openaiApiKey: String = ""

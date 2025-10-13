@@ -78,6 +78,7 @@ async def _run_structured(
     metadata: Dict[str, Any] | None = None,
     web_enabled_override: bool | None = None,
     reasoning_level_override: str | None = None,
+    model_override: str | None = None,
     attachments: Sequence[Dict[str, Any]] | None = None,
     augment_with_preferences: bool = False,
 ) -> T:
@@ -90,7 +91,8 @@ async def _run_structured(
     reasoning_level = _effort(
         reasoning_level_override or settings.arcadia_agent_reasoning
     )
-    model_choice = MODEL_FOR_LEVEL.get(reasoning_level, settings.arcadia_agent_model)
+    selected_model = model_override or settings.arcadia_agent_model
+    model_choice = MODEL_FOR_LEVEL.get(reasoning_level, selected_model)
     agent = get_arcadia_agent(model_choice, web_enabled)
     logger.debug(
         "Resolved chat session settings (model=%s, web_enabled=%s, reasoning=%s)",
@@ -110,7 +112,7 @@ async def _run_structured(
 
     attachments_payload: list[Dict[str, Any]] = []
     if attachments:
-        attachments_payload = [
+        new_items = [
             {
                 "file_id": item.get("file_id"),
                 "name": item.get("name"),
@@ -121,8 +123,7 @@ async def _run_structured(
             }
             for item in attachments
         ]
-    if attachments_payload:
-        merged = _merge_attachments(state.attachments, attachments_payload)
+        merged = _merge_attachments(state.attachments, new_items)
         state.attachments = merged
         attachments_payload = merged
     else:
@@ -146,6 +147,7 @@ async def _run_structured(
         )
     metadata_payload.setdefault("web_enabled", web_enabled)
     metadata_payload.setdefault("reasoning_level", reasoning_level)
+    metadata_payload.setdefault("model", model_choice)
 
     context = ArcadiaAgentContext.model_construct(
         thread=state.thread,
@@ -322,6 +324,7 @@ class ChatRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     web_enabled: Optional[bool] = None
     reasoning_level: Optional[str] = Field(default=None)
+    model: Optional[str] = None
     attachments: List[ChatAttachment] = Field(default_factory=list)
 
 
@@ -470,6 +473,7 @@ async def chat_with_agent(
         metadata=metadata,
         web_enabled_override=payload.web_enabled,
         reasoning_level_override=payload.reasoning_level,
+        model_override=payload.model,
         attachments=attachments,
         augment_with_preferences=True,
     )
