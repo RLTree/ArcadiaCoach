@@ -559,7 +559,6 @@ struct OnboardingAssessmentFlow: View {
                 Section(header: Text("Link Details")) {
                     TextField("URL", text: $linkURL)
                         .textContentType(.URL)
-                        .autocapitalization(.none)
                         .disableAutocorrection(true)
                     TextField("Title (optional)", text: $linkName)
                     TextField("Description (optional)", text: $linkDescription, axis: .vertical)

@@ -19,10 +19,11 @@
 - Wired `AppViewModel` to orchestrate attachment lifecycle (refresh, upload, link creation, deletion) and cleared pending state after successful submissions or developer resets.
 
 ## Follow-ups / Open Items
-1. Surface inline file previews (syntax-highlight snippets or image thumbnails) inside the attachment manager once the rendering pipeline is ready (Phase 19 accessibility tooling).
-2. Capture attachment ingestion telemetry (success/failure, file types) and alerting hooks as part of Phase 23 agent operations.
-3. Evaluate encrypting the stored attachment directory ahead of Phase 17 persistence migration to maintain parity once we move to the database-backed store.
-4. Add SwiftUI snapshot tests for the new attachment manager and detail panels when UI testing infra lands (tracked for Phase 20 QA work).
+1. Surface inline file previews (syntax-highlight snippets or image thumbnails) inside the attachment manager once the rendering pipeline is ready (Phase 14 lesson experience redesign).
+2. Capture attachment ingestion telemetry (success/failure, file types) and alerting hooks as part of Phase 21 API reliability and Phase 24 operations uplift.
+3. Evaluate encrypting the stored attachment directory ahead of Phase 18 persistence migration to maintain parity once we move to the database-backed store.
+4. Add SwiftUI snapshot tests for the new attachment manager and detail panels when UI testing infra lands (tracked for Phase 23 QA work).
+5. Refactor shared date formatter utilities into Sendable-safe wrappers to eliminate Swift 6 concurrency warnings (Phase 21).
 
 ## Validation Checklist
 1. `uv run pytest backend/tests/test_assessment_submission_store.py`

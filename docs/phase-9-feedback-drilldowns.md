@@ -20,8 +20,8 @@
 - Captured lesson/quiz/milestone envelopes in `AppViewModel` via new `recordLesson/recordQuiz/recordMilestone` helpers, ensuring the UI stays in sync across tabs.
 
 ## Follow-ups / Open Items
-1. Automate assessment attachments end-to-end (API field, upload flow, client picker, agent ingestion) – scheduled for Phase 10.
-2. Add unit coverage around the new `AssessmentSubmissionDetailView` once UI snapshot testing infrastructure is ready (tracked for Phase 20 automation work).
+1. Automate assessment attachments end-to-end (API field, upload flow, client picker, agent ingestion) – completed in Phase 10.
+2. Add unit coverage around the new `AssessmentSubmissionDetailView` once UI snapshot testing infrastructure is ready (tracked for Phase 21 automation work and Phase 23 QA).
 3. Surface attachment previews (file icons or inline snippets) whenever metadata provides MIME type hints.
 4. Expand curriculum linkage to include milestone backlog entries after the milestone roadmap API lands (Phase 15 dependency).
 5. Evaluate pagination for submissions if attachment manifests significantly increase payload size; current cap remains the latest 12 submissions.

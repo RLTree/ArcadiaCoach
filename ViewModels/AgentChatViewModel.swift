@@ -125,6 +125,7 @@ struct ChatModelCapability {
 
 /// Stores per-session chat transcripts for the Phase 6 sidebar experience.
 /// Phase 6 – Frontend Chat & Accessibility Enhancements (Oct 2025).
+@MainActor
 final class ChatHistoryStore {
     static let shared = ChatHistoryStore()
 

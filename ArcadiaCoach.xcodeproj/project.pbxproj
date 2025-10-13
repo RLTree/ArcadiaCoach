@@ -420,7 +420,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -447,7 +447,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoach;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -471,7 +471,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -492,7 +492,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.ArcadiaCoachTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -553,7 +553,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -611,7 +611,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
