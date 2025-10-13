@@ -16,6 +16,7 @@ private struct ChatModelOption: Identifiable, Hashable {
 
 struct ChatPanel: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var appVM: AppViewModel
     @StateObject private var viewModel = AgentChatViewModel()
     @State private var selectedTranscriptId: String?
     @State private var selectedModelId: String = "gpt-5"
@@ -171,9 +172,13 @@ struct ChatPanel: View {
         }
     }
 
-    // Phase 6 sidebar: surfaces prior transcripts for fast recall.
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 12) {
+            assessmentSidebarSummary
+            if !eloSidebarEntries.isEmpty {
+                eloSidebarSummary
+            }
+            Divider()
             Text("Previous Sessions")
                 .font(.headline)
 
@@ -206,6 +211,157 @@ struct ChatPanel: View {
 
             Spacer()
         }
+    }
+
+    private var assessmentSidebarSummary: some View {
+        let readiness = appVM.assessmentReadinessStatus
+        let statusColor = readiness.tintColor
+        let submissionLabel = appVM.latestAssessmentSubmittedAt?
+            .formatted(date: .abbreviated, time: .shortened) ?? "No submissions recorded"
+        let pendingSubmission = appVM.assessmentHistory.first { $0.grading == nil }
+        let gradingLabel: String
+        if let pendingSubmission {
+            gradingLabel = "Pending since \(pendingSubmission.submittedAt.formatted(date: .abbreviated, time: .shortened))"
+        } else if let gradedAt = appVM.latestAssessmentGradeTimestamp {
+            gradingLabel = gradedAt.formatted(date: .abbreviated, time: .shortened)
+        } else {
+            gradingLabel = "No grading yet"
+        }
+        let averageLabel = appVM.latestGradedAssessment?.averageScoreLabel
+        let feedback = appVM.latestGradedAssessment?.grading?.overallFeedback
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let recentHistory = Array(appVM.assessmentHistory.prefix(2))
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Assessment")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Image(systemName: readiness.systemImageName)
+                    .foregroundStyle(statusColor)
+                Text(readiness.displayText)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(statusColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Submitted: \(submissionLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if let averageLabel {
+                    Text("Latest avg: \(averageLabel)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Text("Graded: \(gradingLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if let feedback, !feedback.isEmpty {
+                    Text("\"\(feedback)\"")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else if readiness == .awaitingGrading {
+                    Text("Arcadia Coach will update ratings after grading completes.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            if !recentHistory.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(recentHistory, id: \.submissionId) { submission in
+                        HStack {
+                            Text(submission.submittedAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            let badgeColor: Color = submission.grading == nil ? .orange : .green
+                            Text(submission.statusLabel)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(badgeColor)
+                        }
+                        if let average = submission.averageScoreLabel, submission.grading != nil {
+                            Text("Avg \(average)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else if submission.grading == nil {
+                            Text("Grading in progress")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+    }
+
+    @ViewBuilder
+    private var eloSidebarSummary: some View {
+        let entries = eloSidebarEntries
+        if entries.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ELO Snapshot")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ForEach(entries.prefix(4), id: \.label) { entry in
+                    HStack {
+                        Text(entry.label)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(entry.value)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+
+                if entries.count > 4 {
+                    Text("+\(entries.count - 4) more categories")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let stamp = appVM.latestAssessmentGradeTimestamp {
+                    Text("Calibrated \(stamp.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else if appVM.assessmentHistory.first(where: { $0.grading == nil }) != nil {
+                    Text("Ratings refresh once grading finishes.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(0.03))
+            )
+        }
+    }
+
+    private var eloSidebarEntries: [(label: String, value: Int)] {
+        let labels = categoryLabels
+        return appVM.game.elo
+            .sorted { $0.value > $1.value }
+            .map { (labels[$0.key] ?? $0.key, $0.value) }
+    }
+
+    private var categoryLabels: [String:String] {
+        guard let plan = appVM.eloPlan else { return [:] }
+        return Dictionary(uniqueKeysWithValues: plan.categories.map { ($0.key, $0.label) })
     }
 
     private func summaryCard(for summary: ChatTranscriptSummary, isActive: Bool) -> some View {

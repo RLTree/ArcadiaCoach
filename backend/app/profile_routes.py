@@ -19,6 +19,7 @@ from .agent_models import (
     OnboardingCurriculumPayload,
     SkillRatingPayload,
 )
+from .assessment_submission import submission_payload, submission_store
 from .learner_profile import LearnerProfile, profile_store
 
 
@@ -133,6 +134,9 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for outcome in result.category_outcomes
             ],
         )
+    submissions = submission_store.list_user(profile.username)
+    submission_payloads = [submission_payload(entry) for entry in submissions[:12]]
+
     return LearnerProfilePayload(
         username=profile.username,
         goal=profile.goal,
@@ -151,6 +155,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         curriculum_plan=curriculum_payload,
         onboarding_assessment=assessment_payload,
         onboarding_assessment_result=assessment_result_payload,
+        assessment_submissions=submission_payloads,
     )
 
 

@@ -204,6 +204,7 @@ class LearnerProfilePayload(BaseModel):
     curriculum_plan: Optional[OnboardingCurriculumPayload] = None
     onboarding_assessment: Optional[OnboardingAssessmentPayload] = None
     onboarding_assessment_result: Optional[AssessmentGradingPayload] = None
+    assessment_submissions: List[AssessmentSubmissionPayload] = Field(default_factory=list)
 
 
 class LearnerProfileGetResponse(BaseModel):

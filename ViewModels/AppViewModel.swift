@@ -10,6 +10,8 @@ final class AppViewModel: ObservableObject {
     @Published var curriculumPlan: OnboardingCurriculumPlan?
     @Published var onboardingAssessment: OnboardingAssessment?
     @Published var assessmentResult: AssessmentGradingResult?
+    // Phase 8 – Track submission/grading history for dashboard + chat surfaces.
+    @Published var assessmentHistory: [AssessmentSubmissionRecord] = []
     @Published var assessmentResponses: [String:String] = [:]
     @Published var showingAssessmentFlow: Bool = false
 
@@ -35,6 +37,7 @@ final class AppViewModel: ObservableObject {
                 curriculumPlan = nil
                 onboardingAssessment = nil
                 assessmentResult = nil
+                assessmentHistory = []
                 error = nil
             } else {
                 error = serviceError.localizedDescription
@@ -168,6 +171,7 @@ final class AppViewModel: ObservableObject {
         curriculumPlan = nil
         onboardingAssessment = nil
         assessmentResult = nil
+        assessmentHistory = []
         assessmentResponses.removeAll()
         showingAssessmentFlow = false
     }
@@ -178,11 +182,58 @@ final class AppViewModel: ObservableObject {
     }
 
     var awaitingAssessmentResults: Bool {
+        if let pending = assessmentHistory.first, pending.grading == nil {
+            return true
+        }
         guard let bundle = onboardingAssessment else { return false }
         if bundle.status == .completed {
             return assessmentResult == nil
         }
         return false
+    }
+
+    enum AssessmentReadinessStatus {
+        case notGenerated
+        case pendingStart
+        case inProgress
+        case awaitingGrading
+        case ready
+    }
+
+    var assessmentReadinessStatus: AssessmentReadinessStatus {
+        if assessmentHistory.first(where: { $0.grading == nil }) != nil {
+            return .awaitingGrading
+        }
+        if let onboarding = onboardingAssessment {
+            switch onboarding.status {
+            case .pending:
+                return .pendingStart
+            case .inProgress:
+                return .inProgress
+            case .completed:
+                return .ready
+            }
+        }
+        if !assessmentHistory.isEmpty {
+            return .ready
+        }
+        return .notGenerated
+    }
+
+    var latestAssessmentSubmission: AssessmentSubmissionRecord? {
+        assessmentHistory.first
+    }
+
+    var latestGradedAssessment: AssessmentSubmissionRecord? {
+        assessmentHistory.first(where: { $0.grading != nil })
+    }
+
+    var latestAssessmentGradeTimestamp: Date? {
+        latestGradedAssessment?.grading?.evaluatedAt
+    }
+
+    var latestAssessmentSubmittedAt: Date? {
+        latestAssessmentSubmission?.submittedAt
     }
 
     private func alignEloSnapshotWithPlan() {
@@ -201,6 +252,7 @@ final class AppViewModel: ObservableObject {
         curriculumPlan = snapshot.curriculumPlan
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult
+        assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }
         alignEloSnapshotWithPlan()
         pruneAssessmentResponses()
     }
@@ -230,15 +282,62 @@ final class AppViewModel: ObservableObject {
         return items
     }
 
-    private func submissionMetadata() -> [String: String] {
-        var metadata: [String: String] = ["platform": "macOS"]
-        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String, !version.isEmpty {
-            metadata["client_version"] = version
-        }
+private func submissionMetadata() -> [String: String] {
+    var metadata: [String: String] = ["platform": "macOS"]
+    if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String, !version.isEmpty {
+        metadata["client_version"] = version
+    }
         if let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String, !build.isEmpty {
             metadata["build"] = build
         }
         return metadata
     }
 
+}
+
+extension AppViewModel.AssessmentReadinessStatus {
+    var displayText: String {
+        switch self {
+        case .awaitingGrading:
+            return "Awaiting grading"
+        case .pendingStart:
+            return "Not started"
+        case .inProgress:
+            return "In progress"
+        case .ready:
+            return "Ready"
+        case .notGenerated:
+            return "Not generated"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .awaitingGrading:
+            return "hourglass"
+        case .pendingStart:
+            return "square.and.pencil"
+        case .inProgress:
+            return "play.circle"
+        case .ready:
+            return "checkmark.circle"
+        case .notGenerated:
+            return "questionmark.circle"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .awaitingGrading:
+            return .orange
+        case .pendingStart:
+            return .orange
+        case .inProgress:
+            return .blue
+        case .ready:
+            return .green
+        case .notGenerated:
+            return .secondary
+        }
+    }
 }

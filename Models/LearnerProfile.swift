@@ -21,6 +21,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
     var eloSnapshot: [String:Int]
     var curriculumPlan: OnboardingCurriculumPlan?
     var onboardingAssessment: OnboardingAssessment?
+    var assessmentSubmissions: [AssessmentSubmissionRecord] = []
     var lastUpdated: Date
 
     var id: String { username }
@@ -37,6 +38,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
         eloSnapshot: [:],
         curriculumPlan: nil,
         onboardingAssessment: nil,
+        assessmentSubmissions: [],
         lastUpdated: .distantPast
     )
 }

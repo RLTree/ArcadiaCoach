@@ -98,6 +98,15 @@ final class BackendService {
         var openaiFileId: String?
     }
 
+    private struct LegacyLearnerProfileSnapshot: Decodable {
+        var username: String
+        var skillRatings: [SkillRating]
+        var eloCategoryPlan: EloCategoryPlan?
+        var curriculumPlan: OnboardingCurriculumPlan?
+        var onboardingAssessment: OnboardingAssessment?
+        var onboardingAssessmentResult: AssessmentGradingResult?
+    }
+
     struct OnboardingStatusSnapshot: Decodable {
         var username: String
         var planReady: Bool
@@ -191,9 +200,31 @@ final class BackendService {
         }
 
         do {
-            return try decoder.decode(LearnerProfileSnapshot.self, from: data)
+            return try decodeProfileSnapshot(from: data)
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    private static func decodeProfileSnapshot(from data: Data) throws -> LearnerProfileSnapshot {
+        do {
+            return try decoder.decode(LearnerProfileSnapshot.self, from: data)
+        } catch {
+            let primaryError = error
+            do {
+                let legacy = try decoder.decode(LegacyLearnerProfileSnapshot.self, from: data)
+                return LearnerProfileSnapshot(
+                    username: legacy.username,
+                    skillRatings: legacy.skillRatings,
+                    eloCategoryPlan: legacy.eloCategoryPlan,
+                    curriculumPlan: legacy.curriculumPlan,
+                    onboardingAssessment: legacy.onboardingAssessment,
+                    onboardingAssessmentResult: legacy.onboardingAssessmentResult,
+                    assessmentSubmissions: []
+                )
+            } catch {
+                throw primaryError
+            }
         }
     }
 
@@ -313,7 +344,7 @@ final class BackendService {
         }
 
         do {
-            return try decoder.decode(OnboardingStatusSnapshot.self, from: data)
+        return try decoder.decode(OnboardingStatusSnapshot.self, from: data)
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)
         }
@@ -565,6 +596,11 @@ final class BackendService {
         }
 
         do {
+            if Result.self == LearnerProfileSnapshot.self {
+                let snapshot = try decodeProfileSnapshot(from: data)
+                // swiftlint:disable:next force_cast
+                return snapshot as! Result
+            }
             return try decoder.decode(Result.self, from: data)
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)

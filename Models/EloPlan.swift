@@ -88,4 +88,5 @@ struct LearnerProfileSnapshot: Codable {
     var curriculumPlan: OnboardingCurriculumPlan?
     var onboardingAssessment: OnboardingAssessment?
     var onboardingAssessmentResult: AssessmentGradingResult?
+    var assessmentSubmissions: [AssessmentSubmissionRecord] = []
 }

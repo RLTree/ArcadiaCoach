@@ -46,6 +46,7 @@ struct HomeView: View {
 
                 ChatPanel()
                     .environmentObject(settings)
+                    .environmentObject(appVM)
                     .tabItem { Label("Agent Chat", systemImage: "bubble.left.and.bubble.right") }
                     .tag(MainTab.chat)
 
@@ -252,15 +253,31 @@ struct HomeView: View {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 18) {
                         header
+                        assessmentSummaryCard
                         if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
                             assessmentBanner(status: bundle.status)
                         }
-                        if let result = appVM.assessmentResult {
+                        if let result = appVM.assessmentResult ?? appVM.latestGradedAssessment?.grading {
                             assessmentResultsCard(result: result)
                         }
+                        assessmentHistorySection
                         if !settings.minimalMode && !allEloItems.isEmpty {
-                            WidgetStatRowView(props: .init(items: allEloItems))
-                                .environmentObject(settings)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("Current ELO Ratings", systemImage: "chart.bar")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
+                                if let stamp = appVM.latestAssessmentGradeTimestamp {
+                                    Text("Calibrated \(stamp.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else if let pending = appVM.latestAssessmentSubmittedAt {
+                                    Text("Awaiting grading for submission on \(pending.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                WidgetStatRowView(props: .init(items: allEloItems))
+                                    .environmentObject(settings)
+                            }
                         }
                         if let plan = appVM.eloPlan, !plan.categories.isEmpty {
                             EloPlanSummaryView(plan: plan)
@@ -365,6 +382,181 @@ struct HomeView: View {
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private var assessmentSummaryCard: some View {
+        let pendingSubmission = appVM.assessmentHistory.first { $0.grading == nil }
+        let readiness = appVM.assessmentReadinessStatus
+        let statusText = readiness.displayText
+        let statusIcon = readiness.systemImageName
+        let statusColor = readiness.tintColor
+
+        let submissionLabel = appVM.latestAssessmentSubmittedAt?
+            .formatted(date: .abbreviated, time: .shortened) ?? "No submissions yet"
+
+        let gradingLabel: String = {
+            if let pendingSubmission {
+                return "Pending since \(pendingSubmission.submittedAt.formatted(date: .abbreviated, time: .shortened))"
+            }
+            if let gradedAt = appVM.latestAssessmentGradeTimestamp {
+                if let average = appVM.latestGradedAssessment?.averageScoreLabel {
+                    return "\(average) average • \(gradedAt.formatted(date: .abbreviated, time: .shortened))"
+                }
+                return gradedAt.formatted(date: .abbreviated, time: .shortened)
+            }
+            return "No grading yet"
+        }()
+
+        let latestFeedback = appVM.latestGradedAssessment?.grading?.overallFeedback
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center) {
+                Label("Assessment Status", systemImage: "checkmark.seal")
+                    .labelStyle(.titleAndIcon)
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Label(statusText, systemImage: statusIcon)
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(statusColor.opacity(0.18), in: Capsule())
+                    .foregroundStyle(statusColor)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Last submission", systemImage: "tray.and.arrow.down.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(submissionLabel)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Label("Last grading", systemImage: "chart.bar.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(gradingLabel)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let feedback = latestFeedback, !feedback.isEmpty {
+                Divider()
+                Text("Latest feedback: \(feedback)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    @ViewBuilder
+    private var assessmentHistorySection: some View {
+        let history = Array(appVM.assessmentHistory.prefix(6))
+        if history.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Assessment History", systemImage: "clock.arrow.circlepath")
+                        .labelStyle(.titleAndIcon)
+                        .font(.headline)
+                    Spacer()
+                    Text("Newest first")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(history.enumerated()), id: \.element.id) { index, submission in
+                        assessmentHistoryRow(for: submission, index: index + 1)
+                        if index < history.count - 1 {
+                            Divider().padding(.vertical, 10)
+                        }
+                    }
+                }
+
+                if appVM.assessmentHistory.count > history.count {
+                    Text("Showing latest \(history.count) of \(appVM.assessmentHistory.count) submissions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+
+    @ViewBuilder
+    private func assessmentHistoryRow(for submission: AssessmentSubmissionRecord, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("#\(index) · \(submission.submittedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                let isPending = submission.grading == nil
+                let badgeForeground: Color = isPending ? .orange : .green
+                Text(submission.statusLabel)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(badgeForeground.opacity(0.18), in: Capsule())
+                    .foregroundStyle(badgeForeground)
+            }
+
+            HStack(spacing: 12) {
+                Label("\(submission.answeredCount) prompts", systemImage: "list.bullet.rectangle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let average = submission.averageScoreLabel, submission.grading != nil {
+                    Label("\(average) average", systemImage: "percent")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let gradedAt = submission.gradedAt {
+                    Label("Graded \(gradedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let grading = submission.grading {
+                if !grading.overallFeedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(grading.overallFeedback)
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                }
+                let strengths = grading.strengths.prefix(2).joined(separator: ", ")
+                if !strengths.isEmpty {
+                    Text("Strengths: \(strengths)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                let focus = grading.focusAreas.prefix(2).joined(separator: ", ")
+                if !focus.isEmpty {
+                    Text("Focus next: \(focus)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Arcadia Coach is grading this submission.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
