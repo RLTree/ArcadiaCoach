@@ -96,17 +96,7 @@ struct ArcadiaChatbotView: View {
                 if message.role == .assistant {
                     avatar(systemName: "sparkles")
                 }
-                Text(message.text)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(bubbleBackground(for: message.role))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
-                    .frame(maxWidth: 420, alignment: message.role == .user ? .trailing : .leading)
+                messageBubble(for: message)
                 if message.role == .user {
                     avatar(systemName: "person.fill")
                 }
@@ -138,6 +128,31 @@ struct ArcadiaChatbotView: View {
         case .user:
             return AnyShapeStyle(Color.accentColor.opacity(0.15))
         }
+    }
+
+    @ViewBuilder
+    private func messageBubble(for message: ChatMessage) -> some View {
+        let alignment: Alignment = message.role == .user ? .trailing : .leading
+        Group {
+            if let attributed = try? AttributedString(
+                markdown: message.text,
+                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            ) {
+                Text(attributed)
+            } else {
+                Text(message.text)
+            }
+        }
+        .font(.body)
+        .foregroundColor(.primary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(bubbleBackground(for: message.role))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .frame(maxWidth: 420, alignment: alignment)
     }
 
     @ViewBuilder
