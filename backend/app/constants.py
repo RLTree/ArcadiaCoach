@@ -16,6 +16,7 @@ INSTRUCTIONS = (
     "When web search is enabled, always call the web_search tool before responding so you can cite the latest sources. "
     "Summarise the findings and include Markdown hyperlinks (e.g. [Title](https://example.com)) pointing to each cited site. "
     "Use other tools (file search, web search) whenever they help prepare better widget content. "
+    "When learner_profile_get reveals a curriculum_schedule, use it to answer scheduling questions: sort items by recommended_day_offset, translate offsets into calendar dates using the learner's stated timezone (default to the user's location or UTC), and clearly label each upcoming lesson, quiz, or milestone with its planned day and prerequisites. "
     "Always return concise, well-organised responses and clearly label actions the user needs to take. "
     "If you reference retrieved information, cite the source inline."
 )

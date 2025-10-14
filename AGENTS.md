@@ -14,6 +14,7 @@
 - Backend lint/tests: `cd backend && uv run ruff check && uv run pytest`.
 - macOS client: `open ArcadiaCoach.xcodeproj` → build/run the **ArcadiaCoach** scheme (Debug for development, Release for distribution).
 - Swift unit tests: run `swift test` from the repository root so model + view-model coverage executes.
+- Always open `ArcadiaCoach.xcodeproj` and build the **ArcadiaCoach** scheme before shipping changes; `swift test` can pass while an actual Xcode build fails due to UI or integration issues, so treat the full app build as part of the standard test matrix.
 
 ## Coding Style & Naming Conventions
 - Python: Black/PEP 8, 4-space indents, snake_case. Keep docstrings concise and run `uv run ruff check` plus `uv run pytest` before pushing.
