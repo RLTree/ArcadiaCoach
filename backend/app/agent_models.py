@@ -113,11 +113,20 @@ class SequencedWorkItemPayload(BaseModel):
     expected_outcome: Optional[str] = None
 
 
+class ScheduleWarningPayload(BaseModel):
+    code: str
+    message: str
+    detail: Optional[str] = None
+    generated_at: datetime
+
+
 class CurriculumSchedulePayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     time_horizon_days: int = Field(default=14, ge=1)
     cadence_notes: Optional[str] = None
     items: List[SequencedWorkItemPayload] = Field(default_factory=list)
+    is_stale: bool = False
+    warnings: List[ScheduleWarningPayload] = Field(default_factory=list)
 
 
 class OnboardingCurriculumPayload(BaseModel):

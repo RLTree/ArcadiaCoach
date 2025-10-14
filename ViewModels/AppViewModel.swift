@@ -1,4 +1,36 @@
 import SwiftUI
+import OSLog
+
+struct TelemetryEntry: Identifiable, Codable, Equatable {
+    var name: String
+    var timestamp: Date
+    var metadata: [String: String]
+
+    var id: String { "\(name)::\(timestamp.timeIntervalSince1970)" }
+}
+
+@MainActor
+final class TelemetryReporter {
+    static let shared = TelemetryReporter()
+
+    private let logger = Logger(subsystem: "com.arcadiacoach.app", category: "Telemetry")
+    private let maxEntries = 50
+    private(set) var recentEntries: [TelemetryEntry] = []
+
+    func record(event name: String, metadata: [String: String] = [:]) {
+        let entry = TelemetryEntry(name: name, timestamp: Date(), metadata: metadata)
+        recentEntries.append(entry)
+        if recentEntries.count > maxEntries {
+            recentEntries.removeFirst(recentEntries.count - maxEntries)
+        }
+
+        if metadata.isEmpty {
+            logger.debug("Telemetry \(name, privacy: .public)")
+        } else {
+            logger.debug("Telemetry \(name, privacy: .public) -> \(metadata.description, privacy: .public)")
+        }
+    }
+}
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -61,6 +93,14 @@ final class AppViewModel: ObservableObject {
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUsername.isEmpty else { return }
         scheduleRefreshing = true
+        let startedAt = Date()
+        TelemetryReporter.shared.record(
+            event: "schedule_refresh_started",
+            metadata: [
+                "username": trimmedUsername,
+                "refresh": "true",
+            ]
+        )
         defer { scheduleRefreshing = false }
         do {
             let schedule = try await BackendService.fetchCurriculumSchedule(
@@ -70,11 +110,40 @@ final class AppViewModel: ObservableObject {
             )
             curriculumSchedule = schedule
             error = nil
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            TelemetryReporter.shared.record(
+                event: "schedule_refresh_completed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "durationMs": "\(durationMs)",
+                    "itemCount": "\(schedule.items.count)",
+                    "isStale": schedule.isStale ? "true" : "false",
+                    "warningCount": "\(schedule.warnings.count)",
+                ]
+            )
         } catch let serviceError as BackendServiceError {
             error = serviceError.localizedDescription
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            TelemetryReporter.shared.record(
+                event: "schedule_refresh_failed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "durationMs": "\(durationMs)",
+                    "error": serviceError.localizedDescription,
+                ]
+            )
         } catch {
             let nsError = error as NSError
             self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            TelemetryReporter.shared.record(
+                event: "schedule_refresh_failed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "durationMs": "\(durationMs)",
+                    "error": self.error ?? "unknown",
+                ]
+            )
         }
     }
 

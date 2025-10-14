@@ -93,6 +93,15 @@ class SequencedWorkItem(BaseModel):
     effort_level: Literal["light", "moderate", "focus"] = "moderate"
 
 
+class ScheduleWarning(BaseModel):
+    """Warning surfaced when the schedule falls back to previously generated data."""
+
+    code: Literal["refresh_failed", "stale_schedule"] = "refresh_failed"
+    message: str
+    detail: Optional[str] = None
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class CurriculumSchedule(BaseModel):
     """Rolling schedule for upcoming lessons, quizzes, and milestones."""
 
@@ -100,6 +109,8 @@ class CurriculumSchedule(BaseModel):
     time_horizon_days: int = Field(default=14, ge=1)
     cadence_notes: Optional[str] = None
     items: List[SequencedWorkItem] = Field(default_factory=list)
+    is_stale: bool = Field(default=False)
+    warnings: List[ScheduleWarning] = Field(default_factory=list)
 
 
 class AssessmentTask(BaseModel):
@@ -397,6 +408,7 @@ __all__ = [
     "CurriculumModule",
     "CurriculumPlan",
     "CurriculumSchedule",
+    "ScheduleWarning",
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",

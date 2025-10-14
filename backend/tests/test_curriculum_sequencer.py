@@ -119,6 +119,8 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
         later.recommended_day_offset >= earlier.recommended_day_offset
         for earlier, later in zip(schedule.items, schedule.items[1:])
     )
+    assert schedule.is_stale is False
+    assert schedule.warnings == []
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:
@@ -166,4 +168,5 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule is not None
     assert len(payload.curriculum_schedule.items) == 2
     assert payload.curriculum_schedule.items[1].prerequisites == ["lesson-intro"]
-
+    assert payload.curriculum_schedule.is_stale is False
+    assert payload.curriculum_schedule.warnings == []

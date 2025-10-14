@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import math
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Sequence
@@ -16,6 +18,9 @@ from .learner_profile import (
     SequencedWorkItem,
     profile_store,
 )
+from .telemetry import emit_event
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_DAILY_CAP_MINUTES = 120
@@ -298,7 +303,33 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
     profile = profile_store.get(username)
     if profile is None:
         raise LookupError(f"Learner profile '{username}' was not found.")
-    schedule = sequencer.build_schedule(profile)
+    start = time.perf_counter()
+    try:
+        schedule = sequencer.build_schedule(profile)
+    except Exception as exc:  # noqa: BLE001
+        duration_ms = (time.perf_counter() - start) * 1000.0
+        emit_event(
+            "schedule_generation",
+            username=username,
+            status="error",
+            duration_ms=round(duration_ms, 2),
+            item_count=0,
+            error=str(exc),
+            exception_type=exc.__class__.__name__,
+        )
+        logger.exception("Failed to generate schedule for %s", username)
+        raise
+    duration_ms = (time.perf_counter() - start) * 1000.0
+    schedule.is_stale = False
+    schedule.warnings.clear()
+    emit_event(
+        "schedule_generation",
+        username=username,
+        status="success",
+        duration_ms=round(duration_ms, 2),
+        item_count=len(schedule.items),
+        horizon_days=schedule.time_horizon_days,
+    )
     return profile_store.set_curriculum_schedule(username, schedule)
 
 

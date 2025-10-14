@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Query, status
 
 from .agent_models import (
@@ -11,6 +14,7 @@ from .agent_models import (
     AssessmentTaskGradePayload,
     CurriculumModulePayload,
     CurriculumSchedulePayload,
+    ScheduleWarningPayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
@@ -23,10 +27,12 @@ from .agent_models import (
 )
 from .assessment_submission import submission_payload, submission_store
 from .curriculum_sequencer import generate_schedule_for_user
-from .learner_profile import CurriculumSchedule, LearnerProfile, profile_store
+from .learner_profile import CurriculumSchedule, LearnerProfile, ScheduleWarning, profile_store
+from .telemetry import emit_event
 
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
+logger = logging.getLogger(__name__)
 
 
 def _schedule_payload(schedule: CurriculumSchedule | None) -> CurriculumSchedulePayload | None:
@@ -52,6 +58,16 @@ def _schedule_payload(schedule: CurriculumSchedule | None) -> CurriculumSchedule
                 expected_outcome=item.expected_outcome,
             )
             for item in schedule.items
+        ],
+        is_stale=schedule.is_stale,
+        warnings=[
+            ScheduleWarningPayload(
+                code=warning.code,
+                message=warning.message,
+                detail=warning.detail,
+                generated_at=warning.generated_at,
+            )
+            for warning in schedule.warnings
         ],
     )
 
@@ -243,6 +259,9 @@ def get_curriculum_schedule(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Learner profile for '{username}' was not found.",
         )
+    fallback_schedule: CurriculumSchedule | None = None
+    previous_schedule = profile.curriculum_schedule.model_copy(deep=True) if profile.curriculum_schedule else None
+    refresh_error: Exception | None = None
     if refresh or profile.curriculum_schedule is None:
         try:
             profile = generate_schedule_for_user(username)
@@ -252,17 +271,77 @@ def get_curriculum_schedule(
                 detail=str(exc),
             ) from exc
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
-            ) from exc
+            refresh_error = exc
+            if previous_schedule is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+        except Exception as exc:  # noqa: BLE001
+            refresh_error = exc
+            if previous_schedule is None:
+                logger.exception("Unexpected failure regenerating schedule for %s", username)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to regenerate the curriculum schedule. Try again shortly.",
+                ) from exc
+        if refresh_error is not None and previous_schedule is not None:
+            logger.warning(
+                "Falling back to previous schedule for %s after refresh failure: %s",
+                username,
+                refresh_error,
+            )
+            fallback_schedule = _schedule_with_warning(previous_schedule, refresh_error)
+            profile = profile_store.set_curriculum_schedule(username, fallback_schedule)
+            emit_event(
+                "schedule_refresh_fallback",
+                username=username,
+                status="fallback",
+                had_prior_schedule=True,
+                error=str(refresh_error),
+                exception_type=refresh_error.__class__.__name__,
+                item_count=len(fallback_schedule.items),
+                warnings=len(fallback_schedule.warnings),
+            )
+        elif refresh_error is None:
+            emit_event(
+                "schedule_refresh",
+                username=username,
+                status="success",
+                regenerated=True,
+                item_count=len(profile.curriculum_schedule.items) if profile.curriculum_schedule else 0,
+                is_stale=bool(profile.curriculum_schedule.is_stale) if profile.curriculum_schedule else False,
+            )
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+    if fallback_schedule is not None:
+        schedule_payload.is_stale = True
+    elif not refresh and profile.curriculum_schedule is not None:
+        emit_event(
+            "schedule_refresh",
+            username=username,
+            status="skipped",
+            regenerated=False,
+            item_count=len(profile.curriculum_schedule.items),
+            is_stale=bool(profile.curriculum_schedule.is_stale),
+        )
     return schedule_payload
+
+
+def _schedule_with_warning(schedule: CurriculumSchedule, error: Exception) -> CurriculumSchedule:
+    warning = ScheduleWarning(
+        code="refresh_failed",
+        message=f"Using the previous schedule (refresh failed at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}).",
+        detail=str(error),
+    )
+    updated = schedule.model_copy(deep=True)
+    updated.is_stale = True
+    updated.warnings = (updated.warnings + [warning])[-5:]
+    return updated
 
 
 __all__ = ["router"]

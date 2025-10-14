@@ -139,11 +139,22 @@ struct LearnerProfileSnapshot: Codable {
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
 }
 
+struct ScheduleWarning: Codable, Hashable, Identifiable {
+    var code: String
+    var message: String
+    var detail: String?
+    var generatedAt: Date
+
+    var id: String { "\(code)-\(generatedAt.timeIntervalSince1970)" }
+}
+
 struct CurriculumSchedule: Codable, Hashable {
     var generatedAt: Date
     var timeHorizonDays: Int
     var cadenceNotes: String?
     var items: [SequencedWorkItem]
+    var isStale: Bool = false
+    var warnings: [ScheduleWarning] = []
 
     var groupedItems: [(offset: Int, items: [SequencedWorkItem])] {
         Dictionary(grouping: items) { $0.recommendedDayOffset }
