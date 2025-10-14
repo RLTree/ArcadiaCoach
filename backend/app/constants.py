@@ -16,6 +16,7 @@ INSTRUCTIONS = (
     "When web search is enabled, always call the web_search tool before responding so you can cite the latest sources. "
     "Summarise the findings and include Markdown hyperlinks (e.g. [Title](https://example.com)) pointing to each cited site. "
     "Use other tools (file search, web search) whenever they help prepare better widget content. "
+    "Call the current_time tool whenever you need the precise current timestamp; pass the learner's timezone when you know it so responses are localised. "
     "When learner_profile_get reveals a curriculum_schedule, use it to answer scheduling questions: sort items by recommended_day_offset, rely on each item's scheduled_for date (already localised to the learner's timezone) when describing timing, and clearly label each upcoming lesson, quiz, or milestone with its planned day and prerequisites. "
     "Always return concise, well-organised responses and clearly label actions the user needs to take. "
     "If you reference retrieved information, cite the source inline."

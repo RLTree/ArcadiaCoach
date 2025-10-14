@@ -404,6 +404,33 @@ def learner_elo_category_plan_set(
     return LearnerEloCategoryPlanResponse(username=profile.username, plan=payload.elo_category_plan)
 
 
+@function_tool(strict_mode=False)
+def current_time(timezone_name: str | None = None, format: str | None = None) -> Dict[str, str]:
+    """Return the current time. Provide an IANA timezone (e.g., 'America/Los_Angeles') to localise the output."""
+    tz = timezone.utc
+    tz_key = "UTC"
+    if timezone_name:
+        try:
+            tz = ZoneInfo(timezone_name)
+            tz_key = tz.key  # type: ignore[attr-defined]
+        except ZoneInfoNotFoundError:
+            tz = timezone.utc
+            tz_key = "UTC"
+    now = datetime.now(tz)
+    if format:
+        try:
+            display = now.strftime(format)
+        except Exception:  # noqa: BLE001
+            display = now.strftime("%Y-%m-%d %H:%M:%S %Z")
+    else:
+        display = now.strftime("%A, %B %d, %Y %H:%M:%S %Z")
+    return {
+        "timezone": tz_key,
+        "iso_timestamp": now.isoformat(),
+        "display": display,
+    }
+
+
 AGENT_SUPPORT_TOOLS = [
     progress_start,
     progress_advance,
@@ -412,6 +439,7 @@ AGENT_SUPPORT_TOOLS = [
     learner_profile_update,
     learner_memory_write,
     learner_elo_category_plan_set,
+    current_time,
 ]
 
 __all__ = [
@@ -423,4 +451,5 @@ __all__ = [
     "learner_profile_update",
     "progress_advance",
     "progress_start",
+    "current_time",
 ]

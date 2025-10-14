@@ -180,7 +180,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
    - Centralise prompt overlays so GPT-5/Mini always run `file_search` on attachments, GPT-5 Codex leans on inline previews, and web-enabled turns call `web_search` with Markdown hyperlink citations.
    - Add session resume support in the macOS client (active transcript tracking, sidebar ordering, resume button) without resetting backend threads.
    - Render chat bubbles with Markdown-aware text so citations and links are clickable inside the app.
-   - Follow-ups: add automated tests to confirm `file_search`/`web_search` tool invocation sequences, track hyperlink rendering inside MCP widgets, and capture telemetry on tool success rates (see Phases 24 & 27).
+   - Follow-ups: add automated tests to confirm `file_search`/`web_search` tool invocation sequences, track hyperlink rendering inside MCP widgets, capture telemetry on tool success rates (see Phases 24 & 27), and decouple reasoning effort selection from model selection so users can mix any reasoning tier with any supported model.
 9. **Phase 8 – Dashboard Assessment History** ✅ *(completed October 13, 2025; see `docs/phase-8-dashboard-assessment-history.md`)*
    - Add dashboard readiness summary, submission history list, and calibrated ELO callouts, mirrored in the chat sidebar for continuity.
    - Extend backend profile payloads and Swift models with assessment submission history plus legacy-safe decoding to avoid regressions during rollout.

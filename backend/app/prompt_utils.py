@@ -153,18 +153,25 @@ def schedule_summary_from_profile(profile: Mapping[str, Any] | None, *, max_item
 
 
 def _resolve_anchor_date(schedule: Mapping[str, Any], tz: ZoneInfo) -> datetime.date:
-    from datetime import date  # local import to avoid circularity for typing
+    from datetime import date  # local import for typing clarity
 
     anchor_raw = schedule.get("anchor_date")
     if isinstance(anchor_raw, str):
         try:
-            return date.fromisoformat(anchor_raw)
+            anchor_date = date.fromisoformat(anchor_raw)
         except ValueError:
-            pass
+            anchor_date = None
+        else:
+            stored_tz = schedule.get("timezone")
+            if stored_tz and stored_tz == getattr(tz, "key", str(tz)):
+                return anchor_date
+            # if stored timezone differs, fall through to recompute using generated_at
+
     generated_raw = schedule.get("generated_at")
     if isinstance(generated_raw, str):
         parsed = _parse_iso_datetime(generated_raw)
         return parsed.astimezone(tz).date()
+
     return datetime.now(tz).date()
 
 
