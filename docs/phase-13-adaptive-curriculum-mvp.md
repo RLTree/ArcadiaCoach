@@ -14,6 +14,7 @@
 - Shipped `POST /api/profile/{username}/schedule/adjust`, updating schedules on demand, pruning stale adjustments, and emitting structured `schedule_adjustment` events.
 - Extended the macOS dashboard to highlight deferred items, surface a reschedule menu (1/3/7 day pushes), and block duplicate actions while adjustments are in flight.
 - Introduced client-side telemetry for reschedule starts/completions/failures and refreshed Swift models/UI to decode and render the new `userAdjusted` state.
+- Short-circuited unchanged schedule regenerations so refresh calls return instantly instead of rewriting the profile store on every defer.
 
 ## Validation & Testing
 - **Backend unit tests:** run `uv run pytest` inside `backend/`. This exercises sequencer adjustments (`test_schedule_generation_respects_adjustments`, `test_schedule_adjustment_endpoint_updates_schedule`) and guards the new telemetry fan-out.
@@ -22,6 +23,8 @@
 - **Telemetry review:** tail the backend logs for `schedule_generation_post_onboarding`, `schedule_adjustments_applied`, and `schedule_adjustment` events to confirm adjustments are captured end-to-end.
 
 ## Follow-ups
+- Localise schedule presentation to the learner’s timezone and update prompts/dashboard summaries accordingly (Phase 14).
 - Allow pull-forward and free-form date selection once milestone dependencies land (Phase 14).
+- Watch `schedule_generation` telemetry for any long-running refreshes despite the new short-circuit and add alerts if duration spikes recur.
 - Track per-category defer trends and feed them into pacing heuristics when the adaptive sequencer evolves (Phase 15).
 - Add automated UI coverage for the reschedule menu and adjusted styling, and expand backend coverage to include telemetry fan-out assertions (Phase 24).
