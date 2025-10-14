@@ -219,7 +219,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Update prompts and progress overlays so agent messaging references real dates/times and respects daylight-saving changes.
     - Add regression coverage and telemetry to confirm schedules render with the correct locale-aware formats.
 16. **Phase 15 – Adaptive Curriculum Evolution**
-    - Extend the curriculum generator to cover multi-week plans with rationale history, surfacing how adjustments relate to learner goals and performance trends.
+    - Extend the curriculum generator to cover multi-months plans with rationale history, surfacing how adjustments relate to learner goals and performance trends.
     - Layer in pacing controls so the sequencer can allocate effort across categories intelligently and react to deferrals.
     - Add changelog-style explanations in the macOS client so learners understand why the plan evolved.
 17. **Phase 16 – Milestone Guidance & Adaptive Roadmapping**

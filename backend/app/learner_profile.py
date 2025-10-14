@@ -437,7 +437,7 @@ class LearnerProfileStore:
         if trimmed and getattr(profile, attr) != trimmed:
             setattr(profile, attr, trimmed)
             return True
-            return False
+        return False
 
     def _load(self) -> None:
         if not self._path.exists():
