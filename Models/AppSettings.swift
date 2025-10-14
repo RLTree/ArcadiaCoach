@@ -18,4 +18,5 @@ final class AppSettings: ObservableObject {
     @AppStorage("learnerGoal") var learnerGoal: String = ""
     @AppStorage("learnerUseCase") var learnerUseCase: String = ""
     @AppStorage("learnerStrengths") var learnerStrengths: String = ""
+    @AppStorage("learnerTimezone") var learnerTimezone: String = TimeZone.current.identifier
 }

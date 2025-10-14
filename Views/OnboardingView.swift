@@ -147,6 +147,9 @@ struct OnboardingView: View {
         learningGoal = settings.learnerGoal
         learningUseCase = settings.learnerUseCase
         learningStrengths = settings.learnerStrengths
+        if settings.learnerTimezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            settings.learnerTimezone = TimeZone.current.identifier
+        }
         if settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             focusedField = Field.username
         } else if settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -163,6 +166,9 @@ struct OnboardingView: View {
         settings.learnerGoal = learningGoal.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.learnerUseCase = learningUseCase.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.learnerStrengths = learningStrengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        if settings.learnerTimezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            settings.learnerTimezone = TimeZone.current.identifier
+        }
 
         let username = settings.arcadiaUsername
         let backend = settings.chatkitBackendURL
@@ -179,7 +185,8 @@ struct OnboardingView: View {
                     username: username,
                     goal: goal,
                     useCase: useCase,
-                    strengths: strengths
+                    strengths: strengths,
+                    timezone: settings.learnerTimezone
                 )
                 onContinue()
             } catch {

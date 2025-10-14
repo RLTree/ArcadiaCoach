@@ -137,6 +137,7 @@ struct LearnerProfileSnapshot: Codable {
     var onboardingAssessment: OnboardingAssessment?
     var onboardingAssessmentResult: AssessmentGradingResult?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
+    var timezone: String?
 }
 
 struct ScheduleWarning: Codable, Hashable, Identifiable {
@@ -151,15 +152,28 @@ struct ScheduleWarning: Codable, Hashable, Identifiable {
 struct CurriculumSchedule: Codable, Hashable {
     var generatedAt: Date
     var timeHorizonDays: Int
+    var timezone: String?
+    var anchorDate: Date?
     var cadenceNotes: String?
     var items: [SequencedWorkItem]
     var isStale: Bool = false
     var warnings: [ScheduleWarning] = []
 
-    var groupedItems: [(offset: Int, items: [SequencedWorkItem])] {
+    struct Group: Hashable, Identifiable {
+        var offset: Int
+        var date: Date?
+        var items: [SequencedWorkItem]
+
+        var id: Int { offset }
+    }
+
+    var groupedItems: [Group] {
         Dictionary(grouping: items) { $0.recommendedDayOffset }
-            .sorted { $0.key < $1.key }
-            .map { (offset: $0.key, items: $0.value.sorted { $0.recommendedMinutes > $1.recommendedMinutes }) }
+            .map { entry -> Group in
+                let sorted = entry.value.sorted { $0.recommendedMinutes > $1.recommendedMinutes }
+                return Group(offset: entry.key, date: sorted.first?.scheduledFor, items: sorted)
+            }
+            .sorted { $0.offset < $1.offset }
     }
 }
 
@@ -222,6 +236,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var focusReason: String?
     var expectedOutcome: String?
     var userAdjusted: Bool = false
+    var scheduledFor: Date?
 
     var id: String { itemId }
 

@@ -135,6 +135,9 @@ struct HomeView: View {
         .onChange(of: settings.learnerStrengths) { _ in
             refreshLearnerProfile()
         }
+        .onChange(of: settings.learnerTimezone) { _ in
+            refreshLearnerProfile()
+        }
         .onChange(of: appVM.requiresAssessment) { required in
             if required {
                 selectedTab = .assessment
@@ -150,6 +153,18 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .developerResetCompleted)) { _ in
             selectedTab = .assessment
             showOnboarding = true
+        }
+        .onReceive(appVM.$learnerTimezone) { timezone in
+            guard let timezone, !timezone.isEmpty else { return }
+            if settings.learnerTimezone != timezone {
+                settings.learnerTimezone = timezone
+            }
+            session.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths,
+                timezone: timezone
+            )
         }
         .sheet(
             item: focusedSubmissionBinding
@@ -399,7 +414,8 @@ struct HomeView: View {
         session.updateProfile(
             goal: settings.learnerGoal,
             useCase: settings.learnerUseCase,
-            strengths: settings.learnerStrengths
+            strengths: settings.learnerStrengths,
+            timezone: settings.learnerTimezone
         )
         Task {
             await appVM.loadProfile(

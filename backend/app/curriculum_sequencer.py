@@ -135,6 +135,7 @@ class CurriculumSequencer:
         return CurriculumSchedule(
             generated_at=datetime.now(timezone.utc),
             time_horizon_days=horizon,
+            timezone=getattr(profile, "timezone", None),
             cadence_notes=cadence_notes,
             items=scheduled_items,
         )

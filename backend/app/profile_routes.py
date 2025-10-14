@@ -164,6 +164,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         goal=profile.goal,
         use_case=profile.use_case,
         strengths=profile.strengths,
+        timezone=profile.timezone,
         knowledge_tags=profile.knowledge_tags,
         recent_sessions=profile.recent_sessions,
         memory_records=profile.memory_records,

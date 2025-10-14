@@ -59,6 +59,7 @@ final class BackendService {
         var goal: String
         var useCase: String?
         var strengths: String?
+        var timezone: String?
         var force: Bool?
     }
 
@@ -135,6 +136,9 @@ final class BackendService {
             if let date = iso8601Basic.date(from: value) {
                 return date
             }
+            if let date = iso8601DateOnly.date(from: value) {
+                return date
+            }
             if let seconds = TimeInterval(value) {
                 return Date(timeIntervalSince1970: seconds)
             }
@@ -163,6 +167,13 @@ final class BackendService {
     private static let iso8601Basic: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    @MainActor
+    private static let iso8601DateOnly: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
         return formatter
     }()
 
@@ -330,7 +341,8 @@ final class BackendService {
                     curriculumSchedule: legacy.curriculumSchedule,
                     onboardingAssessment: legacy.onboardingAssessment,
                     onboardingAssessmentResult: legacy.onboardingAssessmentResult,
-                    assessmentSubmissions: []
+                    assessmentSubmissions: [],
+                    timezone: nil
                 )
             } catch {
                 throw primaryError
@@ -398,6 +410,7 @@ final class BackendService {
         goal: String,
         useCase: String,
         strengths: String,
+        timezone: String,
         force: Bool = false
     ) async throws -> LearnerProfileSnapshot {
         guard let trimmedBase = trimmed(url: baseURL) else {
@@ -410,11 +423,13 @@ final class BackendService {
         }
         let trimmedUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTimezone = timezone.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = OnboardingPlanPayload(
             username: trimmedUsername,
             goal: trimmedGoal,
             useCase: trimmedUseCase.isEmpty ? nil : trimmedUseCase,
             strengths: trimmedStrengths.isEmpty ? nil : trimmedStrengths,
+            timezone: trimmedTimezone.isEmpty ? nil : trimmedTimezone,
             force: force ? true : nil
         )
         return try await post(

@@ -44,6 +44,7 @@ class OnboardingPlanRequest(BaseModel):
     use_case: str = ""
     strengths: str = ""
     force: bool = False
+    timezone: Optional[str] = None
 
 
 class OnboardingStatusResponse(BaseModel):
@@ -196,6 +197,9 @@ async def create_or_refresh_onboarding_plan(
     username = payload.username.strip()
     if not username:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Username cannot be empty.")
+
+    if payload.timezone:
+        profile_store.apply_metadata(username, {"timezone": payload.timezone})
 
     existing = profile_store.get(username)
     if (

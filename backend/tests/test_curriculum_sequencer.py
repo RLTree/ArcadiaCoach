@@ -171,3 +171,6 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule.items[1].prerequisites == ["lesson-intro"]
     assert payload.curriculum_schedule.is_stale is False
     assert payload.curriculum_schedule.warnings == []
+    assert payload.curriculum_schedule.anchor_date is not None
+    assert payload.curriculum_schedule.timezone == "UTC"
+    assert payload.curriculum_schedule.items[0].scheduled_for is not None

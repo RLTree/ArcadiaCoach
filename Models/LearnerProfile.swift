@@ -14,6 +14,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
     var goal: String
     var useCase: String
     var strengths: String
+    var timezone: String?
     var knowledgeTags: [String]
     var recentSessions: [String]
     var memoryRecords: [LearnerMemoryRecord]
@@ -32,6 +33,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
         goal: "",
         useCase: "",
         strengths: "",
+        timezone: nil,
         knowledgeTags: [],
         recentSessions: [],
         memoryRecords: [],

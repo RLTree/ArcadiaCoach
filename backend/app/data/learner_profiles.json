@@ -4,6 +4,7 @@
     "goal": "goal",
     "use_case": "",
     "strengths": "",
+    "timezone": null,
     "knowledge_tags": [],
     "recent_sessions": [],
     "memory_records": [],
@@ -120,6 +121,7 @@
     "curriculum_schedule": {
       "generated_at": "2025-10-14T04:29:12.619832Z",
       "time_horizon_days": 14,
+      "timezone": null,
       "cadence_notes": "Scheduled 11 items across 6 days (~510 minutes total). Emphasis on backend.",
       "items": [
         {

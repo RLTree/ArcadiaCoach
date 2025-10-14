@@ -8,11 +8,17 @@ struct CurriculumScheduleView: View {
     let refreshAction: () -> Void
     let adjustAction: (SequencedWorkItem, Int) -> Void
 
-    private var dateLabelFormatter: DateComponentsFormatter {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day]
-        formatter.unitsStyle = .spellOut
-        return formatter
+    private var scheduleTimeZone: TimeZone? {
+        guard let identifier = schedule.timezone else { return nil }
+        return TimeZone(identifier: identifier)
+    }
+
+    private var timezoneLabel: String? {
+        guard let zone = scheduleTimeZone else { return nil }
+        if let localized = zone.localizedName(for: .generic, locale: .current) {
+            return "\(localized) (\(zone.identifier))"
+        }
+        return zone.identifier
     }
 
     var body: some View {
@@ -27,9 +33,9 @@ struct CurriculumScheduleView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(schedule.groupedItems, id: \.offset) { group in
+            ForEach(schedule.groupedItems) { group in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(dayLabel(for: group.offset))
+                    Text(dayLabel(for: group))
                         .font(.subheadline.bold())
                     ForEach(group.items) { item in
                         itemRow(for: item)
@@ -82,24 +88,31 @@ struct CurriculumScheduleView: View {
 
     @ViewBuilder
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Label("Upcoming Schedule", systemImage: "calendar.badge.clock")
-                .font(.headline)
-            Spacer()
-            Button {
-                refreshAction()
-            } label: {
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .labelStyle(.titleAndIcon)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 12) {
+                Label("Upcoming Schedule", systemImage: "calendar.badge.clock")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    refreshAction()
+                } label: {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                            .labelStyle(.titleAndIcon)
+                    }
                 }
+                .buttonStyle(.bordered)
+                .disabled(isRefreshing)
+                .accessibilityLabel("Refresh curriculum schedule")
             }
-            .buttonStyle(.bordered)
-            .disabled(isRefreshing)
-            .accessibilityLabel("Refresh curriculum schedule")
+            if let tzLabel = timezoneLabel {
+                Text("Times shown in \(tzLabel)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -111,7 +124,7 @@ struct CurriculumScheduleView: View {
                 Label(item.kind.label, systemImage: item.kind.systemImage)
                     .font(.subheadline.bold())
                 if item.userAdjusted {
-                    Label("Rescheduled", systemImage: "arrow.uturn.down.right")
+                    Label("Rescheduled", systemImage: "arrow.uturn.down")
                         .font(.caption.bold())
                         .foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 6)
@@ -218,7 +231,40 @@ struct CurriculumScheduleView: View {
         .animation(.easeInOut(duration: 0.2), value: item.userAdjusted)
     }
 
-    private func dayLabel(for offset: Int) -> String {
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        if let tz = scheduleTimeZone {
+            formatter.timeZone = tz
+        }
+        formatter.setLocalizedDateFormatFromTemplate("EEEE MMMM d")
+        return formatter.string(from: date)
+    }
+
+    private func dayLabel(for group: CurriculumSchedule.Group) -> String {
+        guard let date = group.date else {
+            return fallbackLabel(for: group.offset)
+        }
+        let dateText = formattedDate(date)
+        let tz = scheduleTimeZone ?? TimeZone.current
+        var calendar = Calendar.current
+        calendar.timeZone = tz
+        let todayStart = calendar.startOfDay(for: Date())
+        let targetStart = calendar.startOfDay(for: date)
+        let diff = calendar.dateComponents([.day], from: todayStart, to: targetStart).day ?? group.offset
+        let prefix: String
+        switch diff {
+        case 0:
+            prefix = "Today • "
+        case 1:
+            prefix = "Tomorrow • "
+        default:
+            prefix = ""
+        }
+        return prefix.isEmpty ? dateText : prefix + dateText
+    }
+
+    private func fallbackLabel(for offset: Int) -> String {
         switch offset {
         case ..<0:
             return "Backlog"

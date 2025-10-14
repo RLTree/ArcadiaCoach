@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import List
 
 import pytest
@@ -19,6 +20,7 @@ from app.learner_profile import (
 )
 from app.main import app
 from app.telemetry import TelemetryEvent, clear_listeners, register_listener
+from zoneinfo import ZoneInfo
 
 
 def _category(key: str, weight: float = 1.0) -> EloCategoryDefinition:
@@ -63,6 +65,7 @@ def _profile(username: str) -> LearnerProfile:
         goal="Improve backend reliability.",
         use_case="Automate assessments.",
         strengths="SwiftUI polish",
+        timezone="America/Los_Angeles",
         elo_snapshot={"backend": 1120},
         elo_category_plan=plan,
         curriculum_plan=curriculum,
@@ -94,11 +97,21 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     assert body["is_stale"] is False
     assert body["warnings"] == []
     assert len(body["items"]) >= 1
+    assert body["timezone"] == "America/Los_Angeles"
 
     refreshed = profile_store.get(username)
     assert refreshed is not None
     assert refreshed.curriculum_schedule is not None
     assert refreshed.curriculum_schedule.is_stale is False
+    tz = ZoneInfo("America/Los_Angeles")
+    expected_anchor = refreshed.curriculum_schedule.generated_at.astimezone(tz).date().isoformat()
+    assert body["anchor_date"] == expected_anchor
+    first_item = body["items"][0]
+    scheduled_for = datetime.fromisoformat(first_item["scheduled_for"])
+    assert scheduled_for.tzinfo is not None
+    anchor_date_obj = datetime.strptime(body["anchor_date"], "%Y-%m-%d").date()
+    expected_date = anchor_date_obj + timedelta(days=first_item["recommended_day_offset"])
+    assert scheduled_for.date().isoformat() == expected_date.isoformat()
 
     names = [event.name for event in events]
     assert "schedule_generation" in names

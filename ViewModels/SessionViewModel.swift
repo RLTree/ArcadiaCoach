@@ -16,6 +16,7 @@ final class SessionViewModel: ObservableObject {
     private var profileGoal: String = ""
     private var profileUseCase: String = ""
     private var profileStrengths: String = ""
+    private var profileTimezone: String = TimeZone.current.identifier
 
     func reset(for backendURL: String) async {
         let cacheKey = sessionId ?? "default"
@@ -140,13 +141,19 @@ final class SessionViewModel: ObservableObject {
         if !profileStrengths.isEmpty {
             metadata["strengths"] = profileStrengths
         }
+        if !profileTimezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            metadata["timezone"] = profileTimezone
+        }
         return metadata
     }
 
-    func updateProfile(goal: String, useCase: String, strengths: String) {
+    func updateProfile(goal: String, useCase: String, strengths: String, timezone: String? = nil) {
         profileGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         profileUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
         profileStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let timezone, !timezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            profileTimezone = timezone.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     private func describe(error: Error) -> String {

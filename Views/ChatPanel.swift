@@ -110,21 +110,32 @@ struct ChatPanel: View {
             viewModel.updateProfile(
                 goal: newValue,
                 useCase: settings.learnerUseCase,
-                strengths: settings.learnerStrengths
+                strengths: settings.learnerStrengths,
+                timezone: settings.learnerTimezone
             )
         }
         .onChange(of: settings.learnerUseCase) { newValue in
             viewModel.updateProfile(
                 goal: settings.learnerGoal,
                 useCase: newValue,
-                strengths: settings.learnerStrengths
+                strengths: settings.learnerStrengths,
+                timezone: settings.learnerTimezone
             )
         }
         .onChange(of: settings.learnerStrengths) { newValue in
             viewModel.updateProfile(
                 goal: settings.learnerGoal,
                 useCase: settings.learnerUseCase,
-                strengths: newValue
+                strengths: newValue,
+                timezone: settings.learnerTimezone
+            )
+        }
+        .onChange(of: settings.learnerTimezone) { newValue in
+            viewModel.updateProfile(
+                goal: settings.learnerGoal,
+                useCase: settings.learnerUseCase,
+                strengths: settings.learnerStrengths,
+                timezone: newValue
             )
         }
         .onChange(of: settings.chatWebSearchEnabled) { newValue in
@@ -540,7 +551,8 @@ struct ChatPanel: View {
         viewModel.updateProfile(
             goal: settings.learnerGoal,
             useCase: settings.learnerUseCase,
-            strengths: settings.learnerStrengths
+            strengths: settings.learnerStrengths,
+            timezone: settings.learnerTimezone
         )
         viewModel.updateUser(settings.arcadiaUsername)
         viewModel.updatePreferences(

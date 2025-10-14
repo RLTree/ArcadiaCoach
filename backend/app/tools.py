@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from agents import function_tool
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .learner_profile import (
     CurriculumSchedule,
@@ -71,6 +73,13 @@ def progress_advance(idx: int, total: int) -> Dict[str, Any]:
 def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[CurriculumSchedulePayload]:
     if schedule is None:
         return None
+    tz_name = getattr(schedule, "timezone", None) or "UTC"
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = timezone.utc
+        tz_name = "UTC"
+    anchor_date = schedule.generated_at.astimezone(tz).date()
     warnings = [
         ScheduleWarningPayload(
             code=getattr(warning, "code", "refresh_failed"),
@@ -80,13 +89,11 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         )
         for warning in getattr(schedule, "warnings", [])
     ]
-    return CurriculumSchedulePayload(
-        generated_at=schedule.generated_at,
-        time_horizon_days=schedule.time_horizon_days,
-        cadence_notes=schedule.cadence_notes,
-        is_stale=getattr(schedule, "is_stale", False),
-        warnings=warnings,
-        items=[
+    items: List[SequencedWorkItemPayload] = []
+    for item in schedule.items:
+        local_date = anchor_date + timedelta(days=item.recommended_day_offset)
+        scheduled_for = datetime.combine(local_date, time.min, tzinfo=tz)
+        items.append(
             SequencedWorkItemPayload(
                 item_id=item.item_id,
                 kind=item.kind,
@@ -101,9 +108,18 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 focus_reason=item.focus_reason,
                 expected_outcome=item.expected_outcome,
                 user_adjusted=getattr(item, "user_adjusted", False),
+                scheduled_for=scheduled_for,
             )
-            for item in schedule.items
-        ],
+        )
+    return CurriculumSchedulePayload(
+        generated_at=schedule.generated_at,
+        time_horizon_days=schedule.time_horizon_days,
+        timezone=getattr(tz, "key", tz_name),
+        anchor_date=anchor_date,
+        cadence_notes=schedule.cadence_notes,
+        is_stale=getattr(schedule, "is_stale", False),
+        warnings=warnings,
+        items=items,
     )
 
 
@@ -222,6 +238,7 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
         goal=profile.goal,
         use_case=profile.use_case,
         strengths=profile.strengths,
+        timezone=profile.timezone,
         knowledge_tags=profile.knowledge_tags,
         recent_sessions=profile.recent_sessions,
         memory_records=profile.memory_records,
@@ -287,6 +304,7 @@ def learner_profile_update(
     use_case: str | None = None,
     strengths: str | None = None,
     knowledge_tags: List[str] | None = None,
+    timezone: str | None = None,
 ) -> LearnerProfileUpdateResponse:
     """Update learner profile fields and return the refreshed profile snapshot."""
     metadata: Dict[str, Any] = {}
@@ -298,6 +316,8 @@ def learner_profile_update(
         metadata["strengths"] = strengths
     if knowledge_tags is not None:
         metadata["knowledge_tags"] = knowledge_tags
+    if timezone is not None:
+        metadata["timezone"] = timezone
     profile = profile_store.apply_metadata(username, metadata)
     payload = _profile_payload(profile)
     return LearnerProfileUpdateResponse(profile=payload)

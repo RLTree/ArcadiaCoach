@@ -10,6 +10,7 @@ from threading import RLock
 from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .assessment_result import AssessmentGradingResult
 
@@ -108,6 +109,7 @@ class CurriculumSchedule(BaseModel):
 
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     time_horizon_days: int = Field(default=14, ge=1)
+    timezone: Optional[str] = None
     cadence_notes: Optional[str] = None
     items: List[SequencedWorkItem] = Field(default_factory=list)
     is_stale: bool = Field(default=False)
@@ -140,6 +142,7 @@ class LearnerProfile(BaseModel):
     goal: str = ""
     use_case: str = ""
     strengths: str = ""
+    timezone: Optional[str] = None
     knowledge_tags: List[str] = Field(default_factory=list)
     recent_sessions: List[str] = Field(default_factory=list)
     memory_records: List[MemoryRecord] = Field(default_factory=list)
@@ -218,6 +221,13 @@ class LearnerProfileStore:
                     if incoming:
                         profile.elo_snapshot.update(incoming)
                         updated = True
+
+            timezone_value = metadata.get("timezone")
+            if isinstance(timezone_value, str):
+                normalized_tz = self._normalise_timezone(timezone_value)
+                if normalized_tz and profile.timezone != normalized_tz:
+                    profile.timezone = normalized_tz
+                    updated = True
 
             if updated:
                 profile.last_updated = datetime.now(timezone.utc)
@@ -305,6 +315,13 @@ class LearnerProfileStore:
             profile = self._profiles.get(normalized)
             if profile is None:
                 raise LookupError(f"Learner profile '{username}' does not exist.")
+            resolved_tz = schedule.timezone or profile.timezone
+            normalised_tz = self._normalise_timezone(resolved_tz) if resolved_tz else None
+            if normalised_tz is None:
+                normalised_tz = "UTC"
+            schedule.timezone = normalised_tz
+            if profile.timezone != normalised_tz:
+                profile.timezone = normalised_tz
             profile.curriculum_schedule = schedule.model_copy(deep=True)
             if adjustments is not None:
                 allowed_ids = {item.item_id for item in schedule.items}
@@ -420,7 +437,7 @@ class LearnerProfileStore:
         if trimmed and getattr(profile, attr) != trimmed:
             setattr(profile, attr, trimmed)
             return True
-        return False
+            return False
 
     def _load(self) -> None:
         if not self._path.exists():
@@ -455,6 +472,21 @@ class LearnerProfileStore:
             self._path.write_text(json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError:
             logger.exception("Failed to persist learner profiles to %s", self._path)
+
+    @staticmethod
+    def _normalise_timezone(raw: str) -> Optional[str]:
+        trimmed = raw.strip()
+        if not trimmed:
+            return None
+        try:
+            zone = ZoneInfo(trimmed)
+        except ZoneInfoNotFoundError:
+            logger.warning("Ignoring unsupported timezone value: %s", trimmed)
+            return None
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to parse timezone value: %s", trimmed)
+            return None
+        return zone.key
 
 
 profile_store = LearnerProfileStore(DATA_PATH)

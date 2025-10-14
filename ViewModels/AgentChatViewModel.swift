@@ -228,6 +228,7 @@ final class AgentChatViewModel: ObservableObject {
     private var learnerGoal: String = ""
     private var learnerUseCase: String = ""
     private var learnerStrengths: String = ""
+    private var learnerTimezone: String = TimeZone.current.identifier
     private let historyStore: ChatHistoryStore
     private var transcripts: [ChatTranscript]
 
@@ -325,10 +326,13 @@ final class AgentChatViewModel: ObservableObject {
         !backendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
     }
 
-    func updateProfile(goal: String, useCase: String, strengths: String) {
+    func updateProfile(goal: String, useCase: String, strengths: String, timezone: String? = nil) {
         learnerGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         learnerUseCase = useCase.trimmingCharacters(in: .whitespacesAndNewlines)
         learnerStrengths = strengths.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let timezone, !timezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            learnerTimezone = timezone.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     func updatePreferences(webEnabled: Bool, reasoningLevel: String) {
@@ -554,6 +558,9 @@ final class AgentChatViewModel: ObservableObject {
         }
         if !learnerStrengths.isEmpty {
             metadata["strengths"] = learnerStrengths
+        }
+        if !learnerTimezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            metadata["timezone"] = learnerTimezone
         }
         metadata["web_enabled"] = webSearchEnabled ? "true" : "false"
         metadata["reasoning_level"] = reasoningLevel

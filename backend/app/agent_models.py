@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -112,6 +112,7 @@ class SequencedWorkItemPayload(BaseModel):
     focus_reason: Optional[str] = None
     expected_outcome: Optional[str] = None
     user_adjusted: bool = False
+    scheduled_for: Optional[datetime] = None
 
 
 class ScheduleWarningPayload(BaseModel):
@@ -124,6 +125,8 @@ class ScheduleWarningPayload(BaseModel):
 class CurriculumSchedulePayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     time_horizon_days: int = Field(default=14, ge=1)
+    timezone: Optional[str] = None
+    anchor_date: Optional[date] = None
     cadence_notes: Optional[str] = None
     items: List[SequencedWorkItemPayload] = Field(default_factory=list)
     is_stale: bool = False
@@ -240,6 +243,7 @@ class LearnerProfilePayload(BaseModel):
     goal: str = ""
     use_case: str = ""
     strengths: str = ""
+    timezone: Optional[str] = None
     knowledge_tags: List[str] = Field(default_factory=list)
     recent_sessions: List[str] = Field(default_factory=list)
     memory_records: List[LearnerMemoryItemPayload] = Field(default_factory=list)

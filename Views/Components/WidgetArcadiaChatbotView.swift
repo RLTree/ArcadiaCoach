@@ -145,6 +145,10 @@ struct WidgetArcadiaChatbotView: View {
         if !useCase.isEmpty {
             metadata["use_case"] = useCase
         }
+        let timezone = settings.learnerTimezone.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !timezone.isEmpty {
+            metadata["timezone"] = timezone
+        }
         metadata["web_enabled"] = props.webEnabled ? "true" : "false"
         metadata["reasoning_level"] = props.level
         return metadata

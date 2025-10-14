@@ -54,6 +54,7 @@ final class AppViewModel: ObservableObject {
     @Published var latestMilestone: EndMilestone?
     @Published var scheduleRefreshing: Bool = false
     @Published var adjustingScheduleItemId: String?
+    @Published var learnerTimezone: String?
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -80,6 +81,7 @@ final class AppViewModel: ObservableObject {
                 assessmentResult = nil
                 assessmentHistory = []
                 error = nil
+                learnerTimezone = nil
             } else {
                 error = serviceError.localizedDescription
             }
@@ -110,17 +112,29 @@ final class AppViewModel: ObservableObject {
                 refresh: true
             )
             curriculumSchedule = schedule
+            if let timezone = schedule.timezone, !timezone.isEmpty {
+                learnerTimezone = timezone
+            }
             error = nil
             let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            var metadata: [String: String] = [
+                "username": trimmedUsername,
+                "durationMs": "\(durationMs)",
+                "itemCount": "\(schedule.items.count)",
+                "isStale": schedule.isStale ? "true" : "false",
+                "warningCount": "\(schedule.warnings.count)",
+            ]
+            if let timezone = schedule.timezone, !timezone.isEmpty {
+                metadata["timezone"] = timezone
+            }
+            if let anchor = schedule.anchorDate {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withFullDate]
+                metadata["anchorDate"] = formatter.string(from: anchor)
+            }
             TelemetryReporter.shared.record(
                 event: "schedule_refresh_completed",
-                metadata: [
-                    "username": trimmedUsername,
-                    "durationMs": "\(durationMs)",
-                    "itemCount": "\(schedule.items.count)",
-                    "isStale": schedule.isStale ? "true" : "false",
-                    "warningCount": "\(schedule.warnings.count)",
-                ]
+                metadata: metadata
             )
         } catch let serviceError as BackendServiceError {
             error = serviceError.localizedDescription
@@ -185,17 +199,29 @@ final class AppViewModel: ObservableObject {
                 reason: reason
             )
             curriculumSchedule = schedule
+            if let timezone = schedule.timezone, !timezone.isEmpty {
+                learnerTimezone = timezone
+            }
             error = nil
             let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
             let newOffset = schedule.items.first(where: { $0.itemId == item.itemId })?.recommendedDayOffset ?? -1
+            var metadata: [String: String] = [
+                "username": trimmedUsername,
+                "itemId": item.itemId,
+                "durationMs": "\(durationMs)",
+                "newOffset": "\(newOffset)",
+            ]
+            if let timezone = schedule.timezone, !timezone.isEmpty {
+                metadata["timezone"] = timezone
+            }
+            if let anchor = schedule.anchorDate {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withFullDate]
+                metadata["anchorDate"] = formatter.string(from: anchor)
+            }
             TelemetryReporter.shared.record(
                 event: "schedule_adjustment_completed",
-                metadata: [
-                    "username": trimmedUsername,
-                    "itemId": item.itemId,
-                    "durationMs": "\(durationMs)",
-                    "newOffset": "\(newOffset)",
-                ]
+                metadata: metadata
             )
         } catch let serviceError as BackendServiceError {
             error = serviceError.localizedDescription
@@ -231,8 +257,10 @@ final class AppViewModel: ObservableObject {
         goal: String,
         useCase: String,
         strengths: String,
+        timezone: String,
         force: Bool = false
     ) async throws {
+        learnerTimezone = timezone
         busy = true
         defer { busy = false }
         let snapshot = try await BackendService.ensureOnboardingPlan(
@@ -241,6 +269,7 @@ final class AppViewModel: ObservableObject {
             goal: goal,
             useCase: useCase,
             strengths: strengths,
+            timezone: timezone,
             force: force
         )
         syncProfile(with: snapshot)
@@ -568,6 +597,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func syncProfile(with snapshot: LearnerProfileSnapshot) {
+        learnerTimezone = snapshot.timezone ?? snapshot.curriculumSchedule?.timezone
         game.elo = Dictionary(uniqueKeysWithValues: snapshot.skillRatings.map { ($0.category, $0.rating) })
         eloPlan = snapshot.eloCategoryPlan
         curriculumPlan = snapshot.curriculumPlan
