@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -39,7 +39,6 @@ from .learner_profile import (
     ScheduleWarning,
     FoundationModuleReference,
     FoundationTrack,
-    GoalParserInference,
     profile_store,
 )
 from .telemetry import emit_event
@@ -344,8 +343,8 @@ def get_curriculum_schedule(
                 had_prior_schedule=True,
                 error=str(refresh_error),
                 exception_type=refresh_error.__class__.__name__,
-                item_count=len(fallback_schedule.items),
                 warnings=len(fallback_schedule.warnings),
+                **_schedule_metrics(fallback_schedule),
             )
         elif refresh_error is None:
             emit_event(
@@ -353,8 +352,7 @@ def get_curriculum_schedule(
                 username=username,
                 status="success",
                 regenerated=True,
-                item_count=len(profile.curriculum_schedule.items) if profile.curriculum_schedule else 0,
-                is_stale=bool(profile.curriculum_schedule.is_stale) if profile.curriculum_schedule else False,
+                **_schedule_metrics(profile.curriculum_schedule),
             )
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
     if schedule_payload is None:
@@ -370,8 +368,7 @@ def get_curriculum_schedule(
             username=username,
             status="skipped",
             regenerated=False,
-            item_count=len(profile.curriculum_schedule.items),
-            is_stale=bool(profile.curriculum_schedule.is_stale),
+            **_schedule_metrics(profile.curriculum_schedule),
         )
     return schedule_payload
 
@@ -469,3 +466,21 @@ def _schedule_with_warning(schedule: CurriculumSchedule, error: Exception) -> Cu
 
 
 __all__ = ["router"]
+def _schedule_metrics(schedule: CurriculumSchedule | None) -> Dict[str, Any]:
+    if schedule is None:
+        return {}
+    total_minutes = sum(item.recommended_minutes for item in schedule.items)
+    unique_days = len({item.recommended_day_offset for item in schedule.items})
+    return {
+        "item_count": len(schedule.items),
+        "is_stale": bool(schedule.is_stale),
+        "horizon_days": schedule.time_horizon_days,
+        "sessions_per_week": schedule.sessions_per_week,
+        "projected_weekly_minutes": schedule.projected_weekly_minutes,
+        "total_minutes": total_minutes,
+        "average_session_minutes": int(round(total_minutes / max(unique_days, 1))) if schedule.items else 0,
+        "long_range_item_count": schedule.long_range_item_count,
+        "long_range_category_count": len(getattr(schedule, "long_range_category_keys", [])),
+        "long_range_weeks": schedule.extended_weeks,
+        "user_adjusted_count": sum(1 for item in schedule.items if item.user_adjusted),
+    }

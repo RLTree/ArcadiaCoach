@@ -8,7 +8,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Optional, Sequence, Tuple, cast
+from typing import Dict, Iterable, List, Literal, Optional, Sequence, Tuple
 
 from .learner_profile import (
     AssessmentGradingResult,
@@ -27,7 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_DAILY_CAP_MINUTES = 120
-DEFAULT_TIME_HORIZON_DAYS = 84
+DEFAULT_TIME_HORIZON_DAYS = 168
+MIN_LONG_RANGE_HORIZON_DAYS = 168
+LONG_RANGE_THRESHOLD_DAYS = 90
+REFRESHER_MIN_GAP_DAYS = 21
+CHECKPOINT_MIN_GAP_DAYS = 35
+MAX_LONG_RANGE_REFRESH_CYCLES = 6
 MAX_RATIONALE_HISTORY = 6
 
 
@@ -185,8 +190,16 @@ class CurriculumSequencer:
                 )
 
         scheduled_items = self._assign_day_offsets(timeline, sessions_per_week=pacing_sessions)
+        scheduled_items = self._inject_long_range_refreshers(
+            scheduled_items,
+            categories=categories,
+            sessions_per_week=pacing_sessions,
+        )
         cadence_notes = self._cadence_summary(scheduled_items, profile.onboarding_assessment_result)
-        horizon = max(self._default_horizon, (max(item.recommended_day_offset for item in scheduled_items) + 1))
+        max_offset = max(item.recommended_day_offset for item in scheduled_items) if scheduled_items else 0
+        horizon = max(self._default_horizon, MIN_LONG_RANGE_HORIZON_DAYS, max_offset + 1)
+        total_minutes = sum(item.recommended_minutes for item in scheduled_items)
+        projected_weekly_minutes = self._projected_weekly_minutes(total_minutes, horizon)
         category_allocations = self._category_allocations(
             scheduled_items,
             categories,
@@ -202,6 +215,11 @@ class CurriculumSequencer:
             sessions_per_week=pacing_sessions,
             category_allocations=category_allocations,
         )
+        long_range_items = [
+            item for item in scheduled_items if item.recommended_day_offset >= LONG_RANGE_THRESHOLD_DAYS
+        ]
+        long_range_category_keys = sorted({item.category_key for item in long_range_items})
+        extended_weeks = math.ceil(horizon / 7) if horizon > 0 else 0
         pacing_overview = self._pacing_overview(
             category_allocations,
             categories,
@@ -218,6 +236,11 @@ class CurriculumSequencer:
             pacing_overview=pacing_overview,
             category_allocations=category_allocations,
             rationale_history=rationale_history,
+            sessions_per_week=pacing_sessions,
+            projected_weekly_minutes=projected_weekly_minutes,
+            long_range_item_count=len(long_range_items),
+            extended_weeks=extended_weeks,
+            long_range_category_keys=long_range_category_keys,
         )
 
     def _build_category_context(self, profile: LearnerProfile) -> Dict[str, _CategoryContext]:
@@ -503,9 +526,12 @@ class CurriculumSequencer:
                 label = categories[entry.category_key].label
                 focus_parts.append(f"{label} {share}%")
         focus_clause = "; ".join(focus_parts) if focus_parts else "Mixed focus"
+        weeks = max(horizon_days / 7.0, 1.0)
+        weekly_minutes = int(round(total_minutes / weeks)) if total_minutes > 0 else 0
+        week_count = math.ceil(weeks)
         return (
-            f"Pacing {sessions_per_week} sessions/week over {horizon_days} days "
-            f"(~{total_minutes} minutes planned). Focus mix: {focus_clause}."
+            f"Pacing {sessions_per_week} sessions/week (~{weekly_minutes} minutes/week) over {horizon_days} days "
+            f"(~{week_count} weeks, ~{total_minutes} minutes total). Focus mix: {focus_clause}."
         )
 
     def _sanitize_adjustments(self, adjustments: Dict[str, int]) -> Dict[str, int]:
@@ -644,6 +670,118 @@ class CurriculumSequencer:
             scheduled.append(scheduled_item)
         return scheduled
 
+    def _inject_long_range_refreshers(
+        self,
+        scheduled: List[SequencedWorkItem],
+        *,
+        categories: Dict[str, _CategoryContext],
+        sessions_per_week: int,
+    ) -> List[SequencedWorkItem]:
+        if not scheduled:
+            return []
+
+        target_horizon = max(self._default_horizon, MIN_LONG_RANGE_HORIZON_DAYS)
+        current_horizon = max(item.recommended_day_offset for item in scheduled) + 1
+        if current_horizon >= target_horizon:
+            scheduled.sort(key=lambda item: (item.recommended_day_offset, item.item_id))
+            return scheduled
+
+        category_latest: Dict[str, SequencedWorkItem] = {}
+        for item in scheduled:
+            existing = category_latest.get(item.category_key)
+            if existing is None or item.recommended_day_offset > existing.recommended_day_offset:
+                category_latest[item.category_key] = item
+
+        prioritized_contexts = [
+            context
+            for context in sorted(
+                categories.values(),
+                key=lambda ctx: (ctx.weight, ctx.track_weight, -ctx.rating),
+                reverse=True,
+            )
+            if context.key in category_latest
+        ]
+        if not prioritized_contexts:
+            scheduled.sort(key=lambda item: (item.recommended_day_offset, item.item_id))
+            return scheduled
+
+        refreshers: List[SequencedWorkItem] = []
+        base_spacing = max(int(round(7 / max(sessions_per_week, 1))), 1)
+        refresh_gap = max(REFRESHER_MIN_GAP_DAYS, base_spacing * 6)
+        checkpoint_gap = max(CHECKPOINT_MIN_GAP_DAYS, refresh_gap // 2 + base_spacing * 2)
+
+        latest_offsets: Dict[str, int] = {
+            context.key: category_latest[context.key].recommended_day_offset for context in prioritized_contexts
+        }
+        latest_ids: Dict[str, str] = {
+            context.key: category_latest[context.key].item_id for context in prioritized_contexts
+        }
+        offset_cursor = current_horizon - 1
+        cycles = 0
+
+        while max(latest_offsets.values()) < target_horizon and cycles < MAX_LONG_RANGE_REFRESH_CYCLES:
+            for context in prioritized_contexts:
+                last_offset = latest_offsets[context.key]
+                offset_cursor = max(offset_cursor + refresh_gap, last_offset + refresh_gap)
+                prerequisite_id = latest_ids[context.key]
+                refresh_minutes = max(30, int(round(self._daily_capacity * 0.35)))
+                refresh_item = SequencedWorkItem(
+                    item_id=f"refresh-{context.key}-{offset_cursor}",
+                    category_key=context.key,
+                    kind="lesson",
+                    title=f"Spaced Refresh: {context.label}",
+                    summary="Revisit core concepts through spaced repetition and low-pressure practice.",
+                    objectives=[
+                        "Review the most challenging concept from previous modules.",
+                        "Document confidence shifts and blockers since the last session.",
+                    ],
+                    prerequisites=[prerequisite_id],
+                    recommended_minutes=refresh_minutes,
+                    recommended_day_offset=offset_cursor,
+                    focus_reason=f"Extends {context.label.lower()} retention for the long-range roadmap.",
+                    expected_outcome="Share a reflection covering wins, blockers, and next experiments.",
+                    effort_level=self._effort_level(refresh_minutes),
+                )
+                refreshers.append(refresh_item)
+                latest_offsets[context.key] = refresh_item.recommended_day_offset
+                latest_ids[context.key] = refresh_item.item_id
+
+                offset_cursor = offset_cursor + checkpoint_gap
+                checkpoint_minutes = max(25, int(round(refresh_minutes * 0.8)))
+                checkpoint_item = SequencedWorkItem(
+                    item_id=f"checkpoint-{context.key}-{offset_cursor}",
+                    category_key=context.key,
+                    kind="quiz",
+                    title=f"Checkpoint Quiz: {context.label}",
+                    summary="Quick mastery check to confirm spaced-refresh retention.",
+                    objectives=[
+                        "Demonstrate recall of key concepts without external notes.",
+                        "Capture follow-up actions for any concepts that slipped.",
+                    ],
+                    prerequisites=[refresh_item.item_id],
+                    recommended_minutes=checkpoint_minutes,
+                    recommended_day_offset=offset_cursor,
+                    focus_reason="Validates long-range retention before scheduling the next block.",
+                    expected_outcome="Score at least 70% and note any follow-up support needed.",
+                    effort_level="light" if checkpoint_minutes <= 30 else "moderate",
+                )
+                refreshers.append(checkpoint_item)
+                latest_offsets[context.key] = checkpoint_item.recommended_day_offset
+                latest_ids[context.key] = checkpoint_item.item_id
+                if max(latest_offsets.values()) >= target_horizon:
+                    break
+            cycles += 1
+
+        combined = scheduled + refreshers
+        combined.sort(key=lambda item: (item.recommended_day_offset, item.item_id))
+        return combined
+
+    def _projected_weekly_minutes(self, total_minutes: int, horizon_days: int) -> int:
+        if horizon_days <= 0:
+            return total_minutes
+        weeks = max(horizon_days / 7.0, 1.0)
+        return int(round(total_minutes / weeks))
+
     def _cadence_summary(
         self,
         items: Sequence[SequencedWorkItem],
@@ -732,6 +870,14 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
             schedule = previous_schedule
             for item in schedule.items:
                 item.user_adjusted = item.item_id in previous_adjustments
+    total_minutes = sum(item.recommended_minutes for item in schedule.items)
+    unique_days = len({item.recommended_day_offset for item in schedule.items})
+    average_session_minutes = (
+        int(round(total_minutes / max(unique_days, 1))) if schedule.items else 0
+    )
+    long_range_category_count = len(schedule.long_range_category_keys)
+    user_adjusted_count = sum(1 for item in schedule.items if item.user_adjusted)
+
     emit_event(
         "schedule_generation",
         username=username,
@@ -740,6 +886,14 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
         item_count=len(schedule.items),
         horizon_days=schedule.time_horizon_days,
         adjustment_count=len(updated_adjustments),
+        sessions_per_week=schedule.sessions_per_week,
+        projected_weekly_minutes=schedule.projected_weekly_minutes,
+        total_minutes=total_minutes,
+        average_session_minutes=average_session_minutes,
+        long_range_item_count=schedule.long_range_item_count,
+        long_range_category_count=long_range_category_count,
+        long_range_weeks=schedule.extended_weeks,
+        user_adjusted_count=user_adjusted_count,
     )
     if applied_deltas:
         emit_event(

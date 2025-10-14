@@ -39,6 +39,39 @@ struct CurriculumScheduleView: View {
         schedule.rationaleHistory.sorted { $0.generatedAt > $1.generatedAt }
     }
 
+    private var longRangeDescription: String? {
+        guard schedule.sessionsPerWeek > 0 || schedule.projectedWeeklyMinutes > 0 || schedule.longRangeItemCount > 0 else {
+            return nil
+        }
+        let weeks = schedule.extendedWeeks > 0 ? schedule.extendedWeeks : max(1, Int((Double(schedule.timeHorizonDays) / 7.0).rounded(.up)))
+        var segments: [String] = []
+        if schedule.sessionsPerWeek > 0 {
+            var segment = "\(weeks) week horizon at \(schedule.sessionsPerWeek) session\(schedule.sessionsPerWeek == 1 ? "" : "s")/week"
+            if schedule.projectedWeeklyMinutes > 0 {
+                segment += " (~\(schedule.projectedWeeklyMinutes) min/week)"
+            }
+            segments.append(segment)
+        } else {
+            segments.append("\(weeks) week horizon")
+            if schedule.projectedWeeklyMinutes > 0 {
+                segments.append("~\(schedule.projectedWeeklyMinutes) min/week")
+            }
+        }
+        if schedule.longRangeItemCount > 0 {
+            segments.append("\(schedule.longRangeItemCount) spaced refresher\(schedule.longRangeItemCount == 1 ? "" : "s")")
+        }
+        let friendlyCategories = schedule.longRangeCategoryKeys.compactMap { key -> String? in
+            if let label = categoryLabels[key], !label.isEmpty {
+                return label
+            }
+            return key.isEmpty ? nil : key
+        }
+        if !friendlyCategories.isEmpty {
+            segments.append("Focus: \(friendlyCategories.joined(separator: ", "))")
+        }
+        return segments.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
@@ -142,6 +175,17 @@ struct CurriculumScheduleView: View {
                 Text("Times shown in \(tzLabel)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            if let outlook = longRangeDescription {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(outlook)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

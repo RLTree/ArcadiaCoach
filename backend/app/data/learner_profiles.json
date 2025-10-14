@@ -335,7 +335,12 @@
       "warnings": [],
       "pacing_overview": null,
       "category_allocations": [],
-      "rationale_history": []
+      "rationale_history": [],
+      "sessions_per_week": 4,
+      "projected_weekly_minutes": 0,
+      "long_range_item_count": 0,
+      "extended_weeks": 0,
+      "long_range_category_keys": []
     },
     "schedule_adjustments": {},
     "onboarding_assessment": null,

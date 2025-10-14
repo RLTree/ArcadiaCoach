@@ -207,6 +207,11 @@ struct CurriculumSchedule: Codable, Hashable {
     var pacingOverview: String?
     var categoryAllocations: [CategoryPacingAllocation] = []
     var rationaleHistory: [ScheduleRationaleEntry] = []
+    var sessionsPerWeek: Int = 0
+    var projectedWeeklyMinutes: Int = 0
+    var longRangeItemCount: Int = 0
+    var extendedWeeks: Int = 0
+    var longRangeCategoryKeys: [String] = []
 
     struct Group: Hashable, Identifiable {
         var offset: Int
@@ -227,6 +232,30 @@ struct CurriculumSchedule: Codable, Hashable {
 
     var latestRationale: ScheduleRationaleEntry? {
         rationaleHistory.sorted { $0.generatedAt < $1.generatedAt }.last
+    }
+
+    var longRangeSummary: String? {
+        guard sessionsPerWeek > 0 || projectedWeeklyMinutes > 0 || longRangeItemCount > 0 else {
+            return nil
+        }
+        let weeks = extendedWeeks > 0 ? extendedWeeks : max(1, Int((Double(timeHorizonDays) / 7.0).rounded(.up)))
+        var segments: [String] = []
+        if sessionsPerWeek > 0 {
+            let weeklyMinutes = projectedWeeklyMinutes > 0 ? " (~\(projectedWeeklyMinutes) min/week)" : ""
+            segments.append("\(weeks) week horizon at \(sessionsPerWeek) sessions/week\(weeklyMinutes)")
+        } else {
+            segments.append("\(weeks) week horizon")
+            if projectedWeeklyMinutes > 0 {
+                segments.append("~\(projectedWeeklyMinutes) min/week")
+            }
+        }
+        if longRangeItemCount > 0 {
+            segments.append("\(longRangeItemCount) spaced refreshers")
+        }
+        if !longRangeCategoryKeys.isEmpty {
+            segments.append("focus on \(longRangeCategoryKeys.joined(separator: ", "))")
+        }
+        return segments.joined(separator: " · ")
     }
 }
 

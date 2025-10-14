@@ -13,7 +13,7 @@ from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from .assessment_result import (
     AssessmentCategoryOutcome,

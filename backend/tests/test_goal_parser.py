@@ -42,7 +42,6 @@ def test_sanitize_track_removes_invalid_weeks() -> None:
 
     sanitized = _sanitize_track(track)
 
-    assert sanitized.suggested_weeks is None
-    assert sanitized.recommended_modules[0].suggested_weeks == 3
-    assert sanitized.recommended_modules[1].suggested_weeks is None
-    assert sanitized.recommended_modules[2].suggested_weeks is None
+    module_weeks = [module.suggested_weeks for module in sanitized.recommended_modules]
+    assert all(week is not None and week >= 1 for week in module_weeks)
+    assert sanitized.suggested_weeks == sum(int(week) for week in module_weeks if week is not None)

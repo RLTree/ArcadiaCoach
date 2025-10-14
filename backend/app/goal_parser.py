@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, cast
-from uuid import uuid4
+from typing import Any, Dict, Iterable, List, Optional, Sequence, cast
 
 from agents import Agent, ModelSettings, RunConfig, Runner
-from chatkit.types import ThreadMetadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import BaseModel, Field, ValidationError
@@ -35,11 +32,17 @@ GOAL_PARSER_INSTRUCTIONS = (
 )
 
 
+DEFAULT_TRACK_SUGGESTED_WEEKS = 6
+DEFAULT_MODULE_SUGGESTED_WEEKS = 3
+LONG_TRACK_WEIGHT_THRESHOLD = 1.3
+LONG_TRACK_BONUS_WEEKS = 2
+
+
 class GoalParserModulePayload(BaseModel):
     module_id: str
     category_key: str
     priority: str = Field(default="core")
-    suggested_weeks: Optional[int] = Field(default=None)
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
     notes: Optional[str] = None
 
 
@@ -53,7 +56,7 @@ class GoalParserTrackPayload(BaseModel):
     focus_areas: List[str] = Field(default_factory=list)
     prerequisites: List[str] = Field(default_factory=list)
     recommended_modules: List[GoalParserModulePayload] = Field(default_factory=list)
-    suggested_weeks: Optional[int] = Field(default=None)
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
     notes: Optional[str] = None
 
 
@@ -197,9 +200,6 @@ async def parse_goal(
 ) -> GoalParserInference:
     """Run the Goal Parser agent and persist the resulting inference."""
     agent = get_goal_parser_agent(settings)
-    thread = ThreadMetadata.model_construct(
-        id=f"goal-parser-{username}-{uuid4().hex[:6]}",
-    )
     context_payload: Dict[str, Any] = {
         "username": username,
         "goal": goal,
@@ -217,7 +217,7 @@ async def parse_goal(
         "Each track must include track_id (slug), label, priority ('now' | 'up_next' | 'later'), "
         "confidence ('low' | 'medium' | 'high'), weight (float >= 0), technologies (string array), "
         "focus_areas (string array), prerequisites (string array), recommended_modules (array of {module_id, category_key, priority, suggested_weeks, notes}), "
-        "and suggested_weeks (int >=1 or null)."
+        "and suggested_weeks (int >=1)."
     )
 
     message = (
@@ -302,8 +302,7 @@ __all__ = ["ensure_goal_inference", "parse_goal"]
 
 
 def _sanitize_module(module: GoalParserModulePayload) -> FoundationModuleReference:
-    weeks = module.suggested_weeks
-    sanitized_weeks = weeks if isinstance(weeks, int) and weeks >= 1 else None
+    sanitized_weeks = _coerce_weeks(module.suggested_weeks, DEFAULT_MODULE_SUGGESTED_WEEKS)
     priority = module.priority if module.priority in {"core", "reinforcement", "extension"} else "core"
     return FoundationModuleReference(
         module_id=module.module_id,
@@ -318,15 +317,34 @@ def _sanitize_track(track: FoundationTrack) -> FoundationTrack:
     sanitized_modules = [
         module.model_copy(
             update={
-                "suggested_weeks": module.suggested_weeks if module.suggested_weeks is None or module.suggested_weeks >= 1 else None
+                "suggested_weeks": _coerce_weeks(module.suggested_weeks, DEFAULT_MODULE_SUGGESTED_WEEKS)
             }
         )
         for module in track.recommended_modules
     ]
-    sanitized_weeks = track.suggested_weeks if (track.suggested_weeks is None or track.suggested_weeks >= 1) else None
+    fallback_weeks = _track_weeks_fallback(track, sanitized_modules)
+    sanitized_weeks = _coerce_weeks(track.suggested_weeks, fallback_weeks)
     return track.model_copy(
         update={
             "recommended_modules": sanitized_modules,
             "suggested_weeks": sanitized_weeks,
         }
     )
+
+
+def _coerce_weeks(value: Optional[int], fallback: int) -> int:
+    if isinstance(value, int) and value >= 1:
+        return value
+    return fallback
+
+
+def _track_weeks_fallback(track: FoundationTrack, modules: Sequence[FoundationModuleReference]) -> int:
+    module_total = sum(
+        module.suggested_weeks if isinstance(module.suggested_weeks, int) and module.suggested_weeks >= 1 else DEFAULT_MODULE_SUGGESTED_WEEKS
+        for module in modules
+    )
+    if module_total <= 0:
+        module_total = DEFAULT_TRACK_SUGGESTED_WEEKS
+    bonus = LONG_TRACK_BONUS_WEEKS if track.weight and track.weight >= LONG_TRACK_WEIGHT_THRESHOLD else 0
+    baseline = DEFAULT_TRACK_SUGGESTED_WEEKS + bonus
+    return max(baseline, module_total)

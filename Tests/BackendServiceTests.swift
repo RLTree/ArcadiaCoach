@@ -27,18 +27,18 @@ final class BackendServiceTests: XCTestCase {
         let json = """
         {
             "generated_at": "2025-10-14T12:00:00Z",
-            "time_horizon_days": 42,
+            "time_horizon_days": 126,
             "timezone": "America/Los_Angeles",
             "anchor_date": "2025-10-14T00:00:00Z",
-            "cadence_notes": "Scheduled 9 items across 9 sessions (~520 minutes total) spanning ~42 days.",
+            "cadence_notes": "Scheduled 18 items across 18 sessions (~780 minutes total) spanning ~126 days.",
             "items": [],
             "is_stale": false,
             "warnings": [],
-            "pacing_overview": "Pacing 3 sessions/week over 42 days (~520 minutes planned). Focus mix: Backend Systems 60%; Frontend Flow 40%.",
+            "pacing_overview": "Pacing 3 sessions/week (~130 minutes/week) over 126 days (~18 weeks, ~780 minutes total). Focus mix: Backend Systems 60%; Frontend Flow 40%.",
             "category_allocations": [
                 {
                     "category_key": "backend",
-                    "planned_minutes": 320,
+                    "planned_minutes": 480,
                     "target_share": 0.6,
                     "deferral_pressure": "high",
                     "deferral_count": 3,
@@ -47,7 +47,7 @@ final class BackendServiceTests: XCTestCase {
                 },
                 {
                     "category_key": "frontend",
-                    "planned_minutes": 200,
+                    "planned_minutes": 300,
                     "target_share": 0.4,
                     "deferral_pressure": "low",
                     "deferral_count": 0,
@@ -58,12 +58,17 @@ final class BackendServiceTests: XCTestCase {
             "rationale_history": [
                 {
                     "generated_at": "2025-10-14T12:00:00Z",
-                    "headline": "Roadmap extended to 42 days with 3 sessions/week cadence.",
+                    "headline": "Roadmap extended to 126 days with 3 sessions/week cadence.",
                     "summary": "Prioritising Backend Systems while pacing at 3 sessions per week. Goal: Ship a resilient backend for the Arcadia agent.",
                     "related_categories": ["backend", "frontend"],
                     "adjustment_notes": ["Adjusted pacing for Backend Systems after 3 deferrals. Max defer 21 days.", "Maintained learner-selected offsets from recent deferrals."]
                 }
-            ]
+            ],
+            "sessions_per_week": 3,
+            "projected_weekly_minutes": 130,
+            "long_range_item_count": 6,
+            "extended_weeks": 18,
+            "long_range_category_keys": ["backend", "frontend"]
         }
         """
         let data = Data(json.utf8)
@@ -73,11 +78,16 @@ final class BackendServiceTests: XCTestCase {
         let schedule = try decoder.decode(CurriculumSchedule.self, from: data)
 
         XCTAssertEqual(schedule.timezone, "America/Los_Angeles")
-        XCTAssertEqual(schedule.pacingOverview, "Pacing 3 sessions/week over 42 days (~520 minutes planned). Focus mix: Backend Systems 60%; Frontend Flow 40%.")
+        XCTAssertEqual(schedule.pacingOverview, "Pacing 3 sessions/week (~130 minutes/week) over 126 days (~18 weeks, ~780 minutes total). Focus mix: Backend Systems 60%; Frontend Flow 40%.")
         XCTAssertEqual(schedule.categoryAllocations.count, 2)
         XCTAssertEqual(schedule.categoryAllocations.first?.deferralPressure, .high)
         XCTAssertEqual(schedule.categoryAllocations.first?.deferralCount, 3)
-        XCTAssertEqual(schedule.rationaleHistory.first?.headline, "Roadmap extended to 42 days with 3 sessions/week cadence.")
+        XCTAssertEqual(schedule.rationaleHistory.first?.headline, "Roadmap extended to 126 days with 3 sessions/week cadence.")
+        XCTAssertEqual(schedule.sessionsPerWeek, 3)
+        XCTAssertEqual(schedule.projectedWeeklyMinutes, 130)
+        XCTAssertEqual(schedule.longRangeItemCount, 6)
+        XCTAssertEqual(schedule.extendedWeeks, 18)
+        XCTAssertEqual(schedule.longRangeCategoryKeys, ["backend", "frontend"])
     }
 
     func testLearnerProfileSnapshotDecodesGoalInference() throws {

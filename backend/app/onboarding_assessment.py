@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Tuple, cast
+from typing import Any, Dict, Iterable, List, Sequence, Tuple, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
@@ -210,6 +210,14 @@ def _ensure_task_coverage(
     modules: List[CurriculumModule],
     tasks: List[AssessmentTask],
 ) -> List[AssessmentTask]:
+    seen: set[str] = set()
+    ordered_categories: List[Tuple[str, str]] = []
+    for category_key, label in categories:
+        normalized_key = category_key.strip()
+        if not normalized_key or normalized_key in seen:
+            continue
+        seen.add(normalized_key)
+        ordered_categories.append((normalized_key, label))
     by_category: Dict[str, Dict[str, List[AssessmentTask]]] = {}
     for task in tasks:
         by_category.setdefault(task.category_key, {"concept_check": [], "code": []})
@@ -220,7 +228,7 @@ def _ensure_task_coverage(
         modules_by_category.setdefault(module.category_key, module)
 
     final_tasks = list(tasks)
-    for category_key, label in categories:
+    for category_key, label in ordered_categories:
         coverage = by_category.get(category_key, {"concept_check": [], "code": []})
         module = modules_by_category.get(category_key)
         if not coverage.get("concept_check"):
@@ -623,10 +631,11 @@ async def generate_onboarding_bundle(
         plan.strategy_notes = "\n\n".join(notes)
     profile_store.set_elo_category_plan(username, plan)
     curriculum = augmented_curriculum
+    modules = list(curriculum.modules)
 
     base_tasks = [_normalise_task(task) for task in plan_payload.assessment]
-    categories = [(category.key, category.label) for category in plan_payload.categories]
-    ensured_tasks = _ensure_task_coverage(categories, modules, base_tasks)
+    all_categories = [(category.key, category.label) for category in augmented_categories]
+    ensured_tasks = _ensure_task_coverage(all_categories, modules, base_tasks)
     final_tasks, assessment_sections = _build_assessment_sections(ensured_tasks, augmented_categories, inference)
     assessment = OnboardingAssessment(
         generated_at=datetime.now(timezone.utc),

@@ -17,7 +17,6 @@ from .learner_profile import (
     EloRubricBand,
     FoundationModuleReference,
     FoundationTrack,
-    GoalParserInference,
     LearnerProfile,
     profile_store,
 )
@@ -156,6 +155,11 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         pacing_overview=getattr(schedule, "pacing_overview", None),
         category_allocations=allocations,
         rationale_history=rationale_history,
+        sessions_per_week=getattr(schedule, "sessions_per_week", 4),
+        projected_weekly_minutes=getattr(schedule, "projected_weekly_minutes", 0),
+        long_range_item_count=getattr(schedule, "long_range_item_count", 0),
+        extended_weeks=getattr(schedule, "extended_weeks", 0),
+        long_range_category_keys=list(getattr(schedule, "long_range_category_keys", [])),
     )
 
 

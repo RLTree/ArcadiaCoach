@@ -6,7 +6,6 @@ from typing import Annotated, Any, Dict, Tuple
 
 from agents import Agent, FileSearchTool, HostedMCPTool, ModelSettings, WebSearchTool
 from chatkit.agents import AgentContext
-from openai.types.shared.reasoning import Reasoning
 from pydantic import ConfigDict, Field
 
 from .constants import INSTRUCTIONS, MODEL

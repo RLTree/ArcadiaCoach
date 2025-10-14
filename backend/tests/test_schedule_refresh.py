@@ -121,6 +121,10 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     assert generation_events[0].payload["status"] == "success"
     assert refresh_events[0].payload["status"] == "success"
     assert refresh_events[0].payload["regenerated"] is True
+    assert refresh_events[0].payload["sessions_per_week"] >= 2
+    assert refresh_events[0].payload["projected_weekly_minutes"] >= 0
+    assert "long_range_item_count" in refresh_events[0].payload
+    assert "average_session_minutes" in refresh_events[0].payload
 
     clear_listeners()
     profile_store.delete(username)
@@ -220,6 +224,8 @@ def test_schedule_refresh_fallback_reuses_previous_schedule(monkeypatch: pytest.
     fallback_events = [event for event in events if event.name == "schedule_refresh_fallback"]
     assert fallback_events[0].payload["status"] == "fallback"
     assert fallback_events[0].payload["had_prior_schedule"] is True
+    assert "long_range_item_count" in fallback_events[0].payload
+    assert "projected_weekly_minutes" in fallback_events[0].payload
 
     clear_listeners()
     profile_store.delete(username)

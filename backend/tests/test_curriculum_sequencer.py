@@ -118,7 +118,7 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     assert quiz.prerequisites == ["lesson-backend-foundations"]
     milestone = next(item for item in schedule.items if item.kind == "milestone")
     assert set(milestone.prerequisites) == {"lesson-backend-foundations", "quiz-backend-foundations"}
-    assert schedule.time_horizon_days >= 28
+    assert schedule.time_horizon_days >= 150
     assert "Backend architecture" in (schedule.cadence_notes or "")
     assert all(
         later.recommended_day_offset >= earlier.recommended_day_offset
@@ -128,9 +128,15 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     assert schedule.warnings == []
     assert not any(item.user_adjusted for item in schedule.items)
     assert schedule.pacing_overview is not None
+    assert "minutes/week" in (schedule.pacing_overview or "")
     assert schedule.category_allocations, "Expected category pacing allocations."
     assert schedule.rationale_history, "Rationale history should be populated."
     assert schedule.rationale_history[-1].related_categories, "Rationale should surface related categories."
+    assert schedule.long_range_item_count >= 1
+    assert schedule.projected_weekly_minutes > 0
+    assert schedule.sessions_per_week >= 2
+    assert schedule.extended_weeks >= 20
+    assert schedule.long_range_category_keys, "Expected long-range categories to be captured."
 
 
 def test_sequencer_adds_deep_dive_for_high_priority_track() -> None:
@@ -248,6 +254,11 @@ def test_profile_serialization_includes_schedule_payload() -> None:
                 adjustment_notes=["Maintained learner-selected offsets."],
             )
         ],
+        sessions_per_week=3,
+        projected_weekly_minutes=240,
+        long_range_item_count=2,
+        extended_weeks=24,
+        long_range_category_keys=["backend"],
     )
     profile = LearnerProfile(
         username="tester",
@@ -273,3 +284,8 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule.category_allocations[0].deferral_count == 2
     assert payload.curriculum_schedule.rationale_history
     assert payload.curriculum_schedule.rationale_history[0].headline == "Extended roadmap"
+    assert payload.curriculum_schedule.sessions_per_week == 3
+    assert payload.curriculum_schedule.projected_weekly_minutes == 240
+    assert payload.curriculum_schedule.long_range_item_count == 2
+    assert payload.curriculum_schedule.extended_weeks == 24
+    assert payload.curriculum_schedule.long_range_category_keys == ["backend"]

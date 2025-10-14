@@ -116,3 +116,43 @@ def test_ensure_task_coverage_adds_missing_categories() -> None:
 
     assert {task.task_type for task in matching} == {"concept_check", "code"}
     assert all(task.expected_minutes > 0 for task in matching)
+
+
+def test_ensure_task_coverage_handles_augmented_categories_without_modules() -> None:
+    categories = [
+        ("backend-foundations", "Backend Foundations"),
+        ("data-fluency", "Data Fluency"),
+        ("backend-foundations", "Duplicate backend entry"),
+    ]
+    modules = [
+        CurriculumModule(
+            module_id="backend-foundations",
+            category_key="backend-foundations",
+            title="Backend Foundations",
+            summary="Deepen backend mastery.",
+            objectives=["Ship reliable services"],
+            activities=[],
+            deliverables=[],
+            estimated_minutes=80,
+        )
+    ]
+    tasks = [
+        AssessmentTask(
+            task_id="backend-foundations-concept",
+            category_key="backend-foundations",
+            title="Backend Reflection",
+            task_type="concept_check",
+            prompt="Explain recent backend learning.",
+            guidance="Be specific about async patterns.",
+            rubric=["Highlights async gap"],
+            expected_minutes=15,
+        )
+    ]
+
+    ensured = _ensure_task_coverage(categories, modules, tasks)
+
+    backend_tasks = [task for task in ensured if task.category_key == "backend-foundations"]
+    data_tasks = [task for task in ensured if task.category_key == "data-fluency"]
+
+    assert {task.task_type for task in backend_tasks} == {"concept_check", "code"}
+    assert {task.task_type for task in data_tasks} == {"concept_check", "code"}

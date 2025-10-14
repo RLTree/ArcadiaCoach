@@ -175,6 +175,11 @@ class CurriculumSchedule(BaseModel):
     pacing_overview: Optional[str] = None
     category_allocations: List[CategoryPacing] = Field(default_factory=list)
     rationale_history: List[ScheduleRationaleEntry] = Field(default_factory=list)
+    sessions_per_week: int = Field(default=4, ge=1)
+    projected_weekly_minutes: int = Field(default=0, ge=0)
+    long_range_item_count: int = Field(default=0, ge=0)
+    extended_weeks: int = Field(default=0, ge=0)
+    long_range_category_keys: List[str] = Field(default_factory=list)
 
 
 class AssessmentTask(BaseModel):
