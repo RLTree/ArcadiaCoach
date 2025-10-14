@@ -220,6 +220,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Bundle comprehension checks at the end of each lesson and sync results into the sequencer and ELO model.
     - Extend attachment presentation with inline previews and captions so lesson and assessment feedback surfaces can display uploaded context gracefully.
     - Resolve outstanding Swift concurrency warnings tied to shared formatters introduced by the new lesson components.
+    - Follow-ups: map `file_search` attachment IDs to human-readable filenames/titles, expose that metadata to the client, and ship interactive citation chips that open or download the referenced source instead of showing raw markers.
 18. **Phase 17 – Interactive Quiz & Assessment Overhaul**
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback.
     - Route quiz outcomes into ELO updates and adaptive curriculum adjustments.

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from agents import function_tool
 
 from .learner_profile import (
+    CurriculumSchedule,
     EloCategoryDefinition,
     EloCategoryPlan,
     EloRubricBand,
@@ -19,6 +20,8 @@ from .agent_models import (
     AssessmentGradingPayload,
     AssessmentRubricEvaluationPayload,
     AssessmentTaskGradePayload,
+    CurriculumModulePayload,
+    CurriculumSchedulePayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
@@ -30,8 +33,9 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
     OnboardingCurriculumPayload,
+    ScheduleWarningPayload,
+    SequencedWorkItemPayload,
     SkillRatingPayload,
-    CurriculumModulePayload,
 )
 
 
@@ -63,6 +67,43 @@ def progress_advance(idx: int, total: int) -> Dict[str, Any]:
         total = 1
     next_idx = min(idx + 1, total - 1)
     return _progress_payload(idx=next_idx, total=total)
+
+def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[CurriculumSchedulePayload]:
+    if schedule is None:
+        return None
+    warnings = [
+        ScheduleWarningPayload(
+            code=getattr(warning, "code", "refresh_failed"),
+            message=getattr(warning, "message", ""),
+            detail=getattr(warning, "detail", None),
+            generated_at=getattr(warning, "generated_at", schedule.generated_at),
+        )
+        for warning in getattr(schedule, "warnings", [])
+    ]
+    return CurriculumSchedulePayload(
+        generated_at=schedule.generated_at,
+        time_horizon_days=schedule.time_horizon_days,
+        cadence_notes=schedule.cadence_notes,
+        is_stale=getattr(schedule, "is_stale", False),
+        warnings=warnings,
+        items=[
+            SequencedWorkItemPayload(
+                item_id=item.item_id,
+                kind=item.kind,
+                category_key=item.category_key,
+                title=item.title,
+                summary=item.summary,
+                objectives=list(item.objectives),
+                prerequisites=list(item.prerequisites),
+                recommended_minutes=item.recommended_minutes,
+                recommended_day_offset=item.recommended_day_offset,
+                effort_level=item.effort_level,
+                focus_reason=item.focus_reason,
+                expected_outcome=item.expected_outcome,
+            )
+            for item in schedule.items
+        ],
+    )
 
 
 def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
@@ -191,6 +232,7 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
         last_updated=profile.last_updated,
         elo_category_plan=plan_payload,
         curriculum_plan=curriculum_payload,
+        curriculum_schedule=_schedule_payload(getattr(profile, "curriculum_schedule", None)),
         onboarding_assessment=assessment_payload,
         onboarding_assessment_result=assessment_result_payload,
     )

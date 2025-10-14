@@ -14,7 +14,6 @@ from .agent_models import (
     AssessmentTaskGradePayload,
     CurriculumModulePayload,
     CurriculumSchedulePayload,
-    ScheduleWarningPayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
@@ -22,54 +21,17 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
     OnboardingCurriculumPayload,
-    SequencedWorkItemPayload,
     SkillRatingPayload,
 )
 from .assessment_submission import submission_payload, submission_store
 from .curriculum_sequencer import generate_schedule_for_user
 from .learner_profile import CurriculumSchedule, LearnerProfile, ScheduleWarning, profile_store
 from .telemetry import emit_event
+from .tools import _schedule_payload
 
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 logger = logging.getLogger(__name__)
-
-
-def _schedule_payload(schedule: CurriculumSchedule | None) -> CurriculumSchedulePayload | None:
-    if schedule is None:
-        return None
-    return CurriculumSchedulePayload(
-        generated_at=schedule.generated_at,
-        time_horizon_days=schedule.time_horizon_days,
-        cadence_notes=schedule.cadence_notes,
-        items=[
-            SequencedWorkItemPayload(
-                item_id=item.item_id,
-                kind=item.kind,
-                category_key=item.category_key,
-                title=item.title,
-                summary=item.summary,
-                objectives=list(item.objectives),
-                prerequisites=list(item.prerequisites),
-                recommended_minutes=item.recommended_minutes,
-                recommended_day_offset=item.recommended_day_offset,
-                effort_level=item.effort_level,
-                focus_reason=item.focus_reason,
-                expected_outcome=item.expected_outcome,
-            )
-            for item in schedule.items
-        ],
-        is_stale=schedule.is_stale,
-        warnings=[
-            ScheduleWarningPayload(
-                code=warning.code,
-                message=warning.message,
-                detail=warning.detail,
-                generated_at=warning.generated_at,
-            )
-            for warning in schedule.warnings
-        ],
-    )
 
 
 def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
