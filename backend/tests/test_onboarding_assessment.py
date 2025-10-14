@@ -14,7 +14,7 @@ from app.learner_profile import (
     LearnerProfileStore,
     OnboardingAssessment,
 )
-from app.onboarding_assessment import _ensure_task_coverage
+from app.onboarding_assessment import MIN_TASKS_PER_CATEGORY, _ensure_task_coverage
 
 
 def _store(tmp_path: Path) -> LearnerProfileStore:
@@ -116,6 +116,7 @@ def test_ensure_task_coverage_adds_missing_categories() -> None:
 
     assert {task.task_type for task in matching} == {"concept_check", "code"}
     assert all(task.expected_minutes > 0 for task in matching)
+    assert len(matching) >= MIN_TASKS_PER_CATEGORY
 
 
 def test_ensure_task_coverage_handles_augmented_categories_without_modules() -> None:
@@ -156,3 +157,5 @@ def test_ensure_task_coverage_handles_augmented_categories_without_modules() -> 
 
     assert {task.task_type for task in backend_tasks} == {"concept_check", "code"}
     assert {task.task_type for task in data_tasks} == {"concept_check", "code"}
+    assert len(backend_tasks) >= MIN_TASKS_PER_CATEGORY
+    assert len(data_tasks) >= MIN_TASKS_PER_CATEGORY

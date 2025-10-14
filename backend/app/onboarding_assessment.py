@@ -56,6 +56,9 @@ def _reasoning_effort(value: str) -> ReasoningEffort:
     return cast(ReasoningEffort, effort)
 
 
+MIN_TASKS_PER_CATEGORY = 3
+
+
 def _slugify(value: str, fallback: str) -> str:
     normalized = "".join(char.lower() if char.isalnum() else "-" for char in value or "")
     slug = normalized.strip("-") or fallback
@@ -205,6 +208,39 @@ def _default_code_task(category_key: str, label: str, module: CurriculumModule |
     )
 
 
+def _default_extension_task(
+    category_key: str,
+    label: str,
+    module: CurriculumModule | None,
+    sequence: int,
+) -> AssessmentTask:
+    slug = _slugify(f"{category_key}-scenario-{sequence}", f"{category_key}-scenario-{sequence}")
+    summary = module.summary if module else f"Identify practical applications for {label.lower()}."
+    prompt = (
+        f"Describe a scenario where {label.lower()} becomes critical to delivering your goal. "
+        "Explain the signals that reveal an issue, how you would triage it, and the steps you would take to resolve or escalate."
+    )
+    guidance = (
+        f"Anchor your answer in the onboarding module context: {summary}. "
+        "List at least one risk you would monitor and how you would communicate progress."
+    )
+    rubric = [
+        "Provides a realistic scenario tied to the learner's objectives.",
+        "Highlights telemetry, heuristics, or decision points used to evaluate success.",
+        "Identifies trade-offs, risks, or follow-up actions for sustained improvement.",
+    ]
+    return AssessmentTask(
+        task_id=slug,
+        category_key=category_key,
+        title=f"{label} Scenario Walkthrough",
+        task_type="concept_check",  # type: ignore[arg-type]
+        prompt=prompt,
+        guidance=guidance,
+        rubric=rubric,
+        expected_minutes=18,
+    )
+
+
 def _ensure_task_coverage(
     categories: Iterable[Tuple[str, str]],
     modules: List[CurriculumModule],
@@ -218,10 +254,15 @@ def _ensure_task_coverage(
             continue
         seen.add(normalized_key)
         ordered_categories.append((normalized_key, label))
+
     by_category: Dict[str, Dict[str, List[AssessmentTask]]] = {}
+
+    def _register(task: AssessmentTask) -> None:
+        entry = by_category.setdefault(task.category_key, {"concept_check": [], "code": []})
+        entry.setdefault(task.task_type, []).append(task)
+
     for task in tasks:
-        by_category.setdefault(task.category_key, {"concept_check": [], "code": []})
-        by_category[task.category_key].setdefault(task.task_type, []).append(task)
+        _register(task)
 
     modules_by_category: Dict[str, CurriculumModule] = {}
     for module in modules:
@@ -229,12 +270,29 @@ def _ensure_task_coverage(
 
     final_tasks = list(tasks)
     for category_key, label in ordered_categories:
-        coverage = by_category.get(category_key, {"concept_check": [], "code": []})
+        coverage = by_category.setdefault(category_key, {"concept_check": [], "code": []})
         module = modules_by_category.get(category_key)
         if not coverage.get("concept_check"):
-            final_tasks.append(_default_concept_task(category_key, label, module))
+            concept = _default_concept_task(category_key, label, module)
+            final_tasks.append(concept)
+            _register(concept)
+            coverage = by_category[category_key]
         if not coverage.get("code"):
-            final_tasks.append(_default_code_task(category_key, label, module))
+            code_task = _default_code_task(category_key, label, module)
+            final_tasks.append(code_task)
+            _register(code_task)
+            coverage = by_category[category_key]
+
+        total = len(coverage.get("concept_check", [])) + len(coverage.get("code", []))
+        extension_index = 1
+        while total < MIN_TASKS_PER_CATEGORY:
+            extension = _default_extension_task(category_key, label, module, extension_index)
+            final_tasks.append(extension)
+            _register(extension)
+            coverage = by_category[category_key]
+            total = len(coverage.get("concept_check", [])) + len(coverage.get("code", []))
+            extension_index += 1
+
     return final_tasks
 
 
