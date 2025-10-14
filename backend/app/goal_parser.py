@@ -39,7 +39,7 @@ class GoalParserModulePayload(BaseModel):
     module_id: str
     category_key: str
     priority: str = Field(default="core")
-    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    suggested_weeks: Optional[int] = Field(default=None)
     notes: Optional[str] = None
 
 
@@ -53,7 +53,7 @@ class GoalParserTrackPayload(BaseModel):
     focus_areas: List[str] = Field(default_factory=list)
     prerequisites: List[str] = Field(default_factory=list)
     recommended_modules: List[GoalParserModulePayload] = Field(default_factory=list)
-    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    suggested_weeks: Optional[int] = Field(default=None)
     notes: Optional[str] = None
 
 
@@ -166,20 +166,11 @@ def _coerce_goal_parser_payload(payload: Any) -> GoalParserPayload:
 
 
 def _convert_track(entry: GoalParserTrackPayload) -> FoundationTrack:
-    modules = [
-        FoundationModuleReference(
-            module_id=module.module_id,
-            category_key=module.category_key,
-            priority=module.priority if module.priority in {"core", "reinforcement", "extension"} else "core",
-            suggested_weeks=module.suggested_weeks,
-            notes=module.notes,
-        )
-        for module in entry.recommended_modules
-    ]
+    modules = [_sanitize_module(module) for module in entry.recommended_modules]
     priority = entry.priority if entry.priority in {"now", "up_next", "later"} else "now"
     confidence = entry.confidence if entry.confidence in {"low", "medium", "high"} else "medium"
     weight = entry.weight if entry.weight >= 0 else 1.0
-    return FoundationTrack(
+    track = FoundationTrack(
         track_id=entry.track_id,
         label=entry.label,
         priority=priority,  # type: ignore[arg-type]
@@ -192,6 +183,7 @@ def _convert_track(entry: GoalParserTrackPayload) -> FoundationTrack:
         suggested_weeks=entry.suggested_weeks,
         notes=entry.notes,
     )
+    return _sanitize_track(track)
 
 
 async def parse_goal(
@@ -257,7 +249,7 @@ async def parse_goal(
         inference = GoalParserInference(
             summary=payload.summary,
             target_outcomes=[item.strip() for item in payload.target_outcomes if item.strip()],
-            tracks=tracks,
+            tracks=[_sanitize_track(track) for track in tracks],
             missing_templates=[item.strip() for item in payload.missing_templates if item.strip()],
         )
         profile_store.set_goal_inference(username, inference)
@@ -267,7 +259,7 @@ async def parse_goal(
     except Exception as exc:  # noqa: BLE001
         logger.exception("Goal parser execution failed for %s", username, exc_info=exc)
 
-    fallback_tracks = _fallback_tracks(goal)
+    fallback_tracks = [_sanitize_track(track) for track in _fallback_tracks(goal)]
     inference = GoalParserInference(
         summary="Fallback inference based on heuristic signals.",
         target_outcomes=[goal] if goal else [],
@@ -289,7 +281,12 @@ async def ensure_goal_inference(
     resolved_settings = settings or get_settings()
     profile = profile_store.get(username)
     if profile and profile.goal_inference and profile.goal_inference.tracks:
-        return profile.goal_inference
+        sanitized = profile.goal_inference.model_copy(
+            update={"tracks": [_sanitize_track(track) for track in profile.goal_inference.tracks]}
+        )
+        if sanitized != profile.goal_inference:
+            profile_store.set_goal_inference(username, sanitized)
+        return sanitized
     previous_tracks = profile.foundation_tracks if profile else None
     return await parse_goal(
         resolved_settings,
@@ -302,3 +299,34 @@ async def ensure_goal_inference(
 
 
 __all__ = ["ensure_goal_inference", "parse_goal"]
+
+
+def _sanitize_module(module: GoalParserModulePayload) -> FoundationModuleReference:
+    weeks = module.suggested_weeks
+    sanitized_weeks = weeks if isinstance(weeks, int) and weeks >= 1 else None
+    priority = module.priority if module.priority in {"core", "reinforcement", "extension"} else "core"
+    return FoundationModuleReference(
+        module_id=module.module_id,
+        category_key=module.category_key,
+        priority=priority,  # type: ignore[arg-type]
+        suggested_weeks=sanitized_weeks,
+        notes=module.notes,
+    )
+
+
+def _sanitize_track(track: FoundationTrack) -> FoundationTrack:
+    sanitized_modules = [
+        module.model_copy(
+            update={
+                "suggested_weeks": module.suggested_weeks if module.suggested_weeks is None or module.suggested_weeks >= 1 else None
+            }
+        )
+        for module in track.recommended_modules
+    ]
+    sanitized_weeks = track.suggested_weeks if (track.suggested_weeks is None or track.suggested_weeks >= 1) else None
+    return track.model_copy(
+        update={
+            "recommended_modules": sanitized_modules,
+            "suggested_weeks": sanitized_weeks,
+        }
+    )
