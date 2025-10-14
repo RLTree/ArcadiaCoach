@@ -122,6 +122,24 @@ class ScheduleWarningPayload(BaseModel):
     generated_at: datetime
 
 
+class CategoryPacingPayload(BaseModel):
+    category_key: str
+    planned_minutes: int = Field(default=0, ge=0)
+    target_share: float = Field(default=0.0, ge=0.0)
+    deferral_pressure: Literal["low", "medium", "high"]
+    deferral_count: int = Field(default=0, ge=0)
+    max_deferral_days: int = Field(default=0, ge=0)
+    rationale: Optional[str] = None
+
+
+class ScheduleRationaleEntryPayload(BaseModel):
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    headline: str
+    summary: str
+    related_categories: List[str] = Field(default_factory=list)
+    adjustment_notes: List[str] = Field(default_factory=list)
+
+
 class CurriculumSchedulePayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     time_horizon_days: int = Field(default=14, ge=1)
@@ -131,6 +149,9 @@ class CurriculumSchedulePayload(BaseModel):
     items: List[SequencedWorkItemPayload] = Field(default_factory=list)
     is_stale: bool = False
     warnings: List[ScheduleWarningPayload] = Field(default_factory=list)
+    pacing_overview: Optional[str] = None
+    category_allocations: List[CategoryPacingPayload] = Field(default_factory=list)
+    rationale_history: List[ScheduleRationaleEntryPayload] = Field(default_factory=list)
 
 
 class OnboardingCurriculumPayload(BaseModel):

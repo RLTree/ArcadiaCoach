@@ -332,7 +332,10 @@
         }
       ],
       "is_stale": false,
-      "warnings": []
+      "warnings": [],
+      "pacing_overview": null,
+      "category_allocations": [],
+      "rationale_history": []
     },
     "schedule_adjustments": {},
     "onboarding_assessment": null,

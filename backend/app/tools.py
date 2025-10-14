@@ -24,6 +24,7 @@ from .agent_models import (
     AssessmentTaskGradePayload,
     CurriculumModulePayload,
     CurriculumSchedulePayload,
+    CategoryPacingPayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
@@ -35,6 +36,7 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
     OnboardingCurriculumPayload,
+    ScheduleRationaleEntryPayload,
     ScheduleWarningPayload,
     SequencedWorkItemPayload,
     SkillRatingPayload,
@@ -87,7 +89,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             detail=getattr(warning, "detail", None),
             generated_at=getattr(warning, "generated_at", schedule.generated_at),
         )
-        for warning in getattr(schedule, "warnings", [])
+    for warning in getattr(schedule, "warnings", [])
     ]
     items: List[SequencedWorkItemPayload] = []
     for item in schedule.items:
@@ -111,6 +113,28 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 scheduled_for=scheduled_for,
             )
         )
+    allocations = [
+        CategoryPacingPayload(
+            category_key=entry.category_key,
+            planned_minutes=entry.planned_minutes,
+            target_share=entry.target_share,
+            deferral_pressure=entry.deferral_pressure,
+            deferral_count=getattr(entry, "deferral_count", 0),
+            max_deferral_days=getattr(entry, "max_deferral_days", 0),
+            rationale=entry.rationale,
+        )
+        for entry in getattr(schedule, "category_allocations", [])
+    ]
+    rationale_history = [
+        ScheduleRationaleEntryPayload(
+            generated_at=entry.generated_at,
+            headline=entry.headline,
+            summary=entry.summary,
+            related_categories=list(entry.related_categories),
+            adjustment_notes=list(entry.adjustment_notes),
+        )
+        for entry in getattr(schedule, "rationale_history", [])
+    ]
     return CurriculumSchedulePayload(
         generated_at=schedule.generated_at,
         time_horizon_days=schedule.time_horizon_days,
@@ -120,6 +144,9 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         is_stale=getattr(schedule, "is_stale", False),
         warnings=warnings,
         items=items,
+        pacing_overview=getattr(schedule, "pacing_overview", None),
+        category_allocations=allocations,
+        rationale_history=rationale_history,
     )
 
 

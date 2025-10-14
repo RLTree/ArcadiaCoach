@@ -149,6 +149,50 @@ struct ScheduleWarning: Codable, Hashable, Identifiable {
     var id: String { "\(code)-\(generatedAt.timeIntervalSince1970)" }
 }
 
+struct CategoryPacingAllocation: Codable, Hashable, Identifiable {
+    enum Pressure: String, Codable, Hashable {
+        case low
+        case medium
+        case high
+
+        var description: String {
+            rawValue.capitalized
+        }
+    }
+
+    var categoryKey: String
+    var plannedMinutes: Int
+    var targetShare: Double
+    var deferralPressure: Pressure
+    var deferralCount: Int
+    var maxDeferralDays: Int
+    var rationale: String?
+
+    var id: String { categoryKey }
+
+    var targetSharePercent: String {
+        "\(Int(round(targetShare * 100)))%"
+    }
+
+    var formattedPlannedDuration: String {
+        if plannedMinutes >= 60 {
+            let hours = Double(plannedMinutes) / 60.0
+            return String(format: "%.1f h", hours)
+        }
+        return "~\(plannedMinutes) min"
+    }
+}
+
+struct ScheduleRationaleEntry: Codable, Hashable, Identifiable {
+    var generatedAt: Date
+    var headline: String
+    var summary: String
+    var relatedCategories: [String]
+    var adjustmentNotes: [String]
+
+    var id: String { "\(generatedAt.timeIntervalSince1970)-\(headline)" }
+}
+
 struct CurriculumSchedule: Codable, Hashable {
     var generatedAt: Date
     var timeHorizonDays: Int
@@ -158,6 +202,9 @@ struct CurriculumSchedule: Codable, Hashable {
     var items: [SequencedWorkItem]
     var isStale: Bool = false
     var warnings: [ScheduleWarning] = []
+    var pacingOverview: String?
+    var categoryAllocations: [CategoryPacingAllocation] = []
+    var rationaleHistory: [ScheduleRationaleEntry] = []
 
     struct Group: Hashable, Identifiable {
         var offset: Int
@@ -174,6 +221,10 @@ struct CurriculumSchedule: Codable, Hashable {
                 return Group(offset: entry.key, date: sorted.first?.scheduledFor, items: sorted)
             }
             .sorted { $0.offset < $1.offset }
+    }
+
+    var latestRationale: ScheduleRationaleEntry? {
+        rationaleHistory.sorted { $0.generatedAt < $1.generatedAt }.last
     }
 }
 

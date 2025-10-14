@@ -104,6 +104,28 @@ class ScheduleWarning(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class CategoryPacing(BaseModel):
+    """Summary of planned effort allocation for a given curriculum category."""
+
+    category_key: str
+    planned_minutes: int = Field(default=0, ge=0)
+    target_share: float = Field(default=0.0, ge=0.0)
+    deferral_pressure: Literal["low", "medium", "high"] = "low"
+    deferral_count: int = Field(default=0, ge=0)
+    max_deferral_days: int = Field(default=0, ge=0)
+    rationale: Optional[str] = None
+
+
+class ScheduleRationaleEntry(BaseModel):
+    """Narrative explaining why the schedule evolved in its current direction."""
+
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    headline: str
+    summary: str
+    related_categories: List[str] = Field(default_factory=list)
+    adjustment_notes: List[str] = Field(default_factory=list)
+
+
 class CurriculumSchedule(BaseModel):
     """Rolling schedule for upcoming lessons, quizzes, and milestones."""
 
@@ -114,6 +136,9 @@ class CurriculumSchedule(BaseModel):
     items: List[SequencedWorkItem] = Field(default_factory=list)
     is_stale: bool = Field(default=False)
     warnings: List[ScheduleWarning] = Field(default_factory=list)
+    pacing_overview: Optional[str] = None
+    category_allocations: List[CategoryPacing] = Field(default_factory=list)
+    rationale_history: List[ScheduleRationaleEntry] = Field(default_factory=list)
 
 
 class AssessmentTask(BaseModel):

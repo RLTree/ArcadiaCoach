@@ -206,22 +206,24 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added resilient fallbacks: failed refreshes now reuse the previous schedule, mark it `is_stale`, and surface warning metadata to both API and SwiftUI.
     - Triggered automatic schedule regeneration immediately after onboarding grading and updated the agent prompt so Chat answers reference `curriculum_schedule` data.
     - Expanded regression coverage for telemetry fan-out, fallback warnings, and post-grading schedule creation.
-    - **Follow-ups:** Capture learner timezone for date translation, stream telemetry into production observability once the persistence migration lands, and finish the richer citation UX (tracked under Phase 19).
+    - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 19).
 14. **Phase 13 – Adaptive Curriculum MVP** ✅ *(completed October 14, 2025; see `docs/phase-13-adaptive-curriculum-mvp.md`)*
     - Regenerated curriculum schedules immediately after onboarding so every learner leaves planning with a populated 2–3 week roadmap.
     - Persisted learner `schedule_adjustments`, surfaced `user_adjusted` flags in schedule payloads, and taught the sequencer to honour deferrals on refresh.
     - Added the `/api/profile/{username}/schedule/adjust` endpoint, dashboard reschedule controls, and telemetry covering adjustment requests and applied deltas.
     - Hardened schedule refresh performance by short-circuiting identical regenerations so the backend skips redundant writes.
     - **Follow-ups:** Localise schedule output to the learner’s timezone (Phase 14), monitor `schedule_generation` telemetry for unexpected spikes, and extend UI affordances for pulling work forward.
-15. **Phase 14 – Schedule Localization & Time Semantics**
-    - Capture the learner’s timezone during onboarding and persist it across backend and client surfaces.
-    - Translate `recommended_day_offset` values into calendar dates in API responses, chat summaries, and dashboard views.
-    - Update prompts and progress overlays so agent messaging references real dates/times and respects daylight-saving changes.
-    - Add regression coverage and telemetry to confirm schedules render with the correct locale-aware formats.
-16. **Phase 15 – Adaptive Curriculum Evolution**
-    - Extend the curriculum generator to cover multi-months plans with rationale history, surfacing how adjustments relate to learner goals and performance trends.
-    - Layer in pacing controls so the sequencer can allocate effort across categories intelligently and react to deferrals.
-    - Add changelog-style explanations in the macOS client so learners understand why the plan evolved.
+15. **Phase 14 – Schedule Localization & Time Semantics** ✅ *(completed October 14, 2025; see `docs/phase-14-schedule-localization.md`)*
+    - Persisted learner timezone context end-to-end (onboarding, client metadata, backend profiles) so scheduling logic always knows the correct locale.
+    - Localised curriculum schedules across APIs, chat prompts, and SwiftUI with DST-aware dates and timezone abbreviations.
+    - Added the `current_time` agent tool and prompt guidance so Arcadia Coach can report precise, localised timestamps without asking the learner.
+    - Refreshed dashboard schedule views to show per-item local timestamps that mirror the agent’s schedule summaries.
+    - **Follow-ups:** Instrument `current_time` usage and localisation telemetry, expose a user-facing timezone override, and extend localisation to exported artefacts (milestone briefs, summaries).
+16. **Phase 15 – Adaptive Curriculum Evolution** ✅ *(completed October 14, 2025; see `docs/phase-15-adaptive-curriculum-evolution.md`)*
+    - Expanded the sequencer with pacing heuristics that convert deferral patterns into multi-week cadences, spacing sessions across an extended horizon and injecting reinforcement sprints per module.
+    - Persisted structured `category_allocations`, `pacing_overview`, and `rationale_history` on curriculum schedules, including deferral pressure metrics and narrative adjustment notes.
+    - Updated backend payloads, agent tools, and tests so Swift + FastAPI decode/render the new pacing metadata without regressions.
+    - Refreshed the macOS dashboard with pacing breakdowns, deferral pressure badges, and a changelog timeline so learners can see why the roadmap evolved.
 17. **Phase 16 – Milestone Guidance & Adaptive Roadmapping**
     - Generate detailed milestone briefs (objectives, required deliverables, success parameters) that live entirely in-app.
     - Clarify which work must happen outside the app while capturing progress notes and artefacts back into Arcadia.
@@ -334,3 +336,8 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 - **What went wrong:** Refreshing a schedule immediately after deferring an item rewrote the unchanged profile JSON, so the request stalled behind a multi-minute disk write on Render.
 - **Correct approach:** Detect unchanged sequencer output, skip persistence when no fields differ, and emit telemetry with `status="unchanged"` so we can monitor redundant refreshes.
 - **Action for future work:** Extend the short-circuit to future persistence migrations and alert if `schedule_generation` repeatedly reports large `duration_ms` despite unchanged payloads.
+
+### Current time tool & timezone propagation (added October 14, 2025)
+- **What went wrong:** The agent defaulted to UTC when reporting timestamps, even after we localised schedules, because it lacked a clock tool and the backend wasn’t forwarding learner timezone metadata.
+- **Correct approach:** Introduce a `current_time` function tool, update prompts to call it, and ensure the macOS client/backend pass the learner’s timezone with every chat turn.
+- **Action for future work:** Monitor tool usage, surface telemetry for localisation mismatches, and add a client-facing timezone override control.

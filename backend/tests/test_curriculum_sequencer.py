@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult
 from app.curriculum_sequencer import CurriculumSequencer
 from app.learner_profile import (
+    CategoryPacing,
     CurriculumModule,
     CurriculumPlan,
     CurriculumSchedule,
@@ -14,6 +15,7 @@ from app.learner_profile import (
     EloCategoryPlan,
     EloRubricBand,
     LearnerProfile,
+    ScheduleRationaleEntry,
     SequencedWorkItem,
 )
 from app.profile_routes import _serialize_profile
@@ -109,11 +111,12 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
 
     assert schedule.items, "Sequencer should emit at least one item."
     assert schedule.items[0].item_id == "lesson-backend-foundations"
+    assert any(item.item_id.startswith("reinforce-") for item in schedule.items)
     quiz = next(item for item in schedule.items if item.item_id == "quiz-backend-foundations")
     assert quiz.prerequisites == ["lesson-backend-foundations"]
     milestone = next(item for item in schedule.items if item.kind == "milestone")
     assert set(milestone.prerequisites) == {"lesson-backend-foundations", "quiz-backend-foundations"}
-    assert schedule.time_horizon_days >= 7
+    assert schedule.time_horizon_days >= 28
     assert "Backend architecture" in (schedule.cadence_notes or "")
     assert all(
         later.recommended_day_offset >= earlier.recommended_day_offset
@@ -122,6 +125,10 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     assert schedule.is_stale is False
     assert schedule.warnings == []
     assert not any(item.user_adjusted for item in schedule.items)
+    assert schedule.pacing_overview is not None
+    assert schedule.category_allocations, "Expected category pacing allocations."
+    assert schedule.rationale_history, "Rationale history should be populated."
+    assert schedule.rationale_history[-1].related_categories, "Rationale should surface related categories."
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:
@@ -155,7 +162,27 @@ def test_profile_serialization_includes_schedule_payload() -> None:
                 expected_outcome="Score above 70%",
                 effort_level="light",
             ),
-        ]
+        ],
+        pacing_overview="Testing cadence summary.",
+        category_allocations=[
+            CategoryPacing(
+                category_key="backend",
+                planned_minutes=60,
+                target_share=0.5,
+                deferral_pressure="medium",
+                deferral_count=2,
+                max_deferral_days=5,
+                rationale="Weight 0.50; ELO 1100",
+            )
+        ],
+        rationale_history=[
+            ScheduleRationaleEntry(
+                headline="Extended roadmap",
+                summary="Focus on backend practice.",
+                related_categories=["backend"],
+                adjustment_notes=["Maintained learner-selected offsets."],
+            )
+        ],
     )
     profile = LearnerProfile(
         username="tester",
@@ -174,3 +201,10 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule.anchor_date is not None
     assert payload.curriculum_schedule.timezone == "UTC"
     assert payload.curriculum_schedule.items[0].scheduled_for is not None
+    assert payload.curriculum_schedule.pacing_overview == "Testing cadence summary."
+    assert payload.curriculum_schedule.category_allocations
+    assert payload.curriculum_schedule.category_allocations[0].category_key == "backend"
+    assert payload.curriculum_schedule.category_allocations[0].deferral_pressure == "medium"
+    assert payload.curriculum_schedule.category_allocations[0].deferral_count == 2
+    assert payload.curriculum_schedule.rationale_history
+    assert payload.curriculum_schedule.rationale_history[0].headline == "Extended roadmap"

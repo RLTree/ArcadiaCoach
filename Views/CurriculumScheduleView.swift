@@ -31,17 +31,37 @@ struct CurriculumScheduleView: View {
         return formatter
     }
 
+    private var maxPlannedMinutes: Int {
+        schedule.categoryAllocations.map(\.plannedMinutes).max() ?? 0
+    }
+
+    private var rationaleEntries: [ScheduleRationaleEntry] {
+        schedule.rationaleHistory.sorted { $0.generatedAt > $1.generatedAt }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
             if schedule.isStale || !schedule.warnings.isEmpty {
                 warningsSection
             }
+            if let pacing = schedule.pacingOverview, !pacing.isEmpty {
+                Text(pacing)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let cadence = schedule.cadenceNotes, !cadence.isEmpty {
                 Text(cadence)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if !schedule.categoryAllocations.isEmpty {
+                pacingSection
+            }
+            if !rationaleEntries.isEmpty {
+                rationaleSection
             }
             ForEach(schedule.groupedItems) { group in
                 VStack(alignment: .leading, spacing: 10) {
@@ -124,6 +144,96 @@ struct CurriculumScheduleView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private var pacingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Pacing Plan", systemImage: "speedometer")
+                .font(.subheadline.bold())
+            ForEach(schedule.categoryAllocations) { allocation in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(categoryName(for: allocation.categoryKey))
+                            .font(.headline)
+                        Spacer()
+                        Text(allocation.targetSharePercent)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.primary.opacity(0.08), in: Capsule())
+                        Label(allocation.deferralPressure.description, systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(pressureColor(for: allocation.deferralPressure).opacity(0.15), in: Capsule())
+                            .foregroundStyle(pressureColor(for: allocation.deferralPressure))
+                    }
+                    ProgressView(
+                        value: Double(allocation.plannedMinutes),
+                        total: Double(max(maxPlannedMinutes, 1))
+                    )
+                    .progressViewStyle(.linear)
+                    .tint(pressureColor(for: allocation.deferralPressure))
+                    HStack(alignment: .center) {
+                        Text("Planned: \(allocation.formattedPlannedDuration)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if allocation.deferralCount > 0 {
+                            Text("\(allocation.deferralCount) deferrals • max \(allocation.maxDeferralDays)d")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let rationale = allocation.rationale, !rationale.isEmpty {
+                        Text(rationale)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private var rationaleSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Schedule Updates", systemImage: "list.bullet.rectangle")
+                .font(.subheadline.bold())
+            ForEach(Array(rationaleEntries.enumerated()), id: \.element.id) { index, entry in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(entry.headline)
+                        .font(.headline)
+                    Text(entry.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !entry.adjustmentNotes.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(entry.adjustmentNotes, id: \.self) { note in
+                                Text("• \(note)")
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    Text(entry.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if index < rationaleEntries.count - 1 {
+                    Divider()
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
     }
 
     @ViewBuilder
@@ -307,6 +417,24 @@ struct CurriculumScheduleView: View {
             return .blue
         case .focus:
             return .orange
+        }
+    }
+
+    private func categoryName(for key: String) -> String {
+        if let label = categoryLabels[key], !label.isEmpty {
+            return label
+        }
+        return key.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+
+    private func pressureColor(for pressure: CategoryPacingAllocation.Pressure) -> Color {
+        switch pressure {
+        case .low:
+            return .green
+        case .medium:
+            return .orange
+        case .high:
+            return .red
         }
     }
 }

@@ -194,7 +194,7 @@ def test_schedule_refresh_fallback_reuses_previous_schedule(monkeypatch: pytest.
 
     events = _collect_events()
 
-    def _fail_build(_profile: LearnerProfile) -> None:
+    def _fail_build(_profile: LearnerProfile, **_kwargs: object) -> None:
         raise ValueError("forced failure for testing")
 
     monkeypatch.setattr(sequencer, "build_schedule", _fail_build)

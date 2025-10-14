@@ -5,16 +5,19 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Literal, Optional, Sequence, Tuple, cast
 
 from .learner_profile import (
     AssessmentGradingResult,
+    CategoryPacing,
     CurriculumModule,
     CurriculumPlan,
     CurriculumSchedule,
     LearnerProfile,
+    ScheduleRationaleEntry,
     SequencedWorkItem,
     profile_store,
 )
@@ -24,7 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_DAILY_CAP_MINUTES = 120
-DEFAULT_TIME_HORIZON_DAYS = 14
+DEFAULT_TIME_HORIZON_DAYS = 56
+MAX_RATIONALE_HISTORY = 6
 
 
 @dataclass
@@ -46,18 +50,28 @@ class CurriculumSequencer:
         *,
         daily_capacity_minutes: int = DEFAULT_DAILY_CAP_MINUTES,
         default_time_horizon_days: int = DEFAULT_TIME_HORIZON_DAYS,
+        default_sessions_per_week: int = 4,
     ) -> None:
         self._daily_capacity = max(daily_capacity_minutes, 45)
         self._default_horizon = max(default_time_horizon_days, 7)
+        self._default_sessions_per_week = max(default_sessions_per_week, 2)
 
-    def build_schedule(self, profile: LearnerProfile) -> CurriculumSchedule:
+    def build_schedule(
+        self,
+        profile: LearnerProfile,
+        *,
+        previous_schedule: Optional[CurriculumSchedule] = None,
+        adjustments: Optional[Dict[str, int]] = None,
+    ) -> CurriculumSchedule:
         if not profile.elo_category_plan and not profile.elo_snapshot:
             raise ValueError("Cannot generate a schedule without ELO categories.")
 
+        adjustments = adjustments or getattr(profile, "schedule_adjustments", {}) or {}
         categories = self._build_category_context(profile)
         if not categories:
             raise ValueError("No curriculum categories available for sequencing.")
 
+        pacing_sessions = self._determine_sessions_per_week(previous_schedule, adjustments)
         timeline: List[SequencedWorkItem] = []
         module_order = self._prioritize_modules(categories.values())
 
@@ -128,9 +142,50 @@ class CurriculumSequencer:
                     )
                 )
 
-        scheduled_items = self._assign_day_offsets(timeline)
+            reinforcement_minutes = max(45, math.ceil(expected_minutes * 0.6))
+            timeline.append(
+                SequencedWorkItem(
+                    item_id=f"reinforce-{module.module_id}",
+                    category_key=module.category_key,
+                    kind="lesson",
+                    title=f"Practice Sprint: {module.title}",
+                    summary="Apply the module in a spaced-repetition sprint anchored to real workflows.",
+                    objectives=[
+                        "Revisit the toughest concept from the original module.",
+                        "Capture a before/after reflection on confidence and blockers.",
+                    ],
+                    prerequisites=[quiz_id],
+                    recommended_minutes=reinforcement_minutes,
+                    focus_reason=f"Reinforces {context.label.lower()} several weeks after the initial lesson.",
+                    expected_outcome="Document a concise improvement plan and practice notes.",
+                    effort_level=self._effort_level(reinforcement_minutes),
+                )
+            )
+
+        scheduled_items = self._assign_day_offsets(timeline, sessions_per_week=pacing_sessions)
         cadence_notes = self._cadence_summary(scheduled_items, profile.onboarding_assessment_result)
         horizon = max(self._default_horizon, (max(item.recommended_day_offset for item in scheduled_items) + 1))
+        category_allocations = self._category_allocations(
+            scheduled_items,
+            categories,
+            adjustments=adjustments,
+            previous_schedule=previous_schedule,
+        )
+        rationale_history = self._build_rationale_history(
+            profile=profile,
+            categories=categories,
+            adjustments=adjustments,
+            scheduled_items=scheduled_items,
+            previous_schedule=previous_schedule,
+            sessions_per_week=pacing_sessions,
+            category_allocations=category_allocations,
+        )
+        pacing_overview = self._pacing_overview(
+            category_allocations,
+            categories,
+            pacing_sessions,
+            horizon,
+        )
 
         return CurriculumSchedule(
             generated_at=datetime.now(timezone.utc),
@@ -138,6 +193,9 @@ class CurriculumSequencer:
             timezone=getattr(profile, "timezone", None),
             cadence_notes=cadence_notes,
             items=scheduled_items,
+            pacing_overview=pacing_overview,
+            category_allocations=category_allocations,
+            rationale_history=rationale_history,
         )
 
     def _build_category_context(self, profile: LearnerProfile) -> Dict[str, _CategoryContext]:
@@ -236,6 +294,184 @@ class CurriculumSequencer:
         if result is None:
             return {}
         return {outcome.category_key: outcome.rating_delta for outcome in result.category_outcomes}
+
+    def _determine_sessions_per_week(
+        self,
+        previous_schedule: Optional[CurriculumSchedule],
+        adjustments: Dict[str, int],
+    ) -> int:
+        sessions = self._default_sessions_per_week
+        if previous_schedule:
+            adjusted_count = sum(1 for item in previous_schedule.items if getattr(item, "user_adjusted", False))
+            if adjusted_count >= 4:
+                sessions = max(2, sessions - 2)
+            elif adjusted_count >= 2:
+                sessions = max(2, sessions - 1)
+        if adjustments:
+            max_offset = max(int(value) for value in adjustments.values())
+            if max_offset >= 42:
+                sessions = max(2, sessions - 2)
+            elif max_offset >= 21:
+                sessions = max(2, sessions - 1)
+            elif len(adjustments) >= 4:
+                sessions = max(2, sessions - 1)
+        return max(2, min(6, sessions))
+
+    def _category_allocations(
+        self,
+        items: Sequence[SequencedWorkItem],
+        categories: Dict[str, _CategoryContext],
+        *,
+        adjustments: Dict[str, int],
+        previous_schedule: Optional[CurriculumSchedule],
+    ) -> List[CategoryPacing]:
+        totals: Dict[str, int] = defaultdict(int)
+        for item in items:
+            totals[item.category_key] += max(int(item.recommended_minutes), 15)
+        deferral_counts: Dict[str, int] = defaultdict(int)
+        deferral_magnitude: Dict[str, int] = defaultdict(int)
+        if previous_schedule:
+            for prior in previous_schedule.items:
+                target_offset = adjustments.get(prior.item_id)
+                if target_offset is not None:
+                    diff = max(int(target_offset) - int(prior.recommended_day_offset), 0)
+                    if diff > 0 or getattr(prior, "user_adjusted", False):
+                        deferral_counts[prior.category_key] += 1
+                        if diff == 0 and getattr(prior, "user_adjusted", False):
+                            diff = 1
+                        deferral_magnitude[prior.category_key] = max(deferral_magnitude[prior.category_key], diff)
+                elif getattr(prior, "user_adjusted", False):
+                    deferral_counts[prior.category_key] += 1
+                    deferral_magnitude[prior.category_key] = max(deferral_magnitude[prior.category_key], 1)
+        allocations: List[CategoryPacing] = []
+        for key, context in categories.items():
+            planned = totals.get(key, 0)
+            weight = context.weight
+            count = deferral_counts.get(key, 0)
+            magnitude = deferral_magnitude.get(key, 0)
+            pressure: Literal["low", "medium", "high"] = "low"
+            if count >= 3 or magnitude >= 21:
+                pressure = "high"
+            elif count >= 1 or magnitude >= 7:
+                pressure = "medium"
+            rationale = self._category_rationale(context, pressure, count, magnitude)
+            allocations.append(
+                CategoryPacing(
+                    category_key=key,
+                    planned_minutes=planned,
+                    target_share=round(weight, 4),
+                    deferral_pressure=pressure,
+                    deferral_count=count,
+                    max_deferral_days=magnitude,
+                    rationale=rationale,
+                )
+            )
+        allocations.sort(key=lambda entry: (-entry.planned_minutes, entry.category_key))
+        return allocations
+
+    def _category_rationale(
+        self,
+        context: _CategoryContext,
+        pressure: Literal["low", "medium", "high"],
+        deferral_count: int,
+        max_deferral_days: int,
+    ) -> str:
+        fragments: List[str] = [
+            f"Weight {context.weight:.2f}",
+            f"ELO {context.rating}",
+        ]
+        if context.average_score is not None:
+            fragments.append(f"Assessment {context.average_score * 100:.0f}%")
+        if context.rating_delta is not None:
+            fragments.append(f"Δ{context.rating_delta:+}")
+        if pressure != "low":
+            fragments.append(f"{pressure.title()} deferrals ({deferral_count})")
+            if max_deferral_days > 0:
+                fragments.append(f"Max defer {max_deferral_days}d")
+        return "; ".join(fragments)
+
+    def _build_rationale_history(
+        self,
+        *,
+        profile: LearnerProfile,
+        categories: Dict[str, _CategoryContext],
+        adjustments: Dict[str, int],
+        scheduled_items: Sequence[SequencedWorkItem],
+        previous_schedule: Optional[CurriculumSchedule],
+        sessions_per_week: int,
+        category_allocations: Sequence[CategoryPacing],
+    ) -> List[ScheduleRationaleEntry]:
+        history: List[ScheduleRationaleEntry] = []
+        if previous_schedule and getattr(previous_schedule, "rationale_history", None):
+            history.extend(previous_schedule.rationale_history[-(MAX_RATIONALE_HISTORY - 1):])
+        top_allocations = [alloc for alloc in category_allocations if alloc.planned_minutes > 0][:2]
+        related_categories = list(
+            dict.fromkeys(
+                [alloc.category_key for alloc in top_allocations]
+                + [alloc.category_key for alloc in category_allocations if alloc.deferral_pressure != "low"]
+            )
+        )
+        horizon_days = max((item.recommended_day_offset for item in scheduled_items), default=0) + 1
+        goal_snippet = profile.goal.strip()
+        if len(goal_snippet) > 120:
+            goal_snippet = goal_snippet[:117].rstrip() + "…"
+        if not goal_snippet:
+            goal_text = "Goal context unavailable."
+        else:
+            goal_text = f"Goal: {goal_snippet}"
+        adjustment_notes: List[str] = []
+        for alloc in category_allocations:
+            if alloc.deferral_pressure != "low":
+                note = (
+                    f"Adjusted pacing for {categories[alloc.category_key].label} after "
+                    f"{alloc.deferral_count} deferral{'s' if alloc.deferral_count != 1 else ''}."
+                )
+                if alloc.max_deferral_days:
+                    note += f" Max defer {alloc.max_deferral_days} days."
+                adjustment_notes.append(note)
+        if not adjustment_notes and adjustments:
+            adjustment_notes.append("Maintained learner-selected offsets from recent deferrals.")
+        if not adjustment_notes:
+            adjustment_notes.append("No active deferrals carried over.")
+        focus_text = ", ".join(categories[alloc.category_key].label for alloc in top_allocations) or "mixed coverage"
+        headline = (
+            f"Roadmap extended to {horizon_days} days with {sessions_per_week} session"
+            f"{'s' if sessions_per_week != 1 else ''}/week cadence."
+        )
+        summary_parts = [
+            f"Prioritising {focus_text} while pacing at {sessions_per_week} sessions per week.",
+            goal_text,
+        ]
+        new_entry = ScheduleRationaleEntry(
+            headline=headline,
+            summary=" ".join(summary_parts),
+            related_categories=related_categories,
+            adjustment_notes=adjustment_notes,
+        )
+        history.append(new_entry)
+        if len(history) > MAX_RATIONALE_HISTORY:
+            history = history[-MAX_RATIONALE_HISTORY:]
+        return history
+
+    def _pacing_overview(
+        self,
+        allocations: Sequence[CategoryPacing],
+        categories: Dict[str, _CategoryContext],
+        sessions_per_week: int,
+        horizon_days: int,
+    ) -> str:
+        total_minutes = sum(entry.planned_minutes for entry in allocations)
+        focus_parts: List[str] = []
+        if total_minutes > 0:
+            for entry in allocations[:3]:
+                share = int(round((entry.planned_minutes / total_minutes) * 100))
+                label = categories[entry.category_key].label
+                focus_parts.append(f"{label} {share}%")
+        focus_clause = "; ".join(focus_parts) if focus_parts else "Mixed focus"
+        return (
+            f"Pacing {sessions_per_week} sessions/week over {horizon_days} days "
+            f"(~{total_minutes} minutes planned). Focus mix: {focus_clause}."
+        )
 
     def _sanitize_adjustments(self, adjustments: Dict[str, int]) -> Dict[str, int]:
         sanitized: Dict[str, int] = {}
@@ -336,18 +572,40 @@ class CurriculumSequencer:
                 return normalized
         return fallback_summary.strip()
 
-    def _assign_day_offsets(self, items: List[SequencedWorkItem]) -> List[SequencedWorkItem]:
-        day_offset = 0
-        minutes_remaining = self._daily_capacity
+    def _assign_day_offsets(
+        self,
+        items: List[SequencedWorkItem],
+        *,
+        sessions_per_week: int,
+    ) -> List[SequencedWorkItem]:
+        if not items:
+            return []
+        session_spacing = max(int(round(7 / max(sessions_per_week, 1))), 1)
+        session_index = 0
         scheduled: List[SequencedWorkItem] = []
-        for item in items:
-            minutes = max(item.recommended_minutes, 15)
-            if minutes > minutes_remaining and scheduled:
-                day_offset += 1
-                minutes_remaining = self._daily_capacity
+        for idx, item in enumerate(items):
+            same_session = False
+            if scheduled:
+                previous = scheduled[-1]
+                if (
+                    item.kind == "quiz"
+                    and previous.item_id in item.prerequisites
+                    and item.recommended_minutes <= 35
+                ):
+                    same_session = True
+                elif (
+                    item.kind == "milestone"
+                    and previous.item_id in item.prerequisites
+                    and item.recommended_minutes <= self._daily_capacity
+                ):
+                    same_session = False
+            if not same_session:
+                day_offset = session_index * session_spacing
+                session_index += 1
+            else:
+                day_offset = scheduled[-1].recommended_day_offset
             scheduled_item = item.model_copy()
             scheduled_item.recommended_day_offset = day_offset
-            minutes_remaining -= minutes
             scheduled.append(scheduled_item)
         return scheduled
 
@@ -360,8 +618,12 @@ class CurriculumSequencer:
             return "No scheduled items."
         distinct_days = len({item.recommended_day_offset for item in items})
         total_minutes = sum(item.recommended_minutes for item in items)
+        span_days = max((item.recommended_day_offset for item in items), default=0) + 1
         focus_categories = {item.category_key for item in items[:3]}
-        summary = f"Scheduled {len(items)} items across {distinct_days} days (~{total_minutes} minutes total)."
+        summary = (
+            f"Scheduled {len(items)} items across {distinct_days} sessions "
+            f"(~{total_minutes} minutes total) spanning ~{span_days} days."
+        )
         if assessment and assessment.focus_areas:
             summary += f" Focus areas: {', '.join(assessment.focus_areas[:2])}."
         elif focus_categories:
@@ -372,7 +634,7 @@ class CurriculumSequencer:
 sequencer = CurriculumSequencer()
 
 
-def generate_schedule_for_user(username: str) -> CurriculumSchedule:
+def generate_schedule_for_user(username: str) -> LearnerProfile:
     """Generate and persist a curriculum schedule for the given learner."""
     profile = profile_store.get(username)
     if profile is None:
@@ -382,7 +644,11 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
     previous_adjustments = dict(getattr(profile, "schedule_adjustments", {}))
     start = time.perf_counter()
     try:
-        schedule = sequencer.build_schedule(profile)
+        schedule = sequencer.build_schedule(
+            profile,
+            previous_schedule=previous_schedule,
+            adjustments=adjustments,
+        )
     except Exception as exc:  # noqa: BLE001
         duration_ms = (time.perf_counter() - start) * 1000.0
         emit_event(
