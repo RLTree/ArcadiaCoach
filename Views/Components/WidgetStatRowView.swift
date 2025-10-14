@@ -5,25 +5,27 @@ struct WidgetStatRowView: View {
     @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
-        LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
-            ForEach(props.items, id: \.label) { item in
-                statCard(for: item)
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(chunkedItems.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 12) {
+                    ForEach(row, id: \.offset) { element in
+                        statCard(for: element.element)
+                    }
+                }
             }
         }
         .accessibilityElement(children: .contain)
     }
 
-    private var gridColumns: [GridItem] {
-        let requested = props.itemsPerRow ?? defaultColumns
-        let columnCount = max(1, min(requested, props.items.count))
-        return Array(
-            repeating: GridItem(
-                .flexible(minimum: 160, maximum: 260),
-                spacing: 12,
-                alignment: .top
-            ),
-            count: columnCount
-        )
+    private typealias EnumeratedItem = EnumeratedSequence<[WidgetStatItem]>.Element
+
+    private var chunkedItems: [[EnumeratedItem]] {
+        let enumerated = Array(props.items.enumerated())
+        let perRow = max(1, props.itemsPerRow ?? defaultColumns)
+        guard perRow > 0 else { return [enumerated] }
+        return stride(from: 0, to: enumerated.count, by: perRow).map { index in
+            Array(enumerated[index ..< min(index + perRow, enumerated.count)])
+        }
     }
 
     private var defaultColumns: Int {

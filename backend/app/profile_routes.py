@@ -36,6 +36,7 @@ from .learner_profile import (
     AssessmentTask,
     CurriculumSchedule,
     LearnerProfile,
+    OnboardingAssessment,
     ScheduleWarning,
     FoundationModuleReference,
     FoundationTrack,
@@ -43,6 +44,7 @@ from .learner_profile import (
 )
 from .telemetry import emit_event
 from .tools import _schedule_payload
+from .onboarding_assessment import _ensure_task_coverage, _build_assessment_sections
 
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
@@ -56,6 +58,23 @@ class ScheduleAdjustmentRequest(BaseModel):
     days: int = Field(default=1, ge=1, le=MAX_DEFER_DAYS)
     target_day_offset: Optional[int] = Field(default=None, ge=0, le=42)
     reason: Optional[str] = Field(default=None, max_length=160)
+
+
+def _ensure_assessment_task_coverage(profile: LearnerProfile) -> OnboardingAssessment | None:
+    assessment = profile.onboarding_assessment
+    if assessment is None:
+        return None
+    plan = profile.elo_category_plan
+    if plan is None or not plan.categories:
+        return assessment
+    modules = list(profile.curriculum_plan.modules) if profile.curriculum_plan else []
+    categories = [(category.key, category.label) for category in plan.categories]
+    ensured_tasks = _ensure_task_coverage(categories, modules, list(assessment.tasks))
+    tasks, sections = _build_assessment_sections(ensured_tasks, plan.categories, profile.goal_inference)
+    if tasks != assessment.tasks or sections != assessment.sections:
+        assessment = assessment.model_copy(update={"tasks": tasks, "sections": sections})
+        profile.onboarding_assessment = assessment
+    return assessment
 
 
 def _module_reference_payload(reference: FoundationModuleReference) -> FoundationModuleReferencePayload:
@@ -159,7 +178,9 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
     assessment_payload: OnboardingAssessmentPayload | None = None
     if profile.onboarding_assessment:
-        assessment = profile.onboarding_assessment
+        assessment = _ensure_assessment_task_coverage(profile)
+        if assessment is None:
+            assessment = profile.onboarding_assessment
         task_payloads = [_assessment_task_payload(task) for task in assessment.tasks]
         section_payloads = [_assessment_section_payload(section) for section in assessment.sections]
         assessment_payload = OnboardingAssessmentPayload(

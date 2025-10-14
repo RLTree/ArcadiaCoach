@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import List
 
 import pytest
 
@@ -124,6 +125,7 @@ def test_ensure_task_coverage_handles_augmented_categories_without_modules() -> 
         ("backend-foundations", "Backend Foundations"),
         ("data-fluency", "Data Fluency"),
         ("backend-foundations", "Duplicate backend entry"),
+        ("systems-architecture-foundations", "Systems & Architecture Foundations"),
     ]
     modules = [
         CurriculumModule(
@@ -157,5 +159,21 @@ def test_ensure_task_coverage_handles_augmented_categories_without_modules() -> 
 
     assert {task.task_type for task in backend_tasks} == {"concept_check", "code"}
     assert {task.task_type for task in data_tasks} == {"concept_check", "code"}
+    sys_arch_tasks = [task for task in ensured if task.category_key == "systems-architecture-foundations"]
+
     assert len(backend_tasks) >= MIN_TASKS_PER_CATEGORY
     assert len(data_tasks) >= MIN_TASKS_PER_CATEGORY
+    assert len(sys_arch_tasks) >= MIN_TASKS_PER_CATEGORY
+    assert {task.task_type for task in sys_arch_tasks} >= {"concept_check", "code"}
+
+
+def test_ensure_task_coverage_generates_for_software_architecture() -> None:
+    categories = [("software-architecture", "Systems & Architecture Foundations")]
+    modules: List[CurriculumModule] = []
+    tasks: List[AssessmentTask] = []
+
+    ensured = _ensure_task_coverage(categories, modules, tasks)
+    arch_tasks = [task for task in ensured if task.category_key == "software-architecture"]
+
+    assert len(arch_tasks) >= MIN_TASKS_PER_CATEGORY
+    assert {task.task_type for task in arch_tasks} >= {"concept_check", "code"}
