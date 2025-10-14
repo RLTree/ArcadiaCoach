@@ -323,7 +323,7 @@ struct HomeView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                WidgetStatRowView(props: .init(items: allEloItems))
+                                WidgetStatRowView(props: .init(items: allEloItems, itemsPerRow: 4))
                                     .environmentObject(settings)
                             }
                         }

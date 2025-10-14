@@ -30,6 +30,15 @@ struct WidgetStatItem: Codable, Hashable {
 
 struct WidgetStatRowProps: Codable, Hashable {
     var items: [WidgetStatItem]
+
+    /// Optional override for how many items should appear per row when rendered in SwiftUI.
+    /// When omitted, the view adapts based on its layout heuristics.
+    var itemsPerRow: Int?
+
+    init(items: [WidgetStatItem], itemsPerRow: Int? = nil) {
+        self.items = items
+        self.itemsPerRow = itemsPerRow
+    }
 }
 
 struct ArcadiaChatbotLevelOption: Codable, Hashable {

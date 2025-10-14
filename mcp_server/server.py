@@ -14,7 +14,7 @@ from anyio import ClosedResourceError, BrokenResourceError, EndOfStream
 from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import StreamableHTTPServerTransport
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope, Receive, Send
@@ -133,6 +133,9 @@ class WidgetStatItem(BaseModel):
 
 class WidgetStatRowProps(BaseModel):
     items: List[WidgetStatItem]
+    items_per_row: Optional[int] = Field(default=None, ge=1, le=8, alias="itemsPerRow")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Widget(BaseModel):
