@@ -12,8 +12,7 @@ struct LessonView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if let display = envelope.display {
-                        Text(display)
-                            .font(.title3)
+                        CitedTextBlock(text: display, textStyle: .title3)
                             .padding(.bottom, 8)
                     }
                     ForEach(envelope.widgets, id: \.self) { widget in
@@ -24,7 +23,8 @@ struct LessonView: View {
                             Text("Citations")
                                 .font(.headline)
                             ForEach(citations, id: \.self) { reference in
-                                Text(reference).font(.footnote)
+                                CitedTextBlock(text: reference)
+                                    .font(.footnote)
                             }
                         }
                         .padding(12)
