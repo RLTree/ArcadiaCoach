@@ -21,6 +21,16 @@ struct CurriculumScheduleView: View {
         return zone.identifier
     }
 
+    private var scheduledDateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        if let tz = scheduleTimeZone {
+            formatter.timeZone = tz
+        }
+        formatter.dateFormat = "EEEE, MMM d, yyyy (zzz)"
+        return formatter
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
@@ -172,6 +182,12 @@ struct CurriculumScheduleView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let scheduled = item.scheduledFor {
+                Text(scheduledDateFormatter.string(from: scheduled))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             HStack(alignment: .center, spacing: 12) {
                 Label(categoryLabels[item.categoryKey] ?? item.categoryKey, systemImage: "folder")
                     .font(.caption)
@@ -246,6 +262,8 @@ struct CurriculumScheduleView: View {
             return fallbackLabel(for: group.offset)
         }
         let dateText = formattedDate(date)
+        let tzAbbr = scheduleTimeZone?.abbreviation(for: date) ?? scheduleTimeZone?.abbreviation(for: Date())
+        let fullDateText = tzAbbr.map { "\(dateText) (\($0))" } ?? dateText
         let tz = scheduleTimeZone ?? TimeZone.current
         var calendar = Calendar.current
         calendar.timeZone = tz
@@ -261,7 +279,7 @@ struct CurriculumScheduleView: View {
         default:
             prefix = ""
         }
-        return prefix.isEmpty ? dateText : prefix + dateText
+        return prefix.isEmpty ? fullDateText : prefix + fullDateText
     }
 
     private func fallbackLabel(for offset: Int) -> String {

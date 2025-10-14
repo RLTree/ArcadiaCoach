@@ -72,7 +72,9 @@ SUPPORTED_MODELS = {
 
 
 def _build_agent(model: str, web_enabled: bool) -> Agent[ArcadiaAgentContext]:
-    tools: list[Any] = [file_search]  # type: ignore[var-annotated]
+    tools: list[Any] = []
+    if model not in {"gpt-5-nano", "gpt-5-codex"}:
+        tools.append(file_search)
     if web_enabled:
         tools.append(web_search)
     tools.extend(AGENT_SUPPORT_TOOLS)

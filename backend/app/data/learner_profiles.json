@@ -121,7 +121,7 @@
     "curriculum_schedule": {
       "generated_at": "2025-10-14T04:29:12.619832Z",
       "time_horizon_days": 14,
-      "timezone": null,
+      "timezone": "UTC",
       "cadence_notes": "Scheduled 11 items across 6 days (~510 minutes total). Emphasis on backend.",
       "items": [
         {

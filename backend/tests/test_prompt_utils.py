@@ -1,4 +1,4 @@
-from app.prompt_utils import apply_preferences_overlay
+from app.prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
 
 
 def test_apply_preferences_overlay_requires_file_search_for_supported_models():
@@ -79,3 +79,33 @@ def test_apply_preferences_overlay_honours_explicit_web_request():
 
     assert "Before responding, call the web_search tool" in result
     assert "skipping the tool is not acceptable" in result
+
+
+def test_schedule_summary_from_profile_handles_dst_transitions():
+    profile = {
+        "timezone": "America/Los_Angeles",
+        "curriculum_schedule": {
+            "generated_at": "2025-03-08T18:00:00Z",
+            "timezone": "America/Los_Angeles",
+            "items": [
+                {
+                    "kind": "lesson",
+                    "title": "Lesson 1",
+                    "recommended_day_offset": 0,
+                },
+                {
+                    "kind": "quiz",
+                    "title": "Quiz 1",
+                    "recommended_day_offset": 1,
+                },
+            ],
+        },
+    }
+
+    summary = schedule_summary_from_profile(profile, max_items=2)
+
+    assert summary is not None
+    assert "Lesson" in summary
+    assert "Quiz" in summary
+    assert "America/Los_Angeles" in summary or "PST" in summary
+    assert "PDT" in summary, "Expected DST-aware abbreviation for offset day"

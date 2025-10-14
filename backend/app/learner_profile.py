@@ -461,6 +461,9 @@ class LearnerProfileStore:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Skipping invalid learner profile payload: %s", exc)
                 continue
+            if profile.curriculum_schedule and not profile.curriculum_schedule.timezone:
+                fallback_tz = profile.timezone or "UTC"
+                profile.curriculum_schedule.timezone = fallback_tz
             self._profiles[profile.username.lower()] = profile
 
     def _persist_locked(self) -> None:

@@ -22,7 +22,7 @@ from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
 from .learner_profile import profile_store
 from .memory_store import MemoryStore
-from .prompt_utils import apply_preferences_overlay
+from .prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
 
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -116,10 +116,14 @@ async def _run_structured(
         metadata_payload.setdefault("session_id", session_id)
 
     profile_snapshot: Dict[str, Any] | None = None
+    schedule_summary: str | None = None
     username = metadata_payload.get("username")
     if isinstance(username, str) and username.strip():
         profile = profile_store.apply_metadata(username, metadata_payload)
         profile_snapshot = profile.model_dump(mode="json")
+        schedule_summary = schedule_summary_from_profile(profile_snapshot)
+        if schedule_summary:
+            metadata_payload.setdefault("schedule_summary", schedule_summary)
 
     attachments_payload: list[Dict[str, Any]] = []
     if attachments:
@@ -168,7 +172,10 @@ async def _run_structured(
             web_enabled=web_enabled,
             reasoning_level=reasoning_level,
             model=model_choice,
+            schedule_summary=schedule_summary,
         )
+    elif schedule_summary:
+        message = f"{message.rstrip()}\n\n{schedule_summary}"
     metadata_payload.setdefault("web_enabled", web_enabled)
     metadata_payload.setdefault("reasoning_level", reasoning_level)
     metadata_payload.setdefault("model", model_choice)

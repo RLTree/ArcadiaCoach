@@ -44,6 +44,13 @@ struct ChatPanel: View {
             supportsWeb: true,
             attachmentPolicy: .imagesOnly
         ),
+        ChatModelOption(
+            id: "gpt-5-nano",
+            name: "GPT-5 Nano",
+            detail: "Fastest responses. No file uploads; web search optional.",
+            supportsWeb: true,
+            attachmentPolicy: .none
+        ),
     ]
 
     var body: some View {

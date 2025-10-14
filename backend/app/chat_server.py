@@ -51,7 +51,7 @@ from openai.types.shared.reasoning import Reasoning
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .guardrails import run_guardrail_checks
 from .memory_store import MemoryStore
-from .prompt_utils import apply_preferences_overlay
+from .prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +214,10 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
             for ref in prefs.uploaded_files
         ]
 
+        schedule_summary = schedule_summary_from_profile(context.get("profile"))
+        if schedule_summary:
+            context.setdefault("schedule_summary", schedule_summary)
+
         agent_context = ArcadiaAgentContext(
             thread=thread,
             store=self.store,
@@ -232,6 +236,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 web_enabled=prefs.web_enabled,
                 reasoning_level=prefs.reasoning_level,
                 model=model_name,
+                schedule_summary=schedule_summary,
             )
         else:
             prompt_with_preferences = apply_preferences_overlay(
@@ -240,6 +245,7 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
                 web_enabled=prefs.web_enabled,
                 reasoning_level=prefs.reasoning_level,
                 model=model_name,
+                schedule_summary=schedule_summary,
             )
 
         agent = get_arcadia_agent(model_name, prefs.web_enabled)
