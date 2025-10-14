@@ -34,6 +34,7 @@ from .learner_profile import (
 )
 from .memory_store import MemoryStore
 from .telemetry import emit_event
+from .curriculum_foundations import ensure_foundational_curriculum
 from .curriculum_sequencer import generate_schedule_for_user
 logger = logging.getLogger(__name__)
 
@@ -318,15 +319,6 @@ async def generate_onboarding_bundle(
         seen_keys.add(definition.key)
         category_definitions.append(definition)
 
-    plan = EloCategoryPlan(
-        source_goal=goal.strip() if isinstance(goal, str) and goal.strip() else None,
-        strategy_notes=plan_payload.profile_summary.strip()
-        if isinstance(plan_payload.profile_summary, str) and plan_payload.profile_summary.strip()
-        else None,
-        categories=category_definitions,
-    )
-    profile_store.set_elo_category_plan(username, plan)
-
     curriculum_payload: OnboardingCurriculumPayload = plan_payload.curriculum
     modules = [_normalise_module(module) for module in curriculum_payload.modules]
     curriculum = CurriculumPlan(
@@ -335,6 +327,23 @@ async def generate_onboarding_bundle(
         success_criteria=[criterion.strip() for criterion in curriculum_payload.success_criteria if criterion.strip()],
         modules=modules,
     )
+
+    augmented_categories, augmented_curriculum = ensure_foundational_curriculum(
+        goal=goal or "",
+        plan=curriculum,
+        categories=category_definitions,
+        assessment_result=None,
+    )
+
+    plan = EloCategoryPlan(
+        source_goal=goal.strip() if isinstance(goal, str) and goal.strip() else None,
+        strategy_notes=plan_payload.profile_summary.strip()
+        if isinstance(plan_payload.profile_summary, str) and plan_payload.profile_summary.strip()
+        else None,
+        categories=augmented_categories,
+    )
+    profile_store.set_elo_category_plan(username, plan)
+    curriculum = augmented_curriculum
 
     base_tasks = [_normalise_task(task) for task in plan_payload.assessment]
     categories = [(category.key, category.label) for category in plan_payload.categories]

@@ -315,7 +315,9 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     refreshed_profile = profile_store.get("tester")
     assert refreshed_profile is not None
     assert refreshed_profile.onboarding_assessment_result is not None
-    assert refreshed_profile.elo_snapshot == {"backend-foundations": 1232}
+    assert refreshed_profile.elo_snapshot["backend-foundations"] == 1232
+    assert "python-foundations" in refreshed_profile.elo_snapshot
+    assert "project-delivery" in refreshed_profile.elo_snapshot
     assert refreshed_profile.onboarding_assessment is not None
     assert refreshed_profile.onboarding_assessment.status == "completed"
     assert refreshed_profile.curriculum_schedule is not None

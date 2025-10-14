@@ -407,6 +407,8 @@ class LearnerProfileStore:
         result: AssessmentGradingResult,
         elo_snapshot: Dict[str, int],
     ) -> LearnerProfile:
+        from .curriculum_foundations import ensure_foundational_curriculum
+
         normalized = username.lower()
         with self._lock:
             profile = self._profiles.get(normalized)
@@ -423,6 +425,23 @@ class LearnerProfileStore:
                 }
                 if sanitized:
                     profile.elo_snapshot = dict(sanitized)
+            if profile.curriculum_plan:
+                categories = profile.elo_category_plan.categories if profile.elo_category_plan else []
+                augmented_categories, augmented_curriculum = ensure_foundational_curriculum(
+                    goal=profile.goal or "",
+                    plan=profile.curriculum_plan,
+                    categories=categories,
+                    assessment_result=result,
+                )
+                if profile.elo_category_plan:
+                    updated_plan = profile.elo_category_plan.model_copy(deep=True)
+                    updated_plan.categories = augmented_categories
+                    profile.elo_category_plan = updated_plan
+                else:
+                    profile.elo_category_plan = EloCategoryPlan(categories=augmented_categories)
+                profile.curriculum_plan = augmented_curriculum
+                for category in augmented_categories:
+                    profile.elo_snapshot.setdefault(category.key, int(category.starting_rating))
             profile.last_updated = datetime.now(timezone.utc)
             self._profiles[normalized] = profile.model_copy(deep=True)
             self._persist_locked()

@@ -10,6 +10,7 @@
 
 ## Delivered
 - Extended the sequencer with pacing heuristics that translate recurring deferrals into lighter weekly cadences, space sessions across multi-month horizons, and insert reinforcement sprints for every module.
+- Introduced foundation-aware curriculum augmentation that layers Python, data, math, ML, and delivery tracks based on learner goals and assessment performance, expanding both ELO categories and modules when gaps surface.
 - Persisted `category_allocations`, `pacing_overview`, and `rationale_history` on curriculum schedules, including structured deferral metrics and narrative adjustment notes.
 - Updated FastAPI schedule payloads and agents tooling to emit the new pacing metadata, with tests covering serialization via `_schedule_payload`.
 - Refreshed the macOS dashboard schedule view with a pacing plan breakdown, deferral pressure badges, and a changelog timeline sourced from the new rationale history.

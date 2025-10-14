@@ -221,6 +221,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - **Follow-ups:** Instrument `current_time` usage and localisation telemetry, expose a user-facing timezone override, and extend localisation to exported artefacts (milestone briefs, summaries).
 16. **Phase 15 – Adaptive Curriculum Evolution** ✅ *(completed October 14, 2025; see `docs/phase-15-adaptive-curriculum-evolution.md`)*
     - Expanded the sequencer with pacing heuristics that convert deferral patterns into multi-week cadences, spacing sessions across an extended horizon and injecting reinforcement sprints per module.
+    - Layered foundation-aware curriculum augmentation that adds Python, data, math, machine-learning, delivery, and architecture tracks based on learner goals and assessment performance, expanding ELO categories when gaps surface.
     - Persisted structured `category_allocations`, `pacing_overview`, and `rationale_history` on curriculum schedules, including deferral pressure metrics and narrative adjustment notes.
     - Updated backend payloads, agent tools, and tests so Swift + FastAPI decode/render the new pacing metadata without regressions.
     - Refreshed the macOS dashboard with pacing breakdowns, deferral pressure badges, and a changelog timeline so learners can see why the roadmap evolved.
