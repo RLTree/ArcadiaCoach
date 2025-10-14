@@ -325,7 +325,9 @@ struct HomeView: View {
                                 schedule: schedule,
                                 categoryLabels: categoryLabels,
                                 isRefreshing: appVM.scheduleRefreshing,
-                                refreshAction: refreshSchedule
+                                adjustingItemId: appVM.adjustingScheduleItemId,
+                                refreshAction: refreshSchedule,
+                                adjustAction: deferSchedule
                             )
                             .transition(.opacity)
                         }
@@ -412,6 +414,18 @@ struct HomeView: View {
             await appVM.refreshCurriculumSchedule(
                 baseURL: settings.chatkitBackendURL,
                 username: settings.arcadiaUsername
+            )
+        }
+    }
+
+    private func deferSchedule(item: SequencedWorkItem, days: Int) {
+        Task {
+            await appVM.deferScheduleItem(
+                baseURL: settings.chatkitBackendURL,
+                username: settings.arcadiaUsername,
+                item: item,
+                days: days,
+                reason: "manual_defer_\(days)"
             )
         }
     }

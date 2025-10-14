@@ -121,6 +121,7 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     )
     assert schedule.is_stale is False
     assert schedule.warnings == []
+    assert not any(item.user_adjusted for item in schedule.items)
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:

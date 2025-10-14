@@ -53,6 +53,7 @@ final class AppViewModel: ObservableObject {
     @Published var latestQuiz: EndQuiz?
     @Published var latestMilestone: EndMilestone?
     @Published var scheduleRefreshing: Bool = false
+    @Published var adjustingScheduleItemId: String?
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -140,6 +141,83 @@ final class AppViewModel: ObservableObject {
                 event: "schedule_refresh_failed",
                 metadata: [
                     "username": trimmedUsername,
+                    "durationMs": "\(durationMs)",
+                    "error": self.error ?? "unknown",
+                ]
+            )
+        }
+    }
+
+    func deferScheduleItem(
+        baseURL: String,
+        username: String,
+        item: SequencedWorkItem,
+        days: Int,
+        targetDayOffset: Int? = nil,
+        reason: String? = nil
+    ) async {
+        guard let trimmedBase = BackendService.trimmed(url: baseURL) else { return }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else { return }
+        let safeDays = max(1, days)
+        adjustingScheduleItemId = item.itemId
+        let startedAt = Date()
+        var metadata: [String: String] = [
+            "username": trimmedUsername,
+            "itemId": item.itemId,
+            "days": "\(safeDays)",
+        ]
+        if let target = targetDayOffset {
+            metadata["target"] = "\(target)"
+        }
+        if let reason, !reason.isEmpty {
+            metadata["reason"] = reason
+        }
+        TelemetryReporter.shared.record(event: "schedule_adjustment_started", metadata: metadata)
+        defer { adjustingScheduleItemId = nil }
+        do {
+            let schedule = try await BackendService.adjustCurriculumSchedule(
+                baseURL: trimmedBase,
+                username: trimmedUsername,
+                itemId: item.itemId,
+                days: safeDays,
+                targetDayOffset: targetDayOffset,
+                reason: reason
+            )
+            curriculumSchedule = schedule
+            error = nil
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            let newOffset = schedule.items.first(where: { $0.itemId == item.itemId })?.recommendedDayOffset ?? -1
+            TelemetryReporter.shared.record(
+                event: "schedule_adjustment_completed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "itemId": item.itemId,
+                    "durationMs": "\(durationMs)",
+                    "newOffset": "\(newOffset)",
+                ]
+            )
+        } catch let serviceError as BackendServiceError {
+            error = serviceError.localizedDescription
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            TelemetryReporter.shared.record(
+                event: "schedule_adjustment_failed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "itemId": item.itemId,
+                    "durationMs": "\(durationMs)",
+                    "error": serviceError.localizedDescription,
+                ]
+            )
+        } catch {
+            let nsError = error as NSError
+            self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            TelemetryReporter.shared.record(
+                event: "schedule_adjustment_failed",
+                metadata: [
+                    "username": trimmedUsername,
+                    "itemId": item.itemId,
                     "durationMs": "\(durationMs)",
                     "error": self.error ?? "unknown",
                 ]
@@ -494,6 +572,7 @@ final class AppViewModel: ObservableObject {
         eloPlan = snapshot.eloCategoryPlan
         curriculumPlan = snapshot.curriculumPlan
         curriculumSchedule = snapshot.curriculumSchedule
+        adjustingScheduleItemId = nil
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult
         assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }

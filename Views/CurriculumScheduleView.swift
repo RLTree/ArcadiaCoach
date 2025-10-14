@@ -4,7 +4,9 @@ struct CurriculumScheduleView: View {
     let schedule: CurriculumSchedule
     let categoryLabels: [String:String]
     let isRefreshing: Bool
+    let adjustingItemId: String?
     let refreshAction: () -> Void
+    let adjustAction: (SequencedWorkItem, Int) -> Void
 
     private var dateLabelFormatter: DateComponentsFormatter {
         let formatter = DateComponentsFormatter()
@@ -103,10 +105,20 @@ struct CurriculumScheduleView: View {
 
     @ViewBuilder
     private func itemRow(for item: SequencedWorkItem) -> some View {
+        let isAdjusting = adjustingItemId == item.itemId
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label(item.kind.label, systemImage: item.kind.systemImage)
                     .font(.subheadline.bold())
+                if item.userAdjusted {
+                    Label("Rescheduled", systemImage: "arrow.uturn.down.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                        .accessibilityLabel("Rescheduled item")
+                }
                 Spacer()
                 Text(item.formattedDuration)
                     .font(.caption)
@@ -114,6 +126,29 @@ struct CurriculumScheduleView: View {
                     .padding(.vertical, 4)
                     .background(effortColor(for: item.effortLevel).opacity(0.15), in: Capsule())
                     .foregroundStyle(effortColor(for: item.effortLevel))
+                Menu {
+                    Button("Defer 1 day") {
+                        adjustAction(item, 1)
+                    }
+                    Button("Defer 3 days") {
+                        adjustAction(item, 3)
+                    }
+                    Button("Defer 1 week") {
+                        adjustAction(item, 7)
+                    }
+                } label: {
+                    if isAdjusting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Reschedule", systemImage: "calendar.badge.plus")
+                            .labelStyle(.iconOnly)
+                            .padding(6)
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .disabled(isRefreshing || isAdjusting)
+                .accessibilityLabel("Reschedule \(item.title)")
             }
             Text(item.title)
                 .font(.headline)
@@ -175,7 +210,12 @@ struct CurriculumScheduleView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
+        .background(rowBackground(for: item), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(item.userAdjusted ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.2), value: item.userAdjusted)
     }
 
     private func dayLabel(for offset: Int) -> String {
@@ -189,6 +229,10 @@ struct CurriculumScheduleView: View {
         default:
             return "Day \(offset + 1)"
         }
+    }
+
+    private func rowBackground(for item: SequencedWorkItem) -> Color {
+        item.userAdjusted ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04)
     }
 
     private func effortColor(for level: SequencedWorkItem.EffortLevel) -> Color {

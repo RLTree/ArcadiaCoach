@@ -100,6 +100,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 effort_level=item.effort_level,
                 focus_reason=item.focus_reason,
                 expected_outcome=item.expected_outcome,
+                user_adjusted=getattr(item, "user_adjusted", False),
             )
             for item in schedule.items
         ],

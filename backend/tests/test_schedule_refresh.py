@@ -7,7 +7,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from app.curriculum_sequencer import sequencer
+from app.curriculum_sequencer import generate_schedule_for_user, sequencer
 from app.learner_profile import (
     CurriculumModule,
     CurriculumPlan,
@@ -110,6 +110,62 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     assert refresh_events[0].payload["regenerated"] is True
 
     clear_listeners()
+    profile_store.delete(username)
+
+
+def test_schedule_generation_respects_adjustments() -> None:
+    username = "scheduler-adjust"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    initial_profile = generate_schedule_for_user(username)
+    assert initial_profile.curriculum_schedule is not None
+    first_item = initial_profile.curriculum_schedule.items[0]
+    target_offset = first_item.recommended_day_offset + 2
+
+    profile_store.apply_schedule_adjustment(username, first_item.item_id, target_offset)
+    adjusted_profile = generate_schedule_for_user(username)
+    assert adjusted_profile.curriculum_schedule is not None
+    adjusted_item = next(item for item in adjusted_profile.curriculum_schedule.items if item.item_id == first_item.item_id)
+
+    assert adjusted_item.recommended_day_offset >= target_offset
+    assert adjusted_item.user_adjusted is True
+    assert adjusted_profile.schedule_adjustments[first_item.item_id] == adjusted_item.recommended_day_offset
+
+    profile_store.delete(username)
+
+
+def test_schedule_adjustment_endpoint_updates_schedule() -> None:
+    username = "scheduler-adjust-endpoint"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    client = TestClient(app)
+
+    initial = client.get(f"/api/profile/{username}/schedule", params={"refresh": "true"})
+    assert initial.status_code == 200, initial.text
+    initial_payload = initial.json()
+    assert initial_payload["items"], "Expected schedule items."
+    item_id = initial_payload["items"][0]["item_id"]
+    current_offset = initial_payload["items"][0]["recommended_day_offset"]
+
+    response = client.post(
+        f"/api/profile/{username}/schedule/adjust",
+        json={"item_id": item_id, "days": 3},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    updated_item = next(item for item in payload["items"] if item["item_id"] == item_id)
+
+    assert updated_item["recommended_day_offset"] >= current_offset + 3
+    assert updated_item["user_adjusted"] is True
+
+    refreshed_profile = profile_store.get(username)
+    assert refreshed_profile is not None
+    assert refreshed_profile.curriculum_schedule is not None
+    persisted_item = next(item for item in refreshed_profile.curriculum_schedule.items if item.item_id == item_id)
+    assert persisted_item.recommended_day_offset == updated_item["recommended_day_offset"]
+    assert refreshed_profile.schedule_adjustments[item_id] == updated_item["recommended_day_offset"]
+    assert persisted_item.user_adjusted is True
+
     profile_store.delete(username)
 
 

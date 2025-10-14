@@ -91,6 +91,7 @@ class SequencedWorkItem(BaseModel):
     focus_reason: Optional[str] = None
     expected_outcome: Optional[str] = None
     effort_level: Literal["light", "moderate", "focus"] = "moderate"
+    user_adjusted: bool = Field(default=False)
 
 
 class ScheduleWarning(BaseModel):
@@ -147,6 +148,7 @@ class LearnerProfile(BaseModel):
     elo_category_plan: Optional[EloCategoryPlan] = None
     curriculum_plan: Optional[CurriculumPlan] = None
     curriculum_schedule: Optional[CurriculumSchedule] = None
+    schedule_adjustments: Dict[str, int] = Field(default_factory=dict)
     onboarding_assessment: Optional[OnboardingAssessment] = None
     onboarding_assessment_result: Optional[AssessmentGradingResult] = None
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -285,18 +287,73 @@ class LearnerProfileStore:
             profile.curriculum_plan = curriculum.model_copy(deep=True)
             profile.onboarding_assessment = assessment.model_copy(deep=True)
             profile.curriculum_schedule = None
+            profile.schedule_adjustments = {}
             profile.last_updated = datetime.now(timezone.utc)
             self._profiles[normalized] = profile.model_copy(deep=True)
             self._persist_locked()
             return self._profiles[normalized].model_copy(deep=True)
 
-    def set_curriculum_schedule(self, username: str, schedule: CurriculumSchedule) -> LearnerProfile:
+    def set_curriculum_schedule(
+        self,
+        username: str,
+        schedule: CurriculumSchedule,
+        *,
+        adjustments: Optional[Dict[str, int]] = None,
+    ) -> LearnerProfile:
         normalized = username.lower()
         with self._lock:
             profile = self._profiles.get(normalized)
             if profile is None:
                 raise LookupError(f"Learner profile '{username}' does not exist.")
             profile.curriculum_schedule = schedule.model_copy(deep=True)
+            if adjustments is not None:
+                allowed_ids = {item.item_id for item in schedule.items}
+                sanitized = {
+                    item_id: max(int(offset), 0)
+                    for item_id, offset in adjustments.items()
+                    if isinstance(item_id, str) and item_id in allowed_ids
+                }
+                profile.schedule_adjustments = sanitized
+            else:
+                allowed_ids = {item.item_id for item in schedule.items}
+                profile.schedule_adjustments = {
+                    item_id: offset
+                    for item_id, offset in profile.schedule_adjustments.items()
+                    if item_id in allowed_ids
+                }
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
+    def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
+        normalized = username.lower()
+        if not item_id:
+            raise ValueError("Schedule item id cannot be empty.")
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                raise LookupError(f"Learner profile '{username}' does not exist.")
+            adjustments = dict(profile.schedule_adjustments)
+            adjustments[item_id] = max(int(target_offset), 0)
+            profile.schedule_adjustments = adjustments
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
+    def update_schedule_adjustments(self, username: str, adjustments: Dict[str, int]) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                raise LookupError(f"Learner profile '{username}' does not exist.")
+            sanitized = {
+                item_id: max(int(offset), 0)
+                for item_id, offset in adjustments.items()
+                if isinstance(item_id, str)
+            }
+            profile.schedule_adjustments = sanitized
             profile.last_updated = datetime.now(timezone.utc)
             self._profiles[normalized] = profile.model_copy(deep=True)
             self._persist_locked()

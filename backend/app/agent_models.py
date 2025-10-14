@@ -111,6 +111,7 @@ class SequencedWorkItemPayload(BaseModel):
     effort_level: Literal["light", "moderate", "focus"] = "moderate"
     focus_reason: Optional[str] = None
     expected_outcome: Optional[str] = None
+    user_adjusted: bool = False
 
 
 class ScheduleWarningPayload(BaseModel):

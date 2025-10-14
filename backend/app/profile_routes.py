@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from .agent_models import (
     AssessmentCategoryOutcomePayload,
@@ -32,6 +34,15 @@ from .tools import _schedule_payload
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 logger = logging.getLogger(__name__)
+
+MAX_DEFER_DAYS = 21
+
+
+class ScheduleAdjustmentRequest(BaseModel):
+    item_id: str = Field(..., min_length=1)
+    days: int = Field(default=1, ge=1, le=MAX_DEFER_DAYS)
+    target_day_offset: Optional[int] = Field(default=None, ge=0, le=42)
+    reason: Optional[str] = Field(default=None, max_length=160)
 
 
 def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
@@ -290,6 +301,86 @@ def get_curriculum_schedule(
             regenerated=False,
             item_count=len(profile.curriculum_schedule.items),
             is_stale=bool(profile.curriculum_schedule.is_stale),
+        )
+    return schedule_payload
+
+
+@router.post(
+    "/{username}/schedule/adjust",
+    response_model=CurriculumSchedulePayload,
+    status_code=status.HTTP_200_OK,
+)
+def adjust_curriculum_schedule(username: str, payload: ScheduleAdjustmentRequest) -> CurriculumSchedulePayload:
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    schedule = profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    item_id = payload.item_id.strip()
+    if not item_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Schedule item id cannot be empty.",
+        )
+    matching = next((item for item in schedule.items if item.item_id == item_id), None)
+    if matching is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule item '{item_id}' was not found.",
+        )
+    current_offset = matching.recommended_day_offset
+    if payload.target_day_offset is not None:
+        target_offset = max(int(payload.target_day_offset), 0)
+        target_offset = min(target_offset, current_offset + MAX_DEFER_DAYS)
+    else:
+        target_offset = current_offset + int(payload.days)
+    if target_offset <= current_offset:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Reschedule offset must be later than the current day.",
+        )
+    reason = (payload.reason or "").strip() or "defer"
+    try:
+        profile_store.apply_schedule_adjustment(username, item_id, target_offset)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    emit_event(
+        "schedule_adjustment",
+        username=username,
+        item_id=item_id,
+        previous_offset=current_offset,
+        requested_offset=target_offset,
+        delta_days=target_offset - current_offset,
+        reason=reason,
+    )
+    try:
+        refreshed = generate_schedule_for_user(username)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to regenerate schedule after adjustment for %s", username)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to regenerate the curriculum schedule after the adjustment.",
+        ) from exc
+    schedule_payload = _schedule_payload(refreshed.curriculum_schedule)
+    if schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Schedule regeneration did not return a schedule.",
         )
     return schedule_payload
 

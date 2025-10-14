@@ -221,6 +221,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var effortLevel: EffortLevel
     var focusReason: String?
     var expectedOutcome: String?
+    var userAdjusted: Bool = false
 
     var id: String { itemId }
 

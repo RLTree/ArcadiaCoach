@@ -7,7 +7,7 @@ import math
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .learner_profile import (
     AssessmentGradingResult,
@@ -236,6 +236,79 @@ class CurriculumSequencer:
             return {}
         return {outcome.category_key: outcome.rating_delta for outcome in result.category_outcomes}
 
+    def _sanitize_adjustments(self, adjustments: Dict[str, int]) -> Dict[str, int]:
+        sanitized: Dict[str, int] = {}
+        for item_id, offset in adjustments.items():
+            if not isinstance(item_id, str):
+                continue
+            try:
+                coerced = int(offset)
+            except (TypeError, ValueError):
+                continue
+            if coerced < 0:
+                coerced = 0
+            sanitized[item_id] = coerced
+        return sanitized
+
+    def _apply_adjustments(
+        self,
+        items: Sequence[SequencedWorkItem],
+        adjustments: Dict[str, int],
+    ) -> Tuple[List[SequencedWorkItem], Dict[str, Tuple[int, int]]]:
+        if not items:
+            return [], {}
+        sanitized = self._sanitize_adjustments(adjustments)
+        if not sanitized:
+            return [item.model_copy(deep=True) for item in items], {}
+
+        adjusted: List[SequencedWorkItem] = []
+        applied: Dict[str, Tuple[int, int]] = {}
+        current_day: Optional[int] = None
+        minutes_remaining = self._daily_capacity
+
+        for item in items:
+            scheduled = item.model_copy(deep=True)
+            base_day = scheduled.recommended_day_offset
+            forced_offset = sanitized.get(scheduled.item_id)
+            target_day = base_day
+            if forced_offset is not None:
+                target_day = max(target_day, forced_offset)
+
+            if current_day is None:
+                current_day = target_day
+                minutes_remaining = self._daily_capacity
+            else:
+                if target_day > current_day:
+                    current_day = target_day
+                    minutes_remaining = self._daily_capacity
+                else:
+                    target_day = current_day
+
+            minutes = max(scheduled.recommended_minutes, 15)
+
+            if minutes > minutes_remaining:
+                current_day += 1
+                minutes_remaining = self._daily_capacity
+                if forced_offset is not None and current_day < forced_offset:
+                    current_day = forced_offset
+                    minutes_remaining = self._daily_capacity
+
+            while minutes > minutes_remaining:
+                current_day += 1
+                minutes_remaining = self._daily_capacity
+                if forced_offset is not None and current_day < forced_offset:
+                    current_day = forced_offset
+
+            scheduled.recommended_day_offset = current_day
+            minutes_remaining -= minutes
+
+            if scheduled.recommended_day_offset != base_day:
+                applied[scheduled.item_id] = (base_day, scheduled.recommended_day_offset)
+
+            adjusted.append(scheduled)
+
+        return adjusted, applied
+
     def _focus_reason(self, context: _CategoryContext, goal: str) -> str:
         fragments: List[str] = []
         if context.average_score is not None:
@@ -303,6 +376,7 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
     profile = profile_store.get(username)
     if profile is None:
         raise LookupError(f"Learner profile '{username}' was not found.")
+    adjustments = sequencer._sanitize_adjustments(getattr(profile, "schedule_adjustments", {}))
     start = time.perf_counter()
     try:
         schedule = sequencer.build_schedule(profile)
@@ -322,6 +396,26 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
     duration_ms = (time.perf_counter() - start) * 1000.0
     schedule.is_stale = False
     schedule.warnings.clear()
+    applied_deltas: Dict[str, Tuple[int, int]] = {}
+    if adjustments:
+        adjusted_items, applied_deltas = sequencer._apply_adjustments(schedule.items, adjustments)
+        schedule.items = adjusted_items
+    updated_adjustments = {
+        item.item_id: item.recommended_day_offset
+        for item in schedule.items
+        if item.item_id in adjustments
+    }
+    for item in schedule.items:
+        item.user_adjusted = item.item_id in updated_adjustments
+    if schedule.items:
+        schedule.time_horizon_days = max(
+            sequencer._default_horizon,
+            max(item.recommended_day_offset for item in schedule.items) + 1,
+        )
+    schedule.cadence_notes = sequencer._cadence_summary(
+        schedule.items,
+        profile.onboarding_assessment_result,
+    )
     emit_event(
         "schedule_generation",
         username=username,
@@ -329,8 +423,19 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
         duration_ms=round(duration_ms, 2),
         item_count=len(schedule.items),
         horizon_days=schedule.time_horizon_days,
+        adjustment_count=len(updated_adjustments),
     )
-    return profile_store.set_curriculum_schedule(username, schedule)
+    if applied_deltas:
+        emit_event(
+            "schedule_adjustments_applied",
+            username=username,
+            count=len(applied_deltas),
+            items=[
+                {"item_id": item_id, "from": before, "to": after}
+                for item_id, (before, after) in applied_deltas.items()
+            ],
+        )
+    return profile_store.set_curriculum_schedule(username, schedule, adjustments=updated_adjustments)
 
 
 __all__ = ["CurriculumSequencer", "generate_schedule_for_user", "sequencer"]

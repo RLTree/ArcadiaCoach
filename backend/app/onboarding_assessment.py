@@ -33,6 +33,8 @@ from .learner_profile import (
     profile_store,
 )
 from .memory_store import MemoryStore
+from .telemetry import emit_event
+from .curriculum_sequencer import generate_schedule_for_user
 logger = logging.getLogger(__name__)
 
 
@@ -344,4 +346,20 @@ async def generate_onboarding_bundle(
     )
 
     profile_store.set_curriculum_and_assessment(username, curriculum, assessment)
+    try:
+        generate_schedule_for_user(username)
+        emit_event(
+            "schedule_generation_post_onboarding",
+            username=username,
+            status="success",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to generate schedule during onboarding for %s", username)
+        emit_event(
+            "schedule_generation_post_onboarding",
+            username=username,
+            status="error",
+            error=str(exc),
+            exception_type=exc.__class__.__name__,
+        )
     return curriculum, assessment
