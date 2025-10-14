@@ -1,1 +1,340 @@
-{}
+{
+  "perf-test": {
+    "username": "perf-test",
+    "goal": "goal",
+    "use_case": "",
+    "strengths": "",
+    "knowledge_tags": [],
+    "recent_sessions": [],
+    "memory_records": [],
+    "memory_index_id": "vs_68e81d741f388191acdaabce2f92b7d5",
+    "elo_snapshot": {
+      "backend": 1100
+    },
+    "elo_category_plan": {
+      "generated_at": "2025-10-14T04:29:12.618016Z",
+      "source_goal": null,
+      "strategy_notes": null,
+      "categories": [
+        {
+          "key": "backend",
+          "label": "Backend",
+          "description": "desc",
+          "focus_areas": [
+            "practice"
+          ],
+          "weight": 1.0,
+          "rubric": [
+            {
+              "level": "Developing",
+              "descriptor": "desc"
+            },
+            {
+              "level": "Fluent",
+              "descriptor": "desc"
+            }
+          ],
+          "starting_rating": 1100
+        }
+      ]
+    },
+    "curriculum_plan": {
+      "generated_at": "2025-10-14T04:29:12.618232Z",
+      "overview": "overview",
+      "success_criteria": [
+        "success"
+      ],
+      "modules": [
+        {
+          "module_id": "m1",
+          "category_key": "backend",
+          "title": "Module 1",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "activities": [],
+          "deliverables": [
+            "deliver"
+          ],
+          "estimated_minutes": 60
+        },
+        {
+          "module_id": "m2",
+          "category_key": "backend",
+          "title": "Module 2",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "activities": [],
+          "deliverables": [
+            "deliver"
+          ],
+          "estimated_minutes": 60
+        },
+        {
+          "module_id": "m3",
+          "category_key": "backend",
+          "title": "Module 3",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "activities": [],
+          "deliverables": [
+            "deliver"
+          ],
+          "estimated_minutes": 60
+        },
+        {
+          "module_id": "m4",
+          "category_key": "backend",
+          "title": "Module 4",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "activities": [],
+          "deliverables": [
+            "deliver"
+          ],
+          "estimated_minutes": 60
+        },
+        {
+          "module_id": "m5",
+          "category_key": "backend",
+          "title": "Module 5",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "activities": [],
+          "deliverables": [
+            "deliver"
+          ],
+          "estimated_minutes": 60
+        }
+      ]
+    },
+    "curriculum_schedule": {
+      "generated_at": "2025-10-14T04:29:12.619832Z",
+      "time_horizon_days": 14,
+      "cadence_notes": "Scheduled 11 items across 6 days (~510 minutes total). Emphasis on backend.",
+      "items": [
+        {
+          "item_id": "lesson-m1",
+          "category_key": "backend",
+          "kind": "lesson",
+          "title": "Module 1",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "prerequisites": [],
+          "recommended_minutes": 60,
+          "recommended_day_offset": 0,
+          "focus_reason": "ELO 1100; aligned with goal: goal",
+          "expected_outcome": "deliver",
+          "effort_level": "moderate",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "quiz-m1",
+          "category_key": "backend",
+          "kind": "quiz",
+          "title": "Skill Check: Module 1",
+          "summary": "Gauge retention before advancing to the next module.",
+          "objectives": [
+            "Demonstrate recall of the module's key ideas.",
+            "Identify any gaps surfaced during the lesson."
+          ],
+          "prerequisites": [
+            "lesson-m1"
+          ],
+          "recommended_minutes": 24,
+          "recommended_day_offset": 0,
+          "focus_reason": "Validates progress before expanding backend coverage.",
+          "expected_outcome": "Score at least 70% to stay on track.",
+          "effort_level": "light",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "milestone-backend",
+          "category_key": "backend",
+          "kind": "milestone",
+          "title": "Milestone: Apply Backend",
+          "summary": "Translate the lesson into a tangible project increment.",
+          "objectives": [
+            "Integrate lesson outcomes into a realistic deliverable.",
+            "Document decisions and open questions for agent review."
+          ],
+          "prerequisites": [
+            "lesson-m1",
+            "quiz-m1"
+          ],
+          "recommended_minutes": 90,
+          "recommended_day_offset": 1,
+          "focus_reason": "Creates a tangible artefact to measure competency gains.",
+          "expected_outcome": "Wrap with notes ready for agent feedback.",
+          "effort_level": "focus",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "lesson-m2",
+          "category_key": "backend",
+          "kind": "lesson",
+          "title": "Module 2",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "prerequisites": [],
+          "recommended_minutes": 60,
+          "recommended_day_offset": 2,
+          "focus_reason": "ELO 1100; aligned with goal: goal",
+          "expected_outcome": "deliver",
+          "effort_level": "moderate",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "quiz-m2",
+          "category_key": "backend",
+          "kind": "quiz",
+          "title": "Skill Check: Module 2",
+          "summary": "Gauge retention before advancing to the next module.",
+          "objectives": [
+            "Demonstrate recall of the module's key ideas.",
+            "Identify any gaps surfaced during the lesson."
+          ],
+          "prerequisites": [
+            "lesson-m2"
+          ],
+          "recommended_minutes": 24,
+          "recommended_day_offset": 2,
+          "focus_reason": "Validates progress before expanding backend coverage.",
+          "expected_outcome": "Score at least 70% to stay on track.",
+          "effort_level": "light",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "lesson-m3",
+          "category_key": "backend",
+          "kind": "lesson",
+          "title": "Module 3",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "prerequisites": [],
+          "recommended_minutes": 60,
+          "recommended_day_offset": 3,
+          "focus_reason": "ELO 1100; aligned with goal: goal",
+          "expected_outcome": "deliver",
+          "effort_level": "moderate",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "quiz-m3",
+          "category_key": "backend",
+          "kind": "quiz",
+          "title": "Skill Check: Module 3",
+          "summary": "Gauge retention before advancing to the next module.",
+          "objectives": [
+            "Demonstrate recall of the module's key ideas.",
+            "Identify any gaps surfaced during the lesson."
+          ],
+          "prerequisites": [
+            "lesson-m3"
+          ],
+          "recommended_minutes": 24,
+          "recommended_day_offset": 3,
+          "focus_reason": "Validates progress before expanding backend coverage.",
+          "expected_outcome": "Score at least 70% to stay on track.",
+          "effort_level": "light",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "lesson-m4",
+          "category_key": "backend",
+          "kind": "lesson",
+          "title": "Module 4",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "prerequisites": [],
+          "recommended_minutes": 60,
+          "recommended_day_offset": 4,
+          "focus_reason": "ELO 1100; aligned with goal: goal",
+          "expected_outcome": "deliver",
+          "effort_level": "moderate",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "quiz-m4",
+          "category_key": "backend",
+          "kind": "quiz",
+          "title": "Skill Check: Module 4",
+          "summary": "Gauge retention before advancing to the next module.",
+          "objectives": [
+            "Demonstrate recall of the module's key ideas.",
+            "Identify any gaps surfaced during the lesson."
+          ],
+          "prerequisites": [
+            "lesson-m4"
+          ],
+          "recommended_minutes": 24,
+          "recommended_day_offset": 4,
+          "focus_reason": "Validates progress before expanding backend coverage.",
+          "expected_outcome": "Score at least 70% to stay on track.",
+          "effort_level": "light",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "lesson-m5",
+          "category_key": "backend",
+          "kind": "lesson",
+          "title": "Module 5",
+          "summary": "summary",
+          "objectives": [
+            "one"
+          ],
+          "prerequisites": [],
+          "recommended_minutes": 60,
+          "recommended_day_offset": 5,
+          "focus_reason": "ELO 1100; aligned with goal: goal",
+          "expected_outcome": "deliver",
+          "effort_level": "moderate",
+          "user_adjusted": false
+        },
+        {
+          "item_id": "quiz-m5",
+          "category_key": "backend",
+          "kind": "quiz",
+          "title": "Skill Check: Module 5",
+          "summary": "Gauge retention before advancing to the next module.",
+          "objectives": [
+            "Demonstrate recall of the module's key ideas.",
+            "Identify any gaps surfaced during the lesson."
+          ],
+          "prerequisites": [
+            "lesson-m5"
+          ],
+          "recommended_minutes": 24,
+          "recommended_day_offset": 5,
+          "focus_reason": "Validates progress before expanding backend coverage.",
+          "expected_outcome": "Score at least 70% to stay on track.",
+          "effort_level": "light",
+          "user_adjusted": false
+        }
+      ],
+      "is_stale": false,
+      "warnings": []
+    },
+    "schedule_adjustments": {},
+    "onboarding_assessment": null,
+    "onboarding_assessment_result": null,
+    "last_updated": "2025-10-14T04:29:12.619924Z"
+  }
+}

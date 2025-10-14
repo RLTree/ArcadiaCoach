@@ -377,6 +377,8 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
     if profile is None:
         raise LookupError(f"Learner profile '{username}' was not found.")
     adjustments = sequencer._sanitize_adjustments(getattr(profile, "schedule_adjustments", {}))
+    previous_schedule = profile.curriculum_schedule.model_copy(deep=True) if profile.curriculum_schedule else None
+    previous_adjustments = dict(getattr(profile, "schedule_adjustments", {}))
     start = time.perf_counter()
     try:
         schedule = sequencer.build_schedule(profile)
@@ -404,7 +406,7 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
         item.item_id: item.recommended_day_offset
         for item in schedule.items
         if item.item_id in adjustments
-    }
+        }
     for item in schedule.items:
         item.user_adjusted = item.item_id in updated_adjustments
     if schedule.items:
@@ -416,10 +418,22 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
         schedule.items,
         profile.onboarding_assessment_result,
     )
+    unchanged = False
+    if previous_schedule is not None:
+        if (
+            updated_adjustments == previous_adjustments
+            and schedule.items == previous_schedule.items
+            and schedule.time_horizon_days == previous_schedule.time_horizon_days
+            and schedule.cadence_notes == previous_schedule.cadence_notes
+        ):
+            unchanged = True
+            schedule = previous_schedule
+            for item in schedule.items:
+                item.user_adjusted = item.item_id in previous_adjustments
     emit_event(
         "schedule_generation",
         username=username,
-        status="success",
+        status="unchanged" if unchanged else "success",
         duration_ms=round(duration_ms, 2),
         item_count=len(schedule.items),
         horizon_days=schedule.time_horizon_days,
@@ -435,6 +449,9 @@ def generate_schedule_for_user(username: str) -> CurriculumSchedule:
                 for item_id, (before, after) in applied_deltas.items()
             ],
         )
+    if unchanged:
+        profile.curriculum_schedule = schedule
+        return profile
     return profile_store.set_curriculum_schedule(username, schedule, adjustments=updated_adjustments)
 
 
