@@ -25,3 +25,4 @@
 - Stream the new pacing metrics into telemetry dashboards (sessions per week, deferral pressure trends) to monitor real-world cadence shifts.
 - Allow learners to tune preferred sessions per week directly from the macOS client, feeding the value back into the sequencer.
 - Expose schedule rationale history inside chat transcripts so explanations stay visible during coaching conversations.
+- Stand up module template authoring + coverage dashboards so Phase 16 can expand foundational tracks without shipping new code each time.

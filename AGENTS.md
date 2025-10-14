@@ -175,7 +175,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 7. **Phase 6 – Frontend Chat & Accessibility Enhancements** ✅ *(completed October 13, 2025; see `docs/phase-6-frontend-chat-accessibility.md`)*
    - Deliver the upgraded Agent Chat panel with per-model capability picker, reasoning effort controls, attachment rendering, and a persisted transcript sidebar.
    - Harden attachment policies (full files for GPT-5/Mini, images-only for GPT-5 Codex) while keeping web search available per model selection.
-   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 19).
+   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 20).
 8. **Phase 7 – Chat Continuity & Prompt Hardening** ✅ *(completed October 13, 2025; see `docs/phase-7-chat-continuity.md`)*
    - Centralise prompt overlays so GPT-5/Mini always run `file_search` on attachments, GPT-5 Codex leans on inline previews, and web-enabled turns call `web_search` with Markdown hyperlink citations.
    - Add session resume support in the macOS client (active transcript tracking, sidebar ordering, resume button) without resetting backend threads.
@@ -189,7 +189,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Delivered detailed submission drilldowns with rubric notes, attachment manifests, and category ELO deltas in both dashboard and chat surfaces.
     - Normalised assessment submissions to include parsed attachments and explicit rating deltas across backend APIs and client models.
     - Captured the latest lesson/quiz/milestone envelopes so learners can revisit content immediately after agent actions.
-   - Follow-ups: add UI coverage for the new detail view (Phase 26) and expand curriculum tie-ins alongside the milestone roadmap (Phase 16).
+   - Follow-ups: add UI coverage for the new detail view (Phase 27) and expand curriculum tie-ins alongside the milestone roadmap (Phase 17).
 11. **Phase 10 – Assessment Attachment UX & Agent Ingestion** ✅ *(completed October 13, 2025; see `docs/phase-10-assessment-attachment-ux-agent-ingestion.md`)*
     - Replaced the metadata workaround with a structured `attachments` array on submissions, populated from the new attachment store (legacy metadata remains a fallback parser).
     - Shipped the full upload pipeline: REST endpoints, on-disk persistence, developer reset purge, and a macOS attachment manager (file picker + link entry) that auto-populates submissions.
@@ -206,7 +206,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added resilient fallbacks: failed refreshes now reuse the previous schedule, mark it `is_stale`, and surface warning metadata to both API and SwiftUI.
     - Triggered automatic schedule regeneration immediately after onboarding grading and updated the agent prompt so Chat answers reference `curriculum_schedule` data.
     - Expanded regression coverage for telemetry fan-out, fallback warnings, and post-grading schedule creation.
-    - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 19).
+    - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 20).
 14. **Phase 13 – Adaptive Curriculum MVP** ✅ *(completed October 14, 2025; see `docs/phase-13-adaptive-curriculum-mvp.md`)*
     - Regenerated curriculum schedules immediately after onboarding so every learner leaves planning with a populated 2–3 week roadmap.
     - Persisted learner `schedule_adjustments`, surfaced `user_adjusted` flags in schedule payloads, and taught the sequencer to honour deferrals on refresh.
@@ -225,59 +225,67 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Persisted structured `category_allocations`, `pacing_overview`, and `rationale_history` on curriculum schedules, including deferral pressure metrics and narrative adjustment notes.
     - Updated backend payloads, agent tools, and tests so Swift + FastAPI decode/render the new pacing metadata without regressions.
     - Refreshed the macOS dashboard with pacing breakdowns, deferral pressure badges, and a changelog timeline so learners can see why the roadmap evolved.
-17. **Phase 16 – Milestone Guidance & Adaptive Roadmapping**
+    - **Follow-ups:** add telemetry for pacing/session picks, expose module template authoring tools, and monitor storage growth from larger schedules ahead of the persistence migration.
+17. **Phase 16 – Adaptive Foundations & Assessment Overhaul**
+    - Stand up a dedicated *Goal Parser Agent* that ingests the learner’s long-term goals, strengths, and context, then infers the complete stack of prerequisite languages, frameworks, libraries, and tooling (e.g., Python, SQL, Pandas, CUDA, SwiftUI) needed to achieve that vision.
+    - Maintain a living curriculum module library (templates are modular building blocks, not rigid scripts) so the agent can assemble, adapt, or synthesize beginner-to-expert progressions for each inferred technology—duplicating, remixing, or authoring new modules whenever the library lacks coverage.
+    - Redesign the onboarding assessment into a longer, multi-section evaluation (conceptual, coding, data manipulation, architecture, tooling) so the agent has broad coverage to baseline current knowledge and confidence.
+    - Generate dynamic ELO category plans that grow beyond five categories, with the agent weighting new foundational categories whenever the learner indicates gaps (“I don’t know”) or the assessment scores reveal missing fundamentals.
+    - Update schedule and module sequencing logic to deliver multi-month roadmaps that revisit foundations until mastery thresholds are hit, with reinforcement lessons tied directly to the agent’s goal-to-foundation mapping.
+    - **Follow-ups:** instrument telemetry that shows which goal-parser inferences and foundation tracks are activated per learner, add low-friction tooling to author new module templates, and explore adaptive assessment shortening once mid-course mastery is demonstrated.
+18. **Phase 17 – Milestone Guidance & Adaptive Roadmapping**
     - Generate detailed milestone briefs (objectives, required deliverables, success parameters) that live entirely in-app.
     - Clarify which work must happen outside the app while capturing progress notes and artefacts back into Arcadia.
     - Feed milestone completion data into the sequencer so future lessons/quizzes adjust automatically.
-18. **Phase 17 – Lesson Deck Foundations**
+19. **Phase 18 – Lesson Deck Foundations**
     - Render lessons as presentation-style decks with narrative slides, inline code/examples, and citations to supporting papers/docs.
     - Establish shared deck components and export formats so both chat and dashboard views reuse the same content.
     - Ensure lessons remain self-contained so learners can progress without leaving the app while still offering optional deep-dive links.
-19. **Phase 18 – Lesson Comprehension & Knowledge Checks**
+20. **Phase 19 – Lesson Comprehension & Knowledge Checks**
     - Bundle comprehension checks at the end of each lesson and sync outcomes into the sequencer and ELO model.
     - Add lightweight progress indicators and reminders so learners know when to complete follow-up checks.
     - Resolve outstanding Swift concurrency warnings tied to shared formatters introduced by the new lesson components.
-20. **Phase 19 – Attachment & Citation Enhancements**
+21. **Phase 20 – Attachment & Citation Enhancements**
     - Extend attachment presentation with inline previews/captions and map `file_search` IDs to human-readable filenames and titles.
     - Expose attachment metadata and citation targets in both backend payloads and SwiftUI so users can open/download referenced sources directly from citation chips.
     - Refresh the agent + client rendering pipeline so Markdown citations consistently show richer metadata across chat, lessons, and dashboard views.
-21. **Phase 20 – Interactive Quiz Runner**
+22. **Phase 21 – Interactive Quiz Runner**
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback loops.
     - Instrument quizzes so outcomes are stored alongside attempt metadata for follow-up analysis.
     - Ensure accessibility and offline considerations are met for the new quiz surfaces.
-22. **Phase 21 – Assessment Review & Feedback Loop**
+23. **Phase 22 – Assessment Review & Feedback Loop**
     - Provide review surfaces so learners can revisit answers, rationales, and references across attempts.
     - Route quiz outcomes into ELO updates and adaptive curriculum adjustments with clear explanation of rating changes.
     - Capture telemetry on assessment retries to inform future sequencing heuristics.
-23. **Phase 22 – Reassessment & Refresh Cadence**
+24. **Phase 23 – Reassessment & Refresh Cadence**
     - Schedule periodic reassessments and surface their status alongside historical submissions.
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.
     - Define thresholds for triggering reassessment vs. lightweight check-ins.
-24. **Phase 23 – Persistence Migration (Data Layer)**
+25. **Phase 24 – Persistence Migration (Data Layer)**
     - Introduce a durable database for profiles, assessments, chat transcripts, and submissions.
     - Add repository/service abstractions in the backend to wrap new storage, including migrations for existing JSON data.
     - Establish schema versioning and seed scripts for dev/staging environments, including encryption-at-rest for stored assessment attachments.
-25. **Phase 24 – Persistence Migration (Client Integration & Sync)**
+26. **Phase 25 – Persistence Migration (Client Integration & Sync)**
     - Update the macOS client and Agents SDK utilities to consume the new persistence APIs.
     - Remove JSON-file assumptions from the app layer and ensure offline/cache behaviours remain stable.
     - Backfill smoke tests to verify legacy decode paths are no longer needed.
-26. **Phase 25 – Developer Code Tooling Enhancements**
+27. **Phase 26 – Developer Code Tooling Enhancements**
     - Add code-entry affordances (syntax highlighting, editor shortcuts) and evaluate optional lint/run hooks for in-app prompts.
     - Ensure accessibility preferences (font sizing, colour choices) are respected in the coding surface.
     - Provide developer-oriented toggles for sandboxed execution once backend support exists.
-27. **Phase 26 – API Reliability & Test Coverage**
+28. **Phase 27 – API Reliability & Test Coverage**
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).
     - Add contract tests for assessment history payloads, including legacy compatibility verification.
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.
-28. **Phase 27 – Evaluation & Adaptive Safety**
+29. **Phase 28 – Evaluation & Adaptive Safety**
     - Validate GPT-graded outcomes against representative human reviews and update rubric weights accordingly.
-    - Tune the grading prompt (language, scoring thresholds) using data gathered post-Phase 18/19.
+    - Tune the grading prompt (language, scoring thresholds) using data gathered post-Phase 19/20.
     - Default agents to launch with web search enabled (with per-user override) and document the grading prompt schema.
-29. **Phase 28 – QA & Release Readiness**
+30. **Phase 29 – QA & Release Readiness**
     - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
     - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
     - Capture release notes and rollback procedures.
-30. **Phase 29 – Agent Operations Uplift**
+31. **Phase 30 – Agent Operations Uplift**
     - Build observability dashboards for agent tool usage, grading latency, and token consumption.
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.
     - Add telemetry for automatic `file_search`/`web_search` success and link to alerting.
@@ -321,7 +329,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 ### SwiftPM deployment targets & Swift 6 concurrency diagnostics (added October 13, 2025)
 - **What went wrong:** Raising the deployment target to macOS 15 without updating the SwiftPM tools version triggered manifest failures, and Swift 6 surfaced concurrency warnings for shared `ISO8601DateFormatter` instances and other singletons.
 - **Correct approach:** Bump `swift-tools-version` to 6.0 when targeting macOS 15+, and isolate shared Foundation formatters/registries behind `@MainActor` or Sendable-safe wrappers to satisfy Swift 6 diagnostics.
-- **Action for future work:** Complete the formatter refactor during Phase 26’s reliability work so no `@MainActor` globals leak into Sendable contexts.
+- **Action for future work:** Complete the formatter refactor during Phase 27’s reliability work so no `@MainActor` globals leak into Sendable contexts.
 
 ### Schedule refresh query encoding (added October 13, 2025)
 - **What went wrong:** The macOS dashboard refresh button percent-encoded the entire `schedule?refresh=true` path segment, so the backend received `/schedule%3Frefresh%3Dtrue` and returned 404s instead of regenerating schedules.
@@ -337,6 +345,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 - **What went wrong:** Refreshing a schedule immediately after deferring an item rewrote the unchanged profile JSON, so the request stalled behind a multi-minute disk write on Render.
 - **Correct approach:** Detect unchanged sequencer output, skip persistence when no fields differ, and emit telemetry with `status="unchanged"` so we can monitor redundant refreshes.
 - **Action for future work:** Extend the short-circuit to future persistence migrations and alert if `schedule_generation` repeatedly reports large `duration_ms` despite unchanged payloads.
+
+### Foundation coverage gaps in curriculum (added October 14, 2025)
+- **What went wrong:** The adaptive curriculum assumed learners already had broad Python/data foundations, so onboarding plans after low assessment scores still generated only ~13 items without introducing prerequisite languages, libraries, or extended assessment coverage.
+- **Correct approach:** Expand the foundation module library, allow dynamic ELO categories, and regenerate schedules with multi-month scaffolding whenever the learner’s goals or assessment results indicate missing fundamentals.
+- **Action for future work:** As part of Phase 16, ship telemetry that tracks which foundation tracks are activated per learner and add authoring tools so we can continue extending the module catalog without code changes.
 
 ### Current time tool & timezone propagation (added October 14, 2025)
 - **What went wrong:** The agent defaulted to UTC when reporting timestamps, even after we localised schedules, because it lacked a clock tool and the backend wasn’t forwarding learner timezone metadata.
