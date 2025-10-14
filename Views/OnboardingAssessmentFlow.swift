@@ -1,6 +1,20 @@
 import SwiftUI
 import AppKit
 
+private struct AssessmentTaskSelection: Identifiable, Hashable {
+    let index: Int
+    let task: OnboardingAssessmentTask
+
+    var id: String { task.taskId }
+}
+
+private struct AssessmentSectionEntry: Identifiable, Hashable {
+    let section: AssessmentSection
+    let selections: [AssessmentTaskSelection]
+
+    var id: String { section.sectionId }
+}
+
 struct OnboardingAssessmentFlow: View {
     @EnvironmentObject private var appVM: AppViewModel
     @EnvironmentObject private var settings: AppSettings
@@ -185,40 +199,92 @@ struct OnboardingAssessmentFlow: View {
             Text("No assessment tasks available.")
                 .foregroundStyle(.secondary)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Tasks")
-                    .font(.headline)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(tasks.enumerated()), id: \.1.taskId) { index, task in
-                            Button {
-                                activeIndex = index
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Task \(index + 1)")
-                                        .font(.footnote.bold())
-                                    Text(task.taskType.label)
-                                        .font(.caption)
-                                    Text(categoryLabel(for: task.categoryKey))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+
+            let sectionLookup = Dictionary(uniqueKeysWithValues: assessment.sections.flatMap { section in
+                section.tasks.map { ($0.taskId, section) }
+            })
+            let sectionEntries: [AssessmentSectionEntry] = assessment.sections.compactMap { section in
+                let selections = tasks.enumerated().compactMap { index, task -> AssessmentTaskSelection? in
+                    guard sectionLookup[task.taskId]?.sectionId == section.sectionId else { return nil }
+                    return AssessmentTaskSelection(index: index, task: task)
+                }
+                guard !selections.isEmpty else { return nil }
+                return AssessmentSectionEntry(section: section, selections: selections)
+            }
+            let ungrouped: [AssessmentTaskSelection] = tasks.enumerated().compactMap { index, task in
+                guard sectionLookup[task.taskId] == nil else { return nil }
+                return AssessmentTaskSelection(index: index, task: task)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(sectionEntries) { entry in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(entry.section.title)
+                                .font(.headline)
+                            Spacer()
+                            Text(entry.section.intent.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if !entry.section.description.isEmpty {
+                            Text(entry.section.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(entry.selections) { selection in
+                                    taskChip(for: selection)
                                 }
-                                .padding(.vertical, 9)
-                                .padding(.horizontal, 11)
-                                .frame(minWidth: 110)
-                                .background(activeIndex == index ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(activeIndex == index ? Color.accentColor : Color.secondary.opacity(0.28), lineWidth: 1)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
-                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                if !ungrouped.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Additional Tasks")
+                            .font(.headline)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(ungrouped) { selection in
+                                    taskChip(for: selection)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private func taskChip(for selection: AssessmentTaskSelection) -> some View {
+        Button {
+            activeIndex = selection.index
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(selection.task.title)
+                    .font(.footnote.bold())
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                Text(selection.task.taskType.label)
+                    .font(.caption)
+                Text(categoryLabel(for: selection.task.categoryKey))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .frame(minWidth: 140, alignment: .leading)
+            .background(activeIndex == selection.index ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(activeIndex == selection.index ? Color.accentColor : Color.secondary.opacity(0.28), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(selection.task.title)
     }
 
     @ViewBuilder
@@ -230,6 +296,7 @@ struct OnboardingAssessmentFlow: View {
         } else {
             let index = min(activeIndex, tasks.count - 1)
             let task = tasks[index]
+            let section = assessment.sections.first { $0.sectionId == task.sectionId }
             let response = Binding(
                 get: { appVM.response(for: task.taskId) },
                 set: { appVM.setResponse($0, for: task.taskId) }
@@ -243,6 +310,18 @@ struct OnboardingAssessmentFlow: View {
                     Text("Expected \(task.expectedMinutes) min")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+                if let section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(section.title)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if !section.description.isEmpty {
+                            Text(section.description)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                 }
                 Text(categoryLabel(for: task.categoryKey))
                     .font(.subheadline)

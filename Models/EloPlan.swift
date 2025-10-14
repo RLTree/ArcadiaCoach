@@ -138,6 +138,8 @@ struct LearnerProfileSnapshot: Codable {
     var onboardingAssessmentResult: AssessmentGradingResult?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
     var timezone: String?
+    var goalInference: GoalInferenceModel?
+    var foundationTracks: [FoundationTrackModel] = []
 }
 
 struct ScheduleWarning: Codable, Hashable, Identifiable {

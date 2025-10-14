@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from statistics import mean
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from .assessment_result import AssessmentGradingResult
 from .learner_profile import (
@@ -13,6 +13,9 @@ from .learner_profile import (
     CurriculumPlan,
     EloCategoryDefinition,
     EloRubricBand,
+    FoundationModuleReference,
+    FoundationTrack,
+    GoalParserInference,
 )
 
 
@@ -474,6 +477,57 @@ _FOUNDATION_LIBRARY: Dict[str, _CategoryTemplate] = {
     ),
 }
 
+_MODULE_TEMPLATE_INDEX: Dict[str, Tuple[str, _ModuleTemplate]] = {}
+for _category in _FOUNDATION_LIBRARY.values():
+    for _module in _category.modules:
+        _MODULE_TEMPLATE_INDEX[_module.module_id] = (_category.key, _module)
+
+
+def _add_module_from_template(
+    plan: CurriculumPlan,
+    module_template: _ModuleTemplate,
+    category_key: str,
+    existing_ids: Set[str],
+) -> None:
+    if module_template.module_id in existing_ids:
+        return
+    plan.modules.append(
+        CurriculumModule(
+            module_id=module_template.module_id,
+            category_key=category_key,
+            title=module_template.title,
+            summary=module_template.summary,
+            objectives=list(module_template.objectives),
+            activities=list(module_template.activities),
+            deliverables=list(module_template.deliverables),
+            estimated_minutes=module_template.estimated_minutes,
+        )
+    )
+    existing_ids.add(module_template.module_id)
+
+
+def _find_track_for_category(
+    inference: Optional[GoalParserInference],
+    category_key: str,
+) -> Optional[FoundationTrack]:
+    if inference is None:
+        return None
+    for track in inference.tracks:
+        if track.track_id == category_key:
+            return track
+        for reference in track.recommended_modules:
+            if reference.category_key == category_key:
+                return track
+    return None
+
+
+def _synthesise_rubric(label: str) -> List[EloRubricBand]:
+    return [
+        EloRubricBand(level="Exploring", descriptor=f"Beginning {label} fundamentals."),
+        EloRubricBand(level="Developing", descriptor=f"Applies {label} skills with guided support."),
+        EloRubricBand(level="Proficient", descriptor=f"Independently delivers {label} outcomes."),
+    ]
+
 
 _BASE_FOUNDATION_KEYS: Tuple[str, ...] = (
     "python-foundations",
@@ -562,59 +616,166 @@ def ensure_foundational_curriculum(
     plan: CurriculumPlan,
     categories: Sequence[EloCategoryDefinition],
     assessment_result: Optional[AssessmentGradingResult] = None,
+    goal_inference: Optional[GoalParserInference] = None,
 ) -> Tuple[List[EloCategoryDefinition], CurriculumPlan]:
     """Augment the curriculum and ELO categories with foundational coverage."""
 
     plan_copy = plan.model_copy(deep=True)
     category_list = [entry.model_copy(deep=True) for entry in categories]
-    existing_category_keys = {category.key for category in category_list}
-    existing_module_ids = {module.module_id for module in plan_copy.modules}
+    existing_category_keys: Set[str] = {category.key for category in category_list}
+    existing_module_ids: Set[str] = {module.module_id for module in plan_copy.modules}
+
+    track_weights: Dict[str, float] = {}
+    track_modules: Dict[str, List[Tuple[FoundationTrack, FoundationModuleReference]]] = {}
+    track_notes: List[str] = []
+    desired_keys: List[str] = []
+    if goal_inference:
+        for track in goal_inference.tracks:
+            if track.notes:
+                note = track.notes.strip()
+                if note:
+                    track_notes.append(note)
+            weight = track.weight if track.weight and track.weight > 0 else 1.0
+            for reference in track.recommended_modules:
+                category_key = reference.category_key.strip()
+                if not category_key:
+                    continue
+                if category_key not in desired_keys:
+                    desired_keys.append(category_key)
+                track_weights[category_key] = max(track_weights.get(category_key, 0.0), weight)
+                track_modules.setdefault(category_key, []).append((track, reference))
+            if not track.recommended_modules:
+                track_key = track.track_id.strip()
+                if track_key and track_key not in desired_keys:
+                    desired_keys.append(track_key)
+                    track_weights.setdefault(track_key, weight)
+        for outcome in goal_inference.target_outcomes:
+            trimmed = outcome.strip()
+            if trimmed and trimmed not in plan_copy.success_criteria:
+                plan_copy.success_criteria.append(trimmed)
 
     average = _average_score(assessment_result)
-    keys_to_add = _determine_foundation_keys(
+    fallback_keys = _determine_foundation_keys(
         goal,
         average,
         existing_category_keys,
         len(plan_copy.modules),
     )
+    for key in fallback_keys:
+        if key not in desired_keys:
+            desired_keys.append(key)
+
     tier_limit = _tier_limit(average)
 
-    for key in keys_to_add:
-        template = _FOUNDATION_LIBRARY[key]
+    for key in desired_keys:
+        template = _FOUNDATION_LIBRARY.get(key)
+        if template is not None:
+            if key not in existing_category_keys:
+                focus_areas = list(template.focus_areas)
+                for track, _ in track_modules.get(key, []):
+                    for focus in track.focus_areas:
+                        if focus not in focus_areas:
+                            focus_areas.append(focus)
+                weight = track_weights.get(key, template.weight)
+                category_list.append(
+                    EloCategoryDefinition(
+                        key=template.key,
+                        label=template.label,
+                        description=template.description,
+                        focus_areas=focus_areas,
+                        weight=max(weight, 0.5),
+                        rubric=[EloRubricBand(level=level, descriptor=descriptor) for level, descriptor in template.rubric],
+                        starting_rating=1100,
+                    )
+                )
+                existing_category_keys.add(key)
+            else:
+                if key in track_weights:
+                    for category in category_list:
+                        if category.key == key:
+                            category.weight = max(category.weight, track_weights[key])
+                            for track, _ in track_modules.get(key, []):
+                                for focus in track.focus_areas:
+                                    if focus not in category.focus_areas:
+                                        category.focus_areas.append(focus)
+                            break
+            for track, reference in track_modules.get(key, []):
+                module_id = reference.module_id.strip() or f"{track.track_id}-{len(existing_module_ids) + 1}"
+                mapped = _MODULE_TEMPLATE_INDEX.get(module_id)
+                if mapped and mapped[0] == key:
+                    template_module = mapped[1]
+                    _add_module_from_template(plan_copy, template_module, key, existing_module_ids)
+                    continue
+                if module_id in existing_module_ids:
+                    continue
+                focus_objectives = [f"Strengthen {area} proficiency." for area in track.focus_areas if area][:3]
+                if not focus_objectives:
+                    focus_objectives = [f"Deepen mastery of {track.label} essentials."]
+                plan_copy.modules.append(
+                    CurriculumModule(
+                        module_id=module_id,
+                        category_key=key,
+                        title=f"{track.label}: {module_id.replace('-', ' ').title()}",
+                        summary=reference.notes or track.notes or f"Applied practice sprint for {track.label}.",
+                        objectives=focus_objectives,
+                        activities=[],
+                        deliverables=[f"Document learnings for {track.label} foundations."],
+                        estimated_minutes=(reference.suggested_weeks or 1) * 180,
+                    )
+                )
+                existing_module_ids.add(module_id)
+            for module_template in template.modules:
+                if module_template.tier > tier_limit:
+                    continue
+                _add_module_from_template(plan_copy, module_template, template.key, existing_module_ids)
+            for criterion in template.success_criteria:
+                if criterion not in plan_copy.success_criteria:
+                    plan_copy.success_criteria.append(criterion)
+            continue
+
+        track = _find_track_for_category(goal_inference, key)
+        if track is None:
+            continue
         if key not in existing_category_keys:
+            focus = [focus for focus in track.focus_areas if focus] or [track.label]
+            rubric = _synthesise_rubric(track.label)
             category_list.append(
                 EloCategoryDefinition(
-                    key=template.key,
-                    label=template.label,
-                    description=template.description,
-                    focus_areas=list(template.focus_areas),
-                    weight=template.weight,
-                    rubric=[EloRubricBand(level=level, descriptor=descriptor) for level, descriptor in template.rubric],
+                    key=key,
+                    label=track.label,
+                    description=track.notes or f"Establish durable foundations in {track.label}.",
+                    focus_areas=focus,
+                    weight=max(track_weights.get(key, track.weight or 1.0), 0.5),
+                    rubric=rubric,
                     starting_rating=1100,
                 )
             )
             existing_category_keys.add(key)
-        for module_template in template.modules:
-            if module_template.tier > tier_limit:
+        for track_entry, reference in track_modules.get(key, []):
+            module_id = reference.module_id.strip() or f"{track_entry.track_id}-{len(existing_module_ids) + 1}"
+            if module_id in existing_module_ids:
                 continue
-            if module_template.module_id in existing_module_ids:
-                continue
+            summary = reference.notes or track_entry.notes or f"Applied project work for {track_entry.label}."
+            focus_objectives = [f"Practice {area} in real scenarios." for area in track_entry.focus_areas if area][:3]
+            if not focus_objectives:
+                focus_objectives = [f"Develop confidence executing {track_entry.label} workflows."]
             plan_copy.modules.append(
                 CurriculumModule(
-                    module_id=module_template.module_id,
-                    category_key=template.key,
-                    title=module_template.title,
-                    summary=module_template.summary,
-                    objectives=list(module_template.objectives),
-                    activities=list(module_template.activities),
-                    deliverables=list(module_template.deliverables),
-                    estimated_minutes=module_template.estimated_minutes,
+                    module_id=module_id,
+                    category_key=key,
+                    title=f"{track_entry.label} Foundations",
+                    summary=summary,
+                    objectives=focus_objectives,
+                    activities=[],
+                    deliverables=[f"Share reflection on {track_entry.label} practice."],
+                    estimated_minutes=(reference.suggested_weeks or 1) * 180,
                 )
             )
-            existing_module_ids.add(module_template.module_id)
-        for criterion in template.success_criteria:
-            if criterion not in plan_copy.success_criteria:
-                plan_copy.success_criteria.append(criterion)
+            existing_module_ids.add(module_id)
+
+    for note in track_notes:
+        if note not in plan_copy.success_criteria:
+            plan_copy.success_criteria.append(note)
 
     return category_list, plan_copy
 

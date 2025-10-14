@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.learner_profile import (
+    AssessmentSection,
     AssessmentTask,
     CurriculumModule,
     CurriculumPlan,
@@ -51,6 +52,27 @@ def test_set_curriculum_and_assessment_persists_fields(tmp_path: Path) -> None:
                 rubric=["Highlights failure scenario", "Provides mitigation"],
                 expected_minutes=12,
             )
+        ],
+        sections=[
+            AssessmentSection(
+                section_id="concept",
+                title="Conceptual Foundations",
+                intent="concept",
+                expected_minutes=12,
+                tasks=[
+                    AssessmentTask(
+                        task_id="foundations-concept-1",
+                        category_key="backend-foundations",
+                        title="Explain async pitfalls",
+                        task_type="concept_check",
+                        prompt="Describe a race condition you recently fixed.",
+                        guidance="Be concrete about coroutine scheduling.",
+                        rubric=["Highlights failure scenario", "Provides mitigation"],
+                        expected_minutes=12,
+                        section_id="concept",
+                    )
+                ],
+            )
         ]
     )
 
@@ -60,6 +82,7 @@ def test_set_curriculum_and_assessment_persists_fields(tmp_path: Path) -> None:
     assert result.curriculum_plan.overview == curriculum.overview
     assert result.onboarding_assessment is not None
     assert len(result.onboarding_assessment.tasks) == 1
+    assert len(result.onboarding_assessment.sections) == 1
 
     updated = store.update_assessment_status("learner", "in_progress")
     assert updated.onboarding_assessment is not None

@@ -113,6 +113,8 @@ final class BackendService {
         var curriculumSchedule: CurriculumSchedule?
         var onboardingAssessment: OnboardingAssessment?
         var onboardingAssessmentResult: AssessmentGradingResult?
+        var goalInference: GoalInferenceModel?
+        var foundationTracks: [FoundationTrackModel]?
     }
 
     struct OnboardingStatusSnapshot: Decodable {
@@ -342,7 +344,9 @@ final class BackendService {
                     onboardingAssessment: legacy.onboardingAssessment,
                     onboardingAssessmentResult: legacy.onboardingAssessmentResult,
                     assessmentSubmissions: [],
-                    timezone: nil
+                    timezone: nil,
+                    goalInference: legacy.goalInference,
+                    foundationTracks: legacy.foundationTracks ?? []
                 )
             } catch {
                 throw primaryError

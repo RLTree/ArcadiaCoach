@@ -79,4 +79,78 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.categoryAllocations.first?.deferralCount, 3)
         XCTAssertEqual(schedule.rationaleHistory.first?.headline, "Roadmap extended to 42 days with 3 sessions/week cadence.")
     }
+
+    func testLearnerProfileSnapshotDecodesGoalInference() throws {
+        let json = """
+        {
+            "username": "coder",
+            "skill_ratings": [{"category": "backend", "rating": 1120}],
+            "assessment_submissions": [],
+            "knowledge_tags": [],
+            "recent_sessions": [],
+            "memory_records": [],
+            "memory_index_id": "vs_demo",
+            "goal_inference": {
+                "generated_at": "2025-10-14T12:00:00Z",
+                "summary": "Prioritise backend foundations and observability.",
+                "target_outcomes": ["Launch a resilient service", "Automate runtime observability"],
+                "tracks": [
+                    {
+                        "track_id": "backend",
+                        "label": "Backend Foundations",
+                        "priority": "now",
+                        "confidence": "high",
+                        "weight": 1.5,
+                        "technologies": ["FastAPI", "AsyncIO"],
+                        "focus_areas": ["architecture", "observability"],
+                        "prerequisites": ["Python Foundations"],
+                        "recommended_modules": [
+                            {
+                                "module_id": "backend-foundations",
+                                "category_key": "backend",
+                                "priority": "core",
+                                "suggested_weeks": 4,
+                                "notes": "Refactor async flows and add tracing."
+                            }
+                        ],
+                        "suggested_weeks": 4,
+                        "notes": "Focus on service design patterns and production readiness."
+                    }
+                ],
+                "missing_templates": []
+            },
+            "foundation_tracks": [
+                {
+                    "track_id": "backend",
+                    "label": "Backend Foundations",
+                    "priority": "now",
+                    "confidence": "high",
+                    "weight": 1.5,
+                    "technologies": ["FastAPI"],
+                    "focus_areas": ["architecture"],
+                    "prerequisites": [],
+                    "recommended_modules": [
+                        {
+                            "module_id": "backend-foundations",
+                            "category_key": "backend",
+                            "priority": "core"
+                        }
+                    ],
+                    "suggested_weeks": 4,
+                    "notes": "Prioritise reinforcement every two weeks."
+                }
+            ]
+        }
+        """
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(LearnerProfileSnapshot.self, from: data)
+
+        XCTAssertEqual(snapshot.username, "coder")
+        XCTAssertEqual(snapshot.goalInference?.tracks.first?.label, "Backend Foundations")
+        XCTAssertEqual(snapshot.goalInference?.targetOutcomes.count, 2)
+        XCTAssertEqual(snapshot.foundationTracks.first?.priority, "now")
+    }
 }

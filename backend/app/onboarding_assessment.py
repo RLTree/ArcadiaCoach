@@ -23,12 +23,15 @@ from .agent_models import (
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings
 from .learner_profile import (
+    AssessmentSection,
     AssessmentTask,
     CurriculumModule,
     CurriculumPlan,
     EloCategoryDefinition,
     EloCategoryPlan,
     EloRubricBand,
+    FoundationTrack,
+    GoalParserInference,
     OnboardingAssessment,
     profile_store,
 )
@@ -36,6 +39,7 @@ from .memory_store import MemoryStore
 from .telemetry import emit_event
 from .curriculum_foundations import ensure_foundational_curriculum
 from .curriculum_sequencer import generate_schedule_for_user
+from .goal_parser import ensure_goal_inference
 logger = logging.getLogger(__name__)
 
 
@@ -226,6 +230,259 @@ def _ensure_task_coverage(
     return final_tasks
 
 
+def _sum_minutes(tasks: Iterable[AssessmentTask]) -> int:
+    return sum(task.expected_minutes for task in tasks)
+
+
+def _select_category(
+    categories: Sequence[EloCategoryDefinition],
+    keywords: Iterable[str],
+    fallback: str,
+) -> str:
+    lowered_keywords = [keyword.lower() for keyword in keywords]
+    for category in categories:
+        haystack = (
+            " ".join(
+                [
+                    category.key,
+                    category.label,
+                    category.description,
+                    " ".join(category.focus_areas),
+                ]
+            ).lower()
+        )
+        if any(keyword in haystack for keyword in lowered_keywords):
+            return category.key
+    return fallback
+
+
+def _find_track_for_keywords(
+    inference: GoalParserInference | None,
+    keywords: Iterable[str],
+) -> FoundationTrack | None:
+    if inference is None:
+        return None
+    lowered = [keyword.lower() for keyword in keywords]
+    for track in inference.tracks:
+        haystack = " ".join(
+            [track.track_id, track.label, " ".join(track.technologies), " ".join(track.focus_areas)]
+        ).lower()
+        if any(keyword in haystack for keyword in lowered):
+            return track
+    return None
+
+
+def _create_section(
+    section_id: str,
+    title: str,
+    intent: str,
+    description: str,
+    tasks: List[AssessmentTask],
+) -> AssessmentSection:
+    return AssessmentSection(
+        section_id=section_id,
+        title=title,
+        description=description,
+        intent=intent,  # type: ignore[arg-type]
+        expected_minutes=max(_sum_minutes(tasks), 15),
+        tasks=tasks,
+    )
+
+
+def _create_data_task(
+    category_key: str,
+    inference: GoalParserInference | None,
+) -> AssessmentTask:
+    track = _find_track_for_keywords(inference, ["data", "analysis", "pandas", "numpy", "ml"])
+    context = track.label if track else "data workflows"
+    prompt = (
+        f"Using Python, outline how you would load, validate, and explore a dataset that supports your long-term goal. "
+        f"Demonstrate critical steps in {context.lower()} by writing sample code or pseudocode, "
+        "including how you would catch data quality issues and communicate insights."
+    )
+    guidance = (
+        "Describe the libraries, validation checks, and summarisation steps you rely on before modelling or decision-making. "
+        "Highlight where you automate the workflow and the questions you would ask after the initial pass."
+    )
+    rubric = [
+        "Describes a reproducible ingestion and validation process.",
+        "Shows familiarity with vectorised operations or tidy data pipelines.",
+        "Explains how insights connect back to the learner's long-term goal.",
+    ]
+    starter_code = (
+        "import pandas as pd\n\n"
+        "# Load a dataset related to your goal.\n"
+        "df = pd.read_csv(\"./sample.csv\")\n"
+        "print(df.head())\n"
+    )
+    task_id = _slugify(f"{category_key}-data-diagnostic", "data-diagnostic")
+    return AssessmentTask(
+        task_id=task_id,
+        category_key=category_key,
+        title="Data Manipulation Diagnostic",
+        task_type="code",  # type: ignore[arg-type]
+        section_id="data",
+        prompt=prompt,
+        guidance=guidance,
+        rubric=rubric,
+        expected_minutes=35,
+        starter_code=starter_code,
+    )
+
+
+def _create_architecture_task(
+    category_key: str,
+    inference: GoalParserInference | None,
+) -> AssessmentTask:
+    track = _find_track_for_keywords(inference, ["architecture", "backend", "system", "service", "api"])
+    system_label = track.label if track else "your target system"
+    prompt = (
+        f"Sketch the high-level architecture for {system_label.lower()}, highlighting the core components, data flows, "
+        "and reliability considerations you would prioritise in the first implementation."
+    )
+    guidance = (
+        "List the services, queues, or modules you would build, and explain how you would monitor, test, and iterate on them. "
+        "Call out any open questions you would investigate before shipping."
+    )
+    rubric = [
+        "Identifies key components and responsibilities with clear boundaries.",
+        "Addresses deployment, observability, or failure recovery considerations.",
+        "Connects the architecture back to the learner's stated goal and constraints.",
+    ]
+    task_id = _slugify(f"{category_key}-architecture-plan", "architecture-plan")
+    return AssessmentTask(
+        task_id=task_id,
+        category_key=category_key,
+        title="Architecture Planning Reflection",
+        task_type="concept_check",  # type: ignore[arg-type]
+        section_id="architecture",
+        prompt=prompt,
+        guidance=guidance,
+        rubric=rubric,
+        expected_minutes=25,
+    )
+
+
+def _create_tooling_task(
+    category_key: str,
+    inference: GoalParserInference | None,
+) -> AssessmentTask:
+    track = _find_track_for_keywords(inference, ["tooling", "workflow", "testing", "automation", "devops"])
+    label = track.label if track else "your development workflow"
+    prompt = (
+        f"Detail the tooling stack you rely on (or plan to adopt) to support {label.lower()}, covering editors, "
+        "automation, testing, documentation, and accessibility preferences."
+    )
+    guidance = (
+        "Explain how each tool speeds up feedback loops, reduces cognitive load, or supports collaboration. "
+        "Call out gaps you want to close over the next month."
+    )
+    rubric = [
+        "Lists concrete tools and explains why each matters for the learner's goals.",
+        "Highlights gaps or pain points that should shape upcoming lessons.",
+        "Connects tooling choices to sustainable, accessible workflows.",
+    ]
+    task_id = _slugify(f"{category_key}-tooling-audit", "tooling-audit")
+    return AssessmentTask(
+        task_id=task_id,
+        category_key=category_key,
+        title="Tooling & Workflow Audit",
+        task_type="concept_check",  # type: ignore[arg-type]
+        section_id="tooling",
+        prompt=prompt,
+        guidance=guidance,
+        rubric=rubric,
+        expected_minutes=20,
+    )
+
+
+def _build_assessment_sections(
+    base_tasks: List[AssessmentTask],
+    categories: Sequence[EloCategoryDefinition],
+    inference: GoalParserInference | None,
+) -> Tuple[List[AssessmentTask], List[AssessmentSection]]:
+    final_tasks = [task.model_copy(deep=True) for task in base_tasks]
+    sections: List[AssessmentSection] = []
+
+    concept_tasks = [task for task in final_tasks if task.task_type == "concept_check"]
+    for task in concept_tasks:
+        task.section_id = "concept"
+    if concept_tasks:
+        sections.append(
+            _create_section(
+                section_id="concept",
+                title="Conceptual Foundations",
+                intent="concept",
+                description="Capture baseline conceptual understanding across priority categories.",
+                tasks=concept_tasks,
+            )
+        )
+
+    code_tasks = [task for task in final_tasks if task.task_type == "code"]
+    for task in code_tasks:
+        task.section_id = "coding"
+    if code_tasks:
+        sections.append(
+            _create_section(
+                section_id="coding",
+                title="Hands-on Coding",
+                intent="coding",
+                description="Evaluate implementation habits and code fluency before advancing the roadmap.",
+                tasks=code_tasks,
+            )
+        )
+
+    fallback_category = categories[0].key if categories else (final_tasks[0].category_key if final_tasks else "foundations")
+    data_category = _select_category(categories, ["data", "analysis", "numpy", "pandas", "ml"], fallback_category)
+    data_task = _create_data_task(data_category, inference)
+    final_tasks.append(data_task)
+    sections.append(
+        _create_section(
+            section_id="data",
+            title="Data Manipulation",
+            intent="data",
+            description="Probe data wrangling instincts, validation habits, and exploratory analysis workflows.",
+            tasks=[data_task],
+        )
+    )
+
+    architecture_category = _select_category(
+        categories,
+        ["architecture", "backend", "system", "service", "api"],
+        fallback_category,
+    )
+    architecture_task = _create_architecture_task(architecture_category, inference)
+    final_tasks.append(architecture_task)
+    sections.append(
+        _create_section(
+            section_id="architecture",
+            title="Architecture & Systems",
+            intent="architecture",
+            description="Assess systems thinking, planning, and reliability considerations.",
+            tasks=[architecture_task],
+        )
+    )
+
+    tooling_category = _select_category(
+        categories,
+        ["tooling", "workflow", "testing", "automation", "devops"],
+        fallback_category,
+    )
+    tooling_task = _create_tooling_task(tooling_category, inference)
+    final_tasks.append(tooling_task)
+    sections.append(
+        _create_section(
+            section_id="tooling",
+            title="Tooling & Workflow",
+            intent="tooling",
+            description="Understand the learner's habits around automation, accessibility, and daily workflows.",
+            tasks=[tooling_task],
+        )
+    )
+
+    return final_tasks, sections
+
+
 async def generate_onboarding_bundle(
     settings: Settings,
     username: str,
@@ -244,12 +501,15 @@ async def generate_onboarding_bundle(
     }
     profile = profile_store.apply_metadata(username, metadata)
     profile_snapshot = profile.model_dump(mode="json")
+    inference = await ensure_goal_inference(settings, username, goal, use_case, strengths)
+    inference_snapshot = inference.model_dump(mode="json")
     context = ArcadiaAgentContext.model_construct(
         thread=thread,
         store=MemoryStore(),
         request_context={
             "metadata": metadata,
             "profile": profile_snapshot,
+            "goal_inference": inference_snapshot,
         },
         sanitized_input=None,
         web_enabled=settings.arcadia_agent_enable_web,
@@ -275,6 +535,16 @@ async def generate_onboarding_bundle(
         f"Primary use case: {use_case or 'unspecified'}\n"
         f"Strengths / prior experience: {strengths or 'unspecified'}\n"
     )
+    foundation_insights = json.dumps(
+        {
+            "summary": inference.summary,
+            "target_outcomes": inference.target_outcomes,
+            "tracks": [track.model_dump(mode="json") for track in inference.tracks],
+            "missing_templates": inference.missing_templates,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
     message = (
         "Design an onboarding curriculum and initial assessment for the learner described below. "
@@ -283,6 +553,8 @@ async def generate_onboarding_bundle(
         "Focus on AuDHD-friendly pacing (chunked steps, explicit success criteria, minimal sensory load). "
         "Return the structured JSON payload described after the learner brief.\n\n"
         f"{learner_brief}\n"
+        "Goal parser insights:\n"
+        f"{foundation_insights}\n\n"
         f"{schema_description}"
     )
 
@@ -333,6 +605,7 @@ async def generate_onboarding_bundle(
         plan=curriculum,
         categories=category_definitions,
         assessment_result=None,
+        goal_inference=inference,
     )
 
     plan = EloCategoryPlan(
@@ -342,16 +615,24 @@ async def generate_onboarding_bundle(
         else None,
         categories=augmented_categories,
     )
+    if inference.summary:
+        notes: List[str] = []
+        if plan.strategy_notes:
+            notes.append(plan.strategy_notes)
+        notes.append(f"Goal parser focus: {inference.summary}")
+        plan.strategy_notes = "\n\n".join(notes)
     profile_store.set_elo_category_plan(username, plan)
     curriculum = augmented_curriculum
 
     base_tasks = [_normalise_task(task) for task in plan_payload.assessment]
     categories = [(category.key, category.label) for category in plan_payload.categories]
     ensured_tasks = _ensure_task_coverage(categories, modules, base_tasks)
+    final_tasks, assessment_sections = _build_assessment_sections(ensured_tasks, augmented_categories, inference)
     assessment = OnboardingAssessment(
         generated_at=datetime.now(timezone.utc),
         status="pending",
-        tasks=ensured_tasks,
+        tasks=final_tasks,
+        sections=assessment_sections,
     )
 
     profile_store.set_curriculum_and_assessment(username, curriculum, assessment)

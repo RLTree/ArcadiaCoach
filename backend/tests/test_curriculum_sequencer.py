@@ -17,6 +17,8 @@ from app.learner_profile import (
     LearnerProfile,
     ScheduleRationaleEntry,
     SequencedWorkItem,
+    FoundationModuleReference,
+    FoundationTrack,
 )
 from app.profile_routes import _serialize_profile
 
@@ -129,6 +131,69 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     assert schedule.category_allocations, "Expected category pacing allocations."
     assert schedule.rationale_history, "Rationale history should be populated."
     assert schedule.rationale_history[-1].related_categories, "Rationale should surface related categories."
+
+
+def test_sequencer_adds_deep_dive_for_high_priority_track() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend", "Backend Systems", 1.2),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Backend acceleration",
+        success_criteria=["Deliver resilient services."],
+        modules=[
+            CurriculumModule(
+                module_id="backend-foundations",
+                category_key="backend",
+                title="Backend Foundations",
+                summary="Harden async patterns and observability.",
+                objectives=["Refactor async code", "Instrument tracing"],
+                activities=["Audit logging"],
+                deliverables=["Ship tracing dashboard"],
+                estimated_minutes=120,
+            )
+        ],
+    )
+    profile = LearnerProfile(
+        username="engineer",
+        goal="Ship resilient backend systems.",
+        use_case="Automate key services.",
+        strengths="Comfortable with SwiftUI, ramping backend skills",
+        elo_snapshot={"backend": 980},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+        foundation_tracks=[
+            FoundationTrack(
+                track_id="backend",
+                label="Backend Foundations",
+                priority="now",
+                confidence="high",
+                weight=1.6,
+                technologies=["FastAPI"],
+                focus_areas=["architecture", "observability"],
+                prerequisites=["Python Foundations"],
+                recommended_modules=[
+                    FoundationModuleReference(
+                        module_id="backend-foundations",
+                        category_key="backend",
+                        priority="core",
+                        suggested_weeks=4,
+                    )
+                ],
+            )
+        ],
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    deep_dive_items = [item for item in schedule.items if item.item_id.startswith("deepdive-")]
+    assert deep_dive_items, "Expected deep dive reinforcement when track weight is high."
+    reinforcement = next(item for item in schedule.items if item.item_id == "reinforce-backend-foundations")
+    deep_dive = deep_dive_items[0]
+    assert deep_dive.category_key == reinforcement.category_key
+    assert deep_dive.recommended_minutes >= reinforcement.recommended_minutes
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:

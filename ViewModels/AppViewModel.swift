@@ -55,6 +55,8 @@ final class AppViewModel: ObservableObject {
     @Published var scheduleRefreshing: Bool = false
     @Published var adjustingScheduleItemId: String?
     @Published var learnerTimezone: String?
+    @Published var goalInference: GoalInferenceModel?
+    @Published var foundationTracks: [FoundationTrackModel] = []
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -606,6 +608,8 @@ final class AppViewModel: ObservableObject {
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult
         assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }
+        goalInference = snapshot.goalInference
+        foundationTracks = snapshot.foundationTracks ?? []
         if let currentFocusId = focusedSubmission?.submissionId {
             focusedSubmission = assessmentHistory.first { $0.submissionId == currentFocusId }
         }

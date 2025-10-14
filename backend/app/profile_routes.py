@@ -14,11 +14,15 @@ from .agent_models import (
     AssessmentGradingPayload,
     AssessmentRubricEvaluationPayload,
     AssessmentTaskGradePayload,
+    AssessmentSectionPayload,
     CurriculumModulePayload,
     CurriculumSchedulePayload,
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
+    FoundationModuleReferencePayload,
+    FoundationTrackPayload,
+    GoalParserInferencePayload,
     LearnerProfilePayload,
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
@@ -27,7 +31,17 @@ from .agent_models import (
 )
 from .assessment_submission import submission_payload, submission_store
 from .curriculum_sequencer import generate_schedule_for_user
-from .learner_profile import CurriculumSchedule, LearnerProfile, ScheduleWarning, profile_store
+from .learner_profile import (
+    AssessmentSection,
+    AssessmentTask,
+    CurriculumSchedule,
+    LearnerProfile,
+    ScheduleWarning,
+    FoundationModuleReference,
+    FoundationTrack,
+    GoalParserInference,
+    profile_store,
+)
 from .telemetry import emit_event
 from .tools import _schedule_payload
 
@@ -43,6 +57,59 @@ class ScheduleAdjustmentRequest(BaseModel):
     days: int = Field(default=1, ge=1, le=MAX_DEFER_DAYS)
     target_day_offset: Optional[int] = Field(default=None, ge=0, le=42)
     reason: Optional[str] = Field(default=None, max_length=160)
+
+
+def _module_reference_payload(reference: FoundationModuleReference) -> FoundationModuleReferencePayload:
+    return FoundationModuleReferencePayload(
+        module_id=reference.module_id,
+        category_key=reference.category_key,
+        priority=reference.priority,
+        suggested_weeks=reference.suggested_weeks,
+        notes=reference.notes,
+    )
+
+
+def _track_payload(track: FoundationTrack) -> FoundationTrackPayload:
+    return FoundationTrackPayload(
+        track_id=track.track_id,
+        label=track.label,
+        priority=track.priority,
+        confidence=track.confidence,
+        weight=track.weight,
+        technologies=list(track.technologies),
+        focus_areas=list(track.focus_areas),
+        prerequisites=list(track.prerequisites),
+        recommended_modules=[_module_reference_payload(module) for module in track.recommended_modules],
+        suggested_weeks=track.suggested_weeks,
+        notes=track.notes,
+    )
+
+
+def _assessment_task_payload(task: AssessmentTask) -> OnboardingAssessmentTaskPayload:
+    return OnboardingAssessmentTaskPayload(
+        task_id=task.task_id,
+        category_key=task.category_key,
+        section_id=getattr(task, "section_id", None),
+        title=task.title,
+        task_type=task.task_type,
+        prompt=task.prompt,
+        guidance=task.guidance,
+        rubric=list(task.rubric),
+        expected_minutes=task.expected_minutes,
+        starter_code=task.starter_code,
+        answer_key=task.answer_key,
+    )
+
+
+def _assessment_section_payload(section: AssessmentSection) -> AssessmentSectionPayload:
+    return AssessmentSectionPayload(
+        section_id=section.section_id,
+        title=section.title,
+        description=section.description,
+        intent=section.intent,
+        expected_minutes=section.expected_minutes,
+        tasks=[_assessment_task_payload(task) for task in section.tasks],
+    )
 
 
 def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
@@ -94,24 +161,13 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
     assessment_payload: OnboardingAssessmentPayload | None = None
     if profile.onboarding_assessment:
         assessment = profile.onboarding_assessment
+        task_payloads = [_assessment_task_payload(task) for task in assessment.tasks]
+        section_payloads = [_assessment_section_payload(section) for section in assessment.sections]
         assessment_payload = OnboardingAssessmentPayload(
             generated_at=assessment.generated_at,
             status=assessment.status,
-            tasks=[
-                OnboardingAssessmentTaskPayload(
-                    task_id=task.task_id,
-                    category_key=task.category_key,
-                    title=task.title,
-                    task_type=task.task_type,
-                    prompt=task.prompt,
-                    guidance=task.guidance,
-                    rubric=list(task.rubric),
-                    expected_minutes=task.expected_minutes,
-                    starter_code=task.starter_code,
-                    answer_key=task.answer_key,
-                )
-                for task in assessment.tasks
-            ],
+            tasks=task_payloads,
+            sections=section_payloads,
         )
     assessment_result_payload: AssessmentGradingPayload | None = None
     if profile.onboarding_assessment_result:
@@ -156,6 +212,18 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for outcome in result.category_outcomes
             ],
         )
+    track_payloads = [_track_payload(track) for track in getattr(profile, "foundation_tracks", []) or []]
+    inference_payload: GoalParserInferencePayload | None = None
+    if profile.goal_inference:
+        inference_payload = GoalParserInferencePayload(
+            generated_at=profile.goal_inference.generated_at,
+            summary=profile.goal_inference.summary,
+            target_outcomes=list(profile.goal_inference.target_outcomes),
+            tracks=[_track_payload(track) for track in profile.goal_inference.tracks],
+            missing_templates=list(profile.goal_inference.missing_templates),
+        )
+        if not track_payloads:
+            track_payloads = [_track_payload(track) for track in profile.goal_inference.tracks]
     submissions = submission_store.list_user(profile.username)
     submission_payloads = [submission_payload(entry) for entry in submissions[:12]]
 
@@ -179,6 +247,8 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         curriculum_schedule=schedule_payload,
         onboarding_assessment=assessment_payload,
         onboarding_assessment_result=assessment_result_payload,
+        goal_inference=inference_payload,
+        foundation_tracks=track_payloads,
         assessment_submissions=submission_payloads,
     )
 

@@ -164,6 +164,7 @@ class OnboardingCurriculumPayload(BaseModel):
 class OnboardingAssessmentTaskPayload(BaseModel):
     task_id: str
     category_key: str
+    section_id: Optional[str] = None
     title: str
     task_type: Literal["concept_check", "code"]
     prompt: str
@@ -174,10 +175,50 @@ class OnboardingAssessmentTaskPayload(BaseModel):
     answer_key: Optional[str] = None
 
 
+class FoundationModuleReferencePayload(BaseModel):
+    module_id: str
+    category_key: str
+    priority: Literal["core", "reinforcement", "extension"] = "core"
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    notes: Optional[str] = None
+
+
+class FoundationTrackPayload(BaseModel):
+    track_id: str
+    label: str
+    priority: Literal["now", "up_next", "later"] = "now"
+    confidence: Literal["low", "medium", "high"] = "medium"
+    weight: float = Field(default=1.0)
+    technologies: List[str] = Field(default_factory=list)
+    focus_areas: List[str] = Field(default_factory=list)
+    prerequisites: List[str] = Field(default_factory=list)
+    recommended_modules: List[FoundationModuleReferencePayload] = Field(default_factory=list)
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    notes: Optional[str] = None
+
+
+class GoalParserInferencePayload(BaseModel):
+    generated_at: datetime
+    summary: Optional[str] = None
+    target_outcomes: List[str] = Field(default_factory=list)
+    tracks: List[FoundationTrackPayload] = Field(default_factory=list)
+    missing_templates: List[str] = Field(default_factory=list)
+
+
+class AssessmentSectionPayload(BaseModel):
+    section_id: str
+    title: str
+    description: str = ""
+    intent: Literal["concept", "coding", "data", "architecture", "tooling", "custom"] = "concept"
+    expected_minutes: int = Field(default=45, ge=0)
+    tasks: List[OnboardingAssessmentTaskPayload] = Field(default_factory=list)
+
+
 class OnboardingAssessmentPayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: Literal["pending", "in_progress", "completed"] = "pending"
     tasks: List[OnboardingAssessmentTaskPayload] = Field(default_factory=list)
+    sections: List[AssessmentSectionPayload] = Field(default_factory=list)
 
 
 class AssessmentTaskResponsePayload(BaseModel):
@@ -276,6 +317,8 @@ class LearnerProfilePayload(BaseModel):
     curriculum_schedule: Optional[CurriculumSchedulePayload] = None
     onboarding_assessment: Optional[OnboardingAssessmentPayload] = None
     onboarding_assessment_result: Optional[AssessmentGradingPayload] = None
+    goal_inference: Optional[GoalParserInferencePayload] = None
+    foundation_tracks: List[FoundationTrackPayload] = Field(default_factory=list)
     assessment_submissions: List[AssessmentSubmissionPayload] = Field(default_factory=list)
 
 

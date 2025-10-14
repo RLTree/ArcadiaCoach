@@ -42,6 +42,7 @@ struct OnboardingAssessmentTask: Codable, Identifiable, Hashable {
 
     var taskId: String
     var categoryKey: String
+    var sectionId: String?
     var title: String
     var taskType: TaskType
     var prompt: String
@@ -52,6 +53,43 @@ struct OnboardingAssessmentTask: Codable, Identifiable, Hashable {
     var answerKey: String?
 
     var id: String { taskId }
+}
+
+struct AssessmentSection: Codable, Identifiable, Hashable {
+    enum Intent: String, Codable {
+        case concept
+        case coding
+        case data
+        case architecture
+        case tooling
+        case custom
+
+        var label: String {
+            switch self {
+            case .concept:
+                return "Conceptual Foundations"
+            case .coding:
+                return "Hands-on Coding"
+            case .data:
+                return "Data Manipulation"
+            case .architecture:
+                return "Architecture & Systems"
+            case .tooling:
+                return "Tooling & Workflow"
+            case .custom:
+                return "Assessment"
+            }
+        }
+    }
+
+    var sectionId: String
+    var title: String
+    var description: String
+    var intent: Intent
+    var expectedMinutes: Int
+    var tasks: [OnboardingAssessmentTask]
+
+    var id: String { sectionId }
 }
 
 struct OnboardingAssessment: Codable, Hashable {
@@ -75,4 +113,5 @@ struct OnboardingAssessment: Codable, Hashable {
     var generatedAt: Date
     var status: Status
     var tasks: [OnboardingAssessmentTask]
+    var sections: [AssessmentSection] = []
 }

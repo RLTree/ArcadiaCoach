@@ -69,6 +69,42 @@ class CurriculumModule(BaseModel):
     estimated_minutes: Optional[int] = None
 
 
+class FoundationModuleReference(BaseModel):
+    """Reference to a reusable module template within a foundation track."""
+
+    module_id: str
+    category_key: str
+    priority: Literal["core", "reinforcement", "extension"] = "core"
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    notes: Optional[str] = None
+
+
+class FoundationTrack(BaseModel):
+    """Inferred foundation track derived from learner goals and context."""
+
+    track_id: str
+    label: str
+    priority: Literal["now", "up_next", "later"] = "now"
+    confidence: Literal["low", "medium", "high"] = "medium"
+    weight: float = Field(default=1.0, ge=0.0)
+    technologies: List[str] = Field(default_factory=list)
+    focus_areas: List[str] = Field(default_factory=list)
+    prerequisites: List[str] = Field(default_factory=list)
+    recommended_modules: List[FoundationModuleReference] = Field(default_factory=list)
+    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    notes: Optional[str] = None
+
+
+class GoalParserInference(BaseModel):
+    """Snapshot of the goal parser agent's foundation mapping (introduced in Phase 16)."""
+
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    summary: Optional[str] = None
+    target_outcomes: List[str] = Field(default_factory=list)
+    tracks: List[FoundationTrack] = Field(default_factory=list)
+    missing_templates: List[str] = Field(default_factory=list)
+
+
 class CurriculumPlan(BaseModel):
     """Curriculum outline generated during onboarding."""
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -147,6 +183,7 @@ class AssessmentTask(BaseModel):
     category_key: str
     title: str
     task_type: Literal["concept_check", "code"]
+    section_id: Optional[str] = None
     prompt: str
     guidance: str
     rubric: List[str] = Field(default_factory=list)
@@ -155,11 +192,23 @@ class AssessmentTask(BaseModel):
     answer_key: Optional[str] = None
 
 
+class AssessmentSection(BaseModel):
+    """Grouping of assessment tasks into themed sections (Phase 16)."""
+
+    section_id: str
+    title: str
+    description: str = ""
+    intent: Literal["concept", "coding", "data", "architecture", "tooling", "custom"] = "concept"
+    expected_minutes: int = Field(default=45, ge=0)
+    tasks: List[AssessmentTask] = Field(default_factory=list)
+
+
 class OnboardingAssessment(BaseModel):
     """Personalised assessment bundle generated for onboarding."""
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: Literal["pending", "in_progress", "completed"] = "pending"
     tasks: List[AssessmentTask] = Field(default_factory=list)
+    sections: List[AssessmentSection] = Field(default_factory=list)
 
 
 class LearnerProfile(BaseModel):
@@ -179,6 +228,8 @@ class LearnerProfile(BaseModel):
     schedule_adjustments: Dict[str, int] = Field(default_factory=dict)
     onboarding_assessment: Optional[OnboardingAssessment] = None
     onboarding_assessment_result: Optional[AssessmentGradingResult] = None
+    goal_inference: Optional[GoalParserInference] = None
+    foundation_tracks: List[FoundationTrack] = Field(default_factory=list)
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -328,6 +379,19 @@ class LearnerProfileStore:
             self._persist_locked()
             return self._profiles[normalized].model_copy(deep=True)
 
+    def set_goal_inference(self, username: str, inference: GoalParserInference) -> LearnerProfile:
+        normalized = username.lower()
+        with self._lock:
+            profile = self._profiles.get(normalized)
+            if profile is None:
+                profile = LearnerProfile(username=username)
+            profile.goal_inference = inference.model_copy(deep=True)
+            profile.foundation_tracks = [track.model_copy(deep=True) for track in inference.tracks]
+            profile.last_updated = datetime.now(timezone.utc)
+            self._profiles[normalized] = profile.model_copy(deep=True)
+            self._persist_locked()
+            return self._profiles[normalized].model_copy(deep=True)
+
     def set_curriculum_schedule(
         self,
         username: str,
@@ -432,6 +496,7 @@ class LearnerProfileStore:
                     plan=profile.curriculum_plan,
                     categories=categories,
                     assessment_result=result,
+                    goal_inference=profile.goal_inference,
                 )
                 if profile.elo_category_plan:
                     updated_plan = profile.elo_category_plan.model_copy(deep=True)

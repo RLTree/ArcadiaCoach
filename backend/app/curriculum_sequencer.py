@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_DAILY_CAP_MINUTES = 120
-DEFAULT_TIME_HORIZON_DAYS = 56
+DEFAULT_TIME_HORIZON_DAYS = 84
 MAX_RATIONALE_HISTORY = 6
 
 
@@ -40,6 +40,7 @@ class _CategoryContext:
     average_score: Optional[float]
     rating_delta: Optional[int]
     modules: List[CurriculumModule]
+    track_weight: float = 0.0
 
 
 class CurriculumSequencer:
@@ -162,6 +163,27 @@ class CurriculumSequencer:
                 )
             )
 
+            if context.track_weight >= 1.3:
+                deep_minutes = max(60, math.ceil(expected_minutes * 0.75))
+                timeline.append(
+                    SequencedWorkItem(
+                        item_id=f"deepdive-{module.module_id}",
+                        category_key=module.category_key,
+                        kind="lesson",
+                        title=f"Deep Dive: {module.title}",
+                        summary="Extended practice sprint anchored to critical foundation tracks.",
+                        objectives=[
+                            "Tackle a stretch challenge tied to the goal parser roadmap.",
+                            "Document insights and blockers to review with the coach.",
+                        ],
+                        prerequisites=[f"reinforce-{module.module_id}"],
+                        recommended_minutes=deep_minutes,
+                        focus_reason="Goal parser flagged this track as high priority; apply spaced repetition for long-term retention.",
+                        expected_outcome="Share a reflection detailing breakthroughs, blockers, and next experiments.",
+                        effort_level=self._effort_level(deep_minutes),
+                    )
+                )
+
         scheduled_items = self._assign_day_offsets(timeline, sessions_per_week=pacing_sessions)
         cadence_notes = self._cadence_summary(scheduled_items, profile.onboarding_assessment_result)
         horizon = max(self._default_horizon, (max(item.recommended_day_offset for item in scheduled_items) + 1))
@@ -205,6 +227,16 @@ class CurriculumSequencer:
             for module in curriculum.modules:
                 modules_by_category.setdefault(module.category_key, []).append(module)
 
+        track_weights: Dict[str, float] = {}
+        for track in getattr(profile, "foundation_tracks", []) or []:
+            weight = track.weight if track.weight and track.weight > 0 else 1.0
+            for reference in track.recommended_modules:
+                category_key = reference.category_key
+                if category_key:
+                    track_weights[category_key] = max(track_weights.get(category_key, 0.0), weight)
+            if not track.recommended_modules and track.track_id:
+                track_weights.setdefault(track.track_id, weight)
+
         average_scores = self._assessment_scores(profile.onboarding_assessment_result)
         rating_deltas = self._assessment_rating_delta(profile.onboarding_assessment_result)
         category_plan = profile.elo_category_plan.categories if profile.elo_category_plan else []
@@ -223,6 +255,7 @@ class CurriculumSequencer:
                 average_score=average_scores.get(key),
                 rating_delta=rating_deltas.get(key),
                 modules=modules_by_category.get(key, []),
+                track_weight=track_weights.get(key, 0.0),
             )
 
         # Handle categories present in snapshot but missing from the plan.
@@ -238,6 +271,7 @@ class CurriculumSequencer:
                 average_score=average_scores.get(key),
                 rating_delta=rating_deltas.get(key),
                 modules=modules_by_category.get(key, []),
+                track_weight=track_weights.get(key, 0.0),
             )
 
         # Ensure at least one placeholder module exists per category.
@@ -283,7 +317,8 @@ class CurriculumSequencer:
         delta_component = 0.0
         if context.rating_delta is not None:
             delta_component = -context.rating_delta / 400.0
-        return weight_component + rating_component + score_component + delta_component
+        track_component = context.track_weight * 0.6
+        return weight_component + rating_component + score_component + delta_component + track_component
 
     def _assessment_scores(self, result: Optional[AssessmentGradingResult]) -> Dict[str, float]:
         if result is None:

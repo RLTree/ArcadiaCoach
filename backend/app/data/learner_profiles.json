@@ -340,6 +340,8 @@
     "schedule_adjustments": {},
     "onboarding_assessment": null,
     "onboarding_assessment_result": null,
+    "goal_inference": null,
+    "foundation_tracks": [],
     "last_updated": "2025-10-14T04:29:12.619924Z"
   }
 }

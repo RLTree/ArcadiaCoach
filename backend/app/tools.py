@@ -9,10 +9,15 @@ from agents import function_tool
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .learner_profile import (
+    AssessmentSection,
+    AssessmentTask,
     CurriculumSchedule,
     EloCategoryDefinition,
     EloCategoryPlan,
     EloRubricBand,
+    FoundationModuleReference,
+    FoundationTrack,
+    GoalParserInference,
     LearnerProfile,
     profile_store,
 )
@@ -28,6 +33,10 @@ from .agent_models import (
     EloCategoryDefinitionPayload,
     EloCategoryPlanPayload,
     EloRubricBandPayload,
+    AssessmentSectionPayload,
+    FoundationModuleReferencePayload,
+    FoundationTrackPayload,
+    GoalParserInferencePayload,
     LearnerEloCategoryPlanResponse,
     LearnerMemoryWriteResponse,
     LearnerProfileGetResponse,
@@ -150,6 +159,59 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
     )
 
 
+def _module_reference_payload(reference: FoundationModuleReference) -> FoundationModuleReferencePayload:
+    return FoundationModuleReferencePayload(
+        module_id=reference.module_id,
+        category_key=reference.category_key,
+        priority=reference.priority,
+        suggested_weeks=reference.suggested_weeks,
+        notes=reference.notes,
+    )
+
+
+def _track_payload(track: FoundationTrack) -> FoundationTrackPayload:
+    return FoundationTrackPayload(
+        track_id=track.track_id,
+        label=track.label,
+        priority=track.priority,
+        confidence=track.confidence,
+        weight=track.weight,
+        technologies=list(track.technologies),
+        focus_areas=list(track.focus_areas),
+        prerequisites=list(track.prerequisites),
+        recommended_modules=[_module_reference_payload(module) for module in track.recommended_modules],
+        suggested_weeks=track.suggested_weeks,
+        notes=track.notes,
+    )
+
+
+def _assessment_task_payload(task: AssessmentTask) -> OnboardingAssessmentTaskPayload:
+    return OnboardingAssessmentTaskPayload(
+        task_id=task.task_id,
+        category_key=task.category_key,
+        section_id=getattr(task, "section_id", None),
+        title=task.title,
+        task_type=task.task_type,
+        prompt=task.prompt,
+        guidance=task.guidance,
+        rubric=list(task.rubric),
+        expected_minutes=task.expected_minutes,
+        starter_code=task.starter_code,
+        answer_key=task.answer_key,
+    )
+
+
+def _assessment_section_payload(section: AssessmentSection) -> AssessmentSectionPayload:
+    return AssessmentSectionPayload(
+        section_id=section.section_id,
+        title=section.title,
+        description=section.description,
+        intent=section.intent,
+        expected_minutes=section.expected_minutes,
+        tasks=[_assessment_task_payload(task) for task in section.tasks],
+    )
+
+
 def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
     plan = profile.elo_category_plan
     plan_payload: EloCategoryPlanPayload | None = None
@@ -198,24 +260,15 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
     assessment_payload: OnboardingAssessmentPayload | None = None
     if profile.onboarding_assessment:
         assessment = profile.onboarding_assessment
+        task_payloads = [_assessment_task_payload(task) for task in assessment.tasks]
+        section_payloads = [
+            _assessment_section_payload(section) for section in assessment.sections
+        ] if getattr(assessment, "sections", None) else []
         assessment_payload = OnboardingAssessmentPayload(
             generated_at=assessment.generated_at,
             status=assessment.status,
-            tasks=[
-                OnboardingAssessmentTaskPayload(
-                    task_id=task.task_id,
-                    category_key=task.category_key,
-                    title=task.title,
-                    task_type=task.task_type,
-                    prompt=task.prompt,
-                    guidance=task.guidance,
-                    rubric=list(task.rubric),
-                    expected_minutes=task.expected_minutes,
-                    starter_code=task.starter_code,
-                    answer_key=task.answer_key,
-                )
-                for task in assessment.tasks
-            ],
+            tasks=task_payloads,
+            sections=section_payloads,
         )
     assessment_result_payload: AssessmentGradingPayload | None = None
     if profile.onboarding_assessment_result:
@@ -260,6 +313,19 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
                 for outcome in result.category_outcomes
             ],
         )
+    schedule_payload = _schedule_payload(getattr(profile, "curriculum_schedule", None))
+    track_payloads = [_track_payload(track) for track in getattr(profile, "foundation_tracks", []) or []]
+    inference_payload: GoalParserInferencePayload | None = None
+    if profile.goal_inference:
+        inference_payload = GoalParserInferencePayload(
+            generated_at=profile.goal_inference.generated_at,
+            summary=profile.goal_inference.summary,
+            target_outcomes=list(profile.goal_inference.target_outcomes),
+            tracks=[_track_payload(track) for track in profile.goal_inference.tracks],
+            missing_templates=list(profile.goal_inference.missing_templates),
+        )
+        if not track_payloads:
+            track_payloads = [ _track_payload(track) for track in profile.goal_inference.tracks ]
     return LearnerProfilePayload(
         username=profile.username,
         goal=profile.goal,
@@ -277,9 +343,11 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
         last_updated=profile.last_updated,
         elo_category_plan=plan_payload,
         curriculum_plan=curriculum_payload,
-        curriculum_schedule=_schedule_payload(getattr(profile, "curriculum_schedule", None)),
+        curriculum_schedule=schedule_payload,
         onboarding_assessment=assessment_payload,
         onboarding_assessment_result=assessment_result_payload,
+        goal_inference=inference_payload,
+        foundation_tracks=track_payloads,
     )
 
 

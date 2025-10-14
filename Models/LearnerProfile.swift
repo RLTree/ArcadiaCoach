@@ -24,6 +24,8 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
     var curriculumSchedule: CurriculumSchedule?
     var onboardingAssessment: OnboardingAssessment?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
+    var goalInference: GoalInferenceModel?
+    var foundationTracks: [FoundationTrackModel] = []
     var lastUpdated: Date
 
     var id: String { username }
@@ -43,6 +45,8 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
         curriculumSchedule: nil,
         onboardingAssessment: nil,
         assessmentSubmissions: [],
+        goalInference: nil,
+        foundationTracks: [],
         lastUpdated: .distantPast
     )
 }

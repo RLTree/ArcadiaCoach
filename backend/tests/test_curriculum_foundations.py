@@ -11,6 +11,9 @@ from app.learner_profile import (
     CurriculumPlan,
     EloCategoryDefinition,
     EloRubricBand,
+    FoundationModuleReference,
+    FoundationTrack,
+    GoalParserInference,
 )
 
 
@@ -85,6 +88,7 @@ def test_foundations_expand_modules_for_low_scores() -> None:
         plan=plan,
         categories=categories,
         assessment_result=result,
+        goal_inference=None,
     )
 
     category_keys = {entry.key for entry in augmented_categories}
@@ -114,6 +118,7 @@ def test_foundation_augmentation_is_idempotent() -> None:
         plan=plan,
         categories=categories,
         assessment_result=None,
+        goal_inference=None,
     )
 
     second_categories, second_plan = ensure_foundational_curriculum(
@@ -121,7 +126,60 @@ def test_foundation_augmentation_is_idempotent() -> None:
         plan=augmented_plan,
         categories=augmented_categories,
         assessment_result=None,
+        goal_inference=None,
     )
 
     assert len(second_plan.modules) == len(augmented_plan.modules)
     assert {entry.key for entry in second_categories} == {entry.key for entry in augmented_categories}
+
+
+def test_goal_inference_tracks_expand_curriculum() -> None:
+    plan = CurriculumPlan(
+        overview="Backend uplift",
+        success_criteria=["Ship a reliable backend pilot."],
+        modules=[],
+    )
+    categories: list[EloCategoryDefinition] = []
+    inference = GoalParserInference(
+        summary="Prioritise backend architecture and observability.",
+        target_outcomes=["Deliver a resilient service layer."],
+        tracks=[
+            FoundationTrack(
+                track_id="backend-foundations",
+                label="Backend Foundations",
+                priority="now",
+                confidence="high",
+                weight=1.6,
+                technologies=["FastAPI", "asyncio"],
+                focus_areas=["architecture", "observability"],
+                prerequisites=["Python Foundations"],
+                recommended_modules=[
+                    FoundationModuleReference(
+                        module_id="foundation-service-design",
+                        category_key="backend-foundations",
+                        priority="core",
+                        suggested_weeks=4,
+                    )
+                ],
+                notes="Focus on service design patterns and production readiness.",
+            )
+        ],
+    )
+
+    augmented_categories, augmented_plan = ensure_foundational_curriculum(
+        goal="Build resilient backend services.",
+        plan=plan,
+        categories=categories,
+        assessment_result=None,
+        goal_inference=inference,
+    )
+
+    backend_category = next(entry for entry in augmented_categories if entry.key == "backend-foundations")
+    assert backend_category.weight >= 1.0
+    assert "architecture" in backend_category.focus_areas
+    module_ids = {module.module_id for module in augmented_plan.modules}
+    assert "foundation-service-design" in module_ids
+    assert any(
+        "backend" in criterion.lower() or "resilient" in criterion.lower()
+        for criterion in augmented_plan.success_criteria
+    )
