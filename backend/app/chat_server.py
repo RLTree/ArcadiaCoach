@@ -217,6 +217,12 @@ class ArcadiaChatServer(ChatKitServer[dict[str, Any]]):
         schedule_summary = schedule_summary_from_profile(context.get("profile"))
         if schedule_summary:
             context.setdefault("schedule_summary", schedule_summary)
+        timezone_hint = context.get("timezone")
+        if not timezone_hint and isinstance(context.get("profile"), dict):
+            tz_value = context["profile"].get("timezone")
+            if isinstance(tz_value, str) and tz_value.strip():
+                timezone_hint = tz_value.strip()
+                context.setdefault("timezone", timezone_hint)
 
         agent_context = ArcadiaAgentContext(
             thread=thread,

@@ -118,12 +118,21 @@ async def _run_structured(
     profile_snapshot: Dict[str, Any] | None = None
     schedule_summary: str | None = None
     username = metadata_payload.get("username")
+    timezone_hint: str | None = metadata_payload.get("timezone")
     if isinstance(username, str) and username.strip():
         profile = profile_store.apply_metadata(username, metadata_payload)
         profile_snapshot = profile.model_dump(mode="json")
+        if not timezone_hint and isinstance(profile.timezone, str) and profile.timezone.strip():
+            timezone_hint = profile.timezone.strip()
         schedule_summary = schedule_summary_from_profile(profile_snapshot)
         if schedule_summary:
             metadata_payload.setdefault("schedule_summary", schedule_summary)
+    if not timezone_hint:
+        tz_env = settings.arcadia_agent_timezone
+        if tz_env:
+            timezone_hint = tz_env
+    if timezone_hint:
+        metadata_payload.setdefault("timezone", timezone_hint)
 
     attachments_payload: list[Dict[str, Any]] = []
     if attachments:
