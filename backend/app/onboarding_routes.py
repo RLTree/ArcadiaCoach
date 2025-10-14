@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Dict, List, Literal, Optional, Set
 
@@ -17,6 +18,7 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingCurriculumPayload,
 )
+from .curriculum_sequencer import generate_schedule_for_user
 from .config import Settings, get_settings
 from .learner_profile import profile_store
 from .assessment_grading import grade_submission
@@ -29,9 +31,11 @@ from .assessment_submission import (
 from .assessment_attachments import attachment_store, PendingAssessmentAttachment
 from .onboarding_assessment import generate_onboarding_bundle
 from .tools import _profile_payload  # type: ignore[attr-defined]
+from .telemetry import emit_event
 
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
+logger = logging.getLogger(__name__)
 
 
 class OnboardingPlanRequest(BaseModel):
@@ -410,6 +414,22 @@ async def create_assessment_submission(
     )
     updated_submission = submission_store.apply_grading(username, submission.submission_id, grading_result)
     profile_store.apply_assessment_result(username, grading_result, rating_updates)
+    try:
+        generate_schedule_for_user(username)
+        emit_event(
+            "schedule_generation_post_grading",
+            username=username,
+            status="success",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to generate schedule after grading for %s", username)
+        emit_event(
+            "schedule_generation_post_grading",
+            username=username,
+            status="error",
+            error=str(exc),
+            exception_type=exc.__class__.__name__,
+        )
     return submission_payload(updated_submission)
 
 

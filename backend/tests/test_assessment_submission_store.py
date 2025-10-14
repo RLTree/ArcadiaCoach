@@ -8,11 +8,21 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import assessment_attachments, assessment_submission, developer_routes, onboarding_routes, profile_routes, session_routes
+from app import assessment_attachments, assessment_submission, curriculum_sequencer, developer_routes, onboarding_routes, profile_routes, session_routes
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult, RubricCriterionResult, TaskGradingResult
 from app.assessment_submission import AssessmentSubmissionStore, AssessmentTaskResponse, submission_payload
 from app.assessment_attachments import AssessmentAttachmentStore
-from app.learner_profile import AssessmentTask, LearnerProfile, LearnerProfileStore, OnboardingAssessment
+from app.learner_profile import (
+    AssessmentTask,
+    CurriculumModule,
+    CurriculumPlan,
+    EloCategoryDefinition,
+    EloCategoryPlan,
+    EloRubricBand,
+    LearnerProfile,
+    LearnerProfileStore,
+    OnboardingAssessment,
+)
 from app.main import app
 
 
@@ -113,6 +123,7 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr(profile_routes, "profile_store", profile_store, raising=False)
     monkeypatch.setattr(session_routes, "profile_store", profile_store, raising=False)
     monkeypatch.setattr(developer_routes, "profile_store", profile_store, raising=False)
+    monkeypatch.setattr(curriculum_sequencer, "profile_store", profile_store, raising=False)
     monkeypatch.setattr(onboarding_routes, "submission_store", submission_store, raising=False)
     monkeypatch.setattr(developer_routes, "submission_store", submission_store, raising=False)
     monkeypatch.setattr(assessment_submission, "submission_store", submission_store, raising=False)
@@ -209,6 +220,39 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
             ]
         ),
     )
+    profile.elo_category_plan = EloCategoryPlan(
+        categories=[
+            EloCategoryDefinition(
+                key="backend-foundations",
+                label="Backend Foundations",
+                description="Solidify backend resilience and async discipline.",
+                focus_areas=["async patterns", "observability"],
+                weight=1.0,
+                rubric=[
+                    EloRubricBand(level="Developing", descriptor="Working toward async mastery."),
+                    EloRubricBand(level="Proficient", descriptor="Comfortable with async flows and retries."),
+                ],
+                starting_rating=1100,
+            )
+        ]
+    )
+    profile.curriculum_plan = CurriculumPlan(
+        overview="Backend sequencing starter.",
+        success_criteria=["Ship reliable retry workflows."],
+        modules=[
+            CurriculumModule(
+                module_id="backend-retries",
+                category_key="backend-foundations",
+                title="Async Retry Tuning",
+                summary="Harden asynchronous retry flows with observability.",
+                objectives=["Implement jitter backoff", "Capture structured logs"],
+                activities=["Code review retries", "Add metrics hooks"],
+                deliverables=["Retry helper module"],
+                estimated_minutes=60,
+            )
+        ],
+    )
+    profile.elo_snapshot = {"backend-foundations": 1100}
     profile_store.upsert(profile)
 
     client = TestClient(app)
@@ -274,6 +318,8 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     assert refreshed_profile.elo_snapshot == {"backend-foundations": 1232}
     assert refreshed_profile.onboarding_assessment is not None
     assert refreshed_profile.onboarding_assessment.status == "completed"
+    assert refreshed_profile.curriculum_schedule is not None
+    assert refreshed_profile.curriculum_schedule.items, "Schedule should contain sequenced work items."
 
     grading_fetch = client.get("/api/onboarding/tester/assessment/result")
     assert grading_fetch.status_code == 200
