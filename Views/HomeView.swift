@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showOnboarding = false
     @State private var selectedTab: MainTab = .dashboard
     @State private var sessionContentExpanded = false
+    @State private var dashboardSection: DashboardSection = .elo
 
     private var assessmentTabBadge: String? {
         appVM.requiresAssessment ? "!" : nil
@@ -76,6 +77,17 @@ struct HomeView: View {
             .onAppear {
                 selectedTab = appVM.requiresAssessment ? .assessment : .dashboard
                 showOnboarding = needsOnboarding
+                let storedSection = DashboardSection(rawValue: settings.dashboardSection) ?? .elo
+                if dashboardSection != storedSection {
+                    dashboardSection = storedSection
+                }
+                TelemetryReporter.shared.record(
+                    event: "dashboard_tab_selected",
+                    metadata: [
+                        "tab": storedSection.rawValue,
+                        "initial": "true"
+                    ]
+                )
                 refreshLearnerProfile()
                 Task {
                     await session.applyUserContext(
@@ -102,6 +114,13 @@ struct HomeView: View {
         .onReceive(session.$milestone.compactMap { $0 }) { milestone in
             appVM.recordMilestone(milestone)
             sessionContentExpanded = true
+        }
+        .onChange(of: dashboardSection) { newValue in
+            settings.dashboardSection = newValue.rawValue
+            TelemetryReporter.shared.record(
+                event: "dashboard_tab_selected",
+                metadata: ["tab": newValue.rawValue]
+            )
         }
         .onChange(of: settings.chatkitBackendURL) { newValue in
             Task {
@@ -141,6 +160,13 @@ struct HomeView: View {
         .onChange(of: appVM.requiresAssessment) { required in
             if required {
                 selectedTab = .assessment
+            } else if selectedTab == .dashboard {
+                dashboardSection = .assessments
+            }
+        }
+        .onChange(of: appVM.awaitingAssessmentResults) { awaiting in
+            if !awaiting, selectedTab == .dashboard {
+                dashboardSection = .assessments
             }
         }
         .alert(item: $session.lastError) { error in
@@ -231,138 +257,79 @@ struct HomeView: View {
         }
     }
 
-    private var sessionControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                GlassButton(
-                    title: "Start Lesson",
-                    systemName: "book.fill",
-                    isBusy: session.activeAction == .lesson,
-                    isDisabled: (session.activeAction != nil && session.activeAction != .lesson) || appVM.requiresAssessment
-                ) {
-                    Task { await session.loadLesson(backendURL: settings.chatkitBackendURL, topic: "transformers") }
-                }
-                GlassButton(
-                    title: "Start Quiz",
-                    systemName: "gamecontroller.fill",
-                    isBusy: session.activeAction == .quiz,
-                    isDisabled: (session.activeAction != nil && session.activeAction != .quiz) || appVM.requiresAssessment
-                ) {
-                    Task { await session.loadQuiz(backendURL: settings.chatkitBackendURL, topic: "pytorch") }
-                }
-                GlassButton(
-                    title: "Milestone",
-                    systemName: "flag.checkered",
-                    isBusy: session.activeAction == .milestone,
-                    isDisabled: (session.activeAction != nil && session.activeAction != .milestone) || appVM.requiresAssessment
-                ) {
-                    Task { await session.loadMilestone(backendURL: settings.chatkitBackendURL, topic: "roadmap") }
-                }
-                if settings.minimalMode {
-                    GlassButton(title: "Focus", systemName: "timer") {
-                        NotificationCenter.default.post(name: .resetFocusTimer, object: nil)
-                    }
-                }
-            }
-            .disabled(
-                settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
-            .accessibilityElement(children: .contain)
-
-            if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
-                Text(lastEvent)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if appVM.requiresAssessment {
-                Text("Complete the onboarding assessment to unlock lessons, quizzes, and milestones.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     private var dashboardTab: some View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
 
-            if appVM.awaitingAssessmentResults {
-                VStack(spacing: 12) {
-                    ProgressView()
-                        .controlSize(.large)
-                    Text("Waiting for assessment results…")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 20) {
+                    header
+                    dashboardSegmentedPicker
+                    selectedDashboardSection
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 18) {
-                        header
-                        assessmentSummaryCard
-                        if appVM.requiresAssessment, let bundle = appVM.onboardingAssessment {
-                            assessmentBanner(status: bundle.status)
-                        }
-                        if let result = appVM.assessmentResult ?? appVM.latestGradedAssessment?.grading {
-                            assessmentResultsCard(result: result)
-                        }
-                        assessmentHistorySection
-                        if !settings.minimalMode && !allEloItems.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("Current ELO Ratings", systemImage: "chart.bar")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.primary)
-                                if let stamp = appVM.latestAssessmentGradeTimestamp {
-                                    Text("Calibrated \(stamp.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else if let pending = appVM.latestAssessmentSubmittedAt {
-                                    Text("Awaiting grading for submission on \(pending.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                WidgetStatRowView(props: .init(items: allEloItems, itemsPerRow: 4))
-                                    .environmentObject(settings)
-                            }
-                        }
-                        if let plan = appVM.eloPlan, !plan.categories.isEmpty {
-                            EloPlanSummaryView(plan: plan)
-                                .transition(.opacity)
-                        }
-                        if !appVM.foundationTracks.isEmpty {
-                            FoundationTracksCard(
-                                tracks: appVM.foundationTracks,
-                                goalSummary: appVM.goalInference?.summary,
-                                targetOutcomes: appVM.goalInference?.targetOutcomes ?? []
-                            )
-                            .transition(.opacity)
-                        }
-                        if let curriculum = appVM.curriculumPlan {
-                            CurriculumOutlineView(plan: curriculum)
-                                .transition(.opacity)
-                        }
-                        if let schedule = appVM.curriculumSchedule, !schedule.items.isEmpty {
-                            CurriculumScheduleView(
-                                schedule: schedule,
-                                categoryLabels: categoryLabels,
-                                isRefreshing: appVM.scheduleRefreshing,
-                                isLoadingNextSlice: appVM.loadingScheduleSlice,
-                                adjustingItemId: appVM.adjustingScheduleItemId,
-                                refreshAction: refreshSchedule,
-                                adjustAction: deferSchedule,
-                                loadMoreAction: loadMoreSchedule
-                            )
-                            .transition(.opacity)
-                        }
-                        sessionControls
-                        sessionContentSection
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(24)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
             }
+        }
+    }
+
+    private var dashboardSegmentedPicker: some View {
+        Picker("Dashboard Section", selection: $dashboardSection) {
+            ForEach(DashboardSection.allCases) { section in
+                Label(section.label, systemImage: section.systemImage)
+                    .tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Dashboard section selector")
+    }
+
+    @ViewBuilder
+    private var selectedDashboardSection: some View {
+        switch dashboardSection {
+        case .elo:
+            DashboardEloSection(
+                eloItems: allEloItems,
+                latestAssessmentGradeTimestamp: appVM.latestAssessmentGradeTimestamp,
+                latestSubmissionTimestamp: appVM.latestAssessmentSubmittedAt
+            )
+            .transition(.opacity)
+        case .schedule:
+            DashboardScheduleSection(
+                schedule: appVM.curriculumSchedule,
+                categoryLabels: categoryLabels,
+                isRefreshing: appVM.scheduleRefreshing,
+                isLoadingNextSlice: appVM.loadingScheduleSlice,
+                adjustingItemId: appVM.adjustingScheduleItemId,
+                refreshAction: refreshSchedule,
+                adjustAction: deferSchedule,
+                loadMoreAction: loadMoreSchedule
+            )
+            .transition(.opacity)
+        case .assessments:
+            DashboardAssessmentsSection(
+                awaitingAssessmentResults: appVM.awaitingAssessmentResults,
+                requiresAssessment: appVM.requiresAssessment,
+                categoryLabels: categoryLabels,
+                onRunOnboarding: { showOnboarding = true },
+                onOpenAssessmentFlow: { appVM.openAssessmentFlow() }
+            )
+            .transition(.opacity)
+        case .resources:
+            DashboardResourcesSection(
+                session: session,
+                needsOnboarding: needsOnboarding,
+                sessionContentExpanded: $sessionContentExpanded,
+                onRunOnboarding: { showOnboarding = true },
+                onStartLesson: { await session.loadLesson(backendURL: settings.chatkitBackendURL, topic: "transformers") },
+                onStartQuiz: { await session.loadQuiz(backendURL: settings.chatkitBackendURL, topic: "pytorch") },
+                onStartMilestone: { await session.loadMilestone(backendURL: settings.chatkitBackendURL, topic: "roadmap") },
+                onClearSessionContent: {
+                    appVM.clearSessionContent()
+                }
+            )
+            .transition(.opacity)
         }
     }
 
@@ -467,490 +434,6 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder
-    private func assessmentBanner(status: OnboardingAssessment.Status) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Onboarding assessment pending")
-                    .font(.headline)
-                Text(status == .inProgress ? "Pick up where you left off to finish calibration." : "Complete the initial assessment so Arcadia can calibrate your curriculum.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Resume") {
-                appVM.openAssessmentFlow()
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    @ViewBuilder
-    private var assessmentSummaryCard: some View {
-        let pendingSubmission = appVM.assessmentHistory.first { $0.grading == nil }
-        let readiness = appVM.assessmentReadinessStatus
-        let statusText = readiness.displayText
-        let statusIcon = readiness.systemImageName
-        let statusColor = readiness.tintColor
-
-        let submissionLabel = appVM.latestAssessmentSubmittedAt?
-            .formatted(date: .abbreviated, time: .shortened) ?? "No submissions yet"
-
-        let gradingLabel: String = {
-            if let pendingSubmission {
-                return "Pending since \(pendingSubmission.submittedAt.formatted(date: .abbreviated, time: .shortened))"
-            }
-            if let gradedAt = appVM.latestAssessmentGradeTimestamp {
-                if let average = appVM.latestGradedAssessment?.averageScoreLabel {
-                    return "\(average) average • \(gradedAt.formatted(date: .abbreviated, time: .shortened))"
-                }
-                return gradedAt.formatted(date: .abbreviated, time: .shortened)
-            }
-            return "No grading yet"
-        }()
-
-        let latestFeedback = appVM.latestGradedAssessment?.grading?.overallFeedback
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                Label("Assessment Status", systemImage: "checkmark.seal")
-                    .labelStyle(.titleAndIcon)
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Label(statusText, systemImage: statusIcon)
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(statusColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(statusColor)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("Last submission", systemImage: "tray.and.arrow.down.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text(submissionLabel)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    Label("Last grading", systemImage: "chart.bar.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text(gradingLabel)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let feedback = latestFeedback, !feedback.isEmpty {
-                Divider()
-                Text("Latest feedback: \(feedback)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-    }
-
-    @ViewBuilder
-    private var assessmentHistorySection: some View {
-        let history = Array(appVM.assessmentHistory.prefix(6))
-        if history.isEmpty {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label("Assessment History", systemImage: "clock.arrow.circlepath")
-                        .labelStyle(.titleAndIcon)
-                        .font(.headline)
-                    Spacer()
-                    Text("Newest first")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(history.enumerated()), id: \.element.id) { index, submission in
-                        assessmentHistoryRow(for: submission, index: index + 1)
-                        if index < history.count - 1 {
-                            Divider().padding(.vertical, 10)
-                        }
-                    }
-                }
-
-                if appVM.assessmentHistory.count > history.count {
-                    Text("Showing latest \(history.count) of \(appVM.assessmentHistory.count) submissions.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        }
-    }
-
-    @ViewBuilder
-    private var sessionContentSection: some View {
-        let hasLesson = appVM.latestLesson != nil
-        let hasQuiz = appVM.latestQuiz != nil
-        let hasMilestone = appVM.latestMilestone != nil
-        if !(hasLesson || hasQuiz || hasMilestone) {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                DisclosureGroup(isExpanded: $sessionContentExpanded) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        if let lesson = appVM.latestLesson {
-                            LessonView(
-                                envelope: WidgetEnvelope(
-                                    display: lesson.display,
-                                    widgets: lesson.widgets,
-                                    citations: lesson.citations
-                                )
-                            )
-                            .environmentObject(settings)
-                            .frame(maxWidth: .infinity)
-                        }
-                        if let quiz = appVM.latestQuiz {
-                            QuizSummaryView(elo: quiz.elo, widgets: quiz.widgets, last: quiz.last_quiz)
-                                .environmentObject(settings)
-                                .environmentObject(appVM)
-                                .frame(maxWidth: .infinity)
-                        }
-                        if let milestone = appVM.latestMilestone {
-                            MilestoneView(content: milestone)
-                                .environmentObject(settings)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .padding(.top, 8)
-                } label: {
-                    HStack {
-                        Label("Latest Session Content", systemImage: "sparkles")
-                            .font(.headline)
-                        Spacer()
-                        Text(sessionContentExpanded ? "Hide" : "Show")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Button {
-                    appVM.clearSessionContent()
-                    sessionContentExpanded = false
-                } label: {
-                    Label("Clear cached content", systemImage: "xmark.circle")
-                        .font(.caption)
-                }
-                .buttonStyle(.link)
-                .accessibilityLabel("Clear cached lesson, quiz, and milestone content")
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        }
-    }
-
-    @ViewBuilder
-    private func assessmentHistoryRow(for submission: AssessmentSubmissionRecord, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("#\(index) · \(submission.submittedAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                let isPending = submission.grading == nil
-                let badgeForeground: Color = isPending ? .orange : .green
-                Text(submission.statusLabel)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(badgeForeground.opacity(0.18), in: Capsule())
-                    .foregroundStyle(badgeForeground)
-            }
-
-            HStack(spacing: 12) {
-                Label("\(submission.answeredCount) prompts", systemImage: "list.bullet.rectangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let average = submission.averageScoreLabel, submission.grading != nil {
-                    Label("\(average) average", systemImage: "percent")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let gradedAt = submission.gradedAt {
-                    Label("Graded \(gradedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if submission.hasAttachments {
-                    Label("\(submission.attachments.count) attachment\(submission.attachments.count == 1 ? "" : "s")", systemImage: "paperclip")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let outcomes = submission.grading?.categoryOutcomes {
-                    let totalDelta = outcomes.reduce(0) { $0 + $1.ratingDelta }
-                    if totalDelta != 0 {
-                        let label = totalDelta > 0 ? "+\(totalDelta)" : "\(totalDelta)"
-                        Label("ΔELO \(label)", systemImage: totalDelta > 0 ? "arrow.up" : "arrow.down")
-                            .font(.caption)
-                            .foregroundStyle(totalDelta > 0 ? .green : .orange)
-                    }
-                }
-            }
-
-            if let grading = submission.grading {
-                if !grading.overallFeedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(grading.overallFeedback)
-                        .font(.footnote)
-                        .foregroundStyle(.primary)
-                        .lineLimit(3)
-                }
-                let strengths = grading.strengths.prefix(2).joined(separator: ", ")
-                if !strengths.isEmpty {
-                    Text("Strengths: \(strengths)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                let focus = grading.focusAreas.prefix(2).joined(separator: ", ")
-                if !focus.isEmpty {
-                    Text("Focus next: \(focus)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Text("Arcadia Coach is grading this submission.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Spacer()
-                Button {
-                    appVM.focus(on: submission)
-                } label: {
-                    Label("View details", systemImage: "arrow.right.circle")
-                        .font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func assessmentResultsCard(result: AssessmentGradingResult) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                Label("Assessment Results", systemImage: "chart.bar.doc.horizontal")
-                    .labelStyle(.titleAndIcon)
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Text(result.evaluatedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(result.overallFeedback)
-                .font(.body)
-
-            if !result.strengths.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Strengths")
-                        .font(.subheadline.bold())
-                    ForEach(result.strengths, id: \.self) { item in
-                        Text("• \(item)")
-                            .font(.footnote)
-                    }
-                }
-            }
-
-            if !result.focusAreas.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Focus Next")
-                        .font(.subheadline.bold())
-                    ForEach(result.focusAreas, id: \.self) { item in
-                        Text("• \(item)")
-                            .font(.footnote)
-                    }
-                }
-            }
-
-            if !result.categoryOutcomes.isEmpty {
-                let columns = [GridItem(.adaptive(minimum: 160), spacing: 12, alignment: .top)]
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                    ForEach(result.categoryOutcomes) { outcome in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(categoryLabels[outcome.categoryKey] ?? outcome.categoryKey)
-                                .font(.headline)
-                            Text("Rating \(outcome.initialRating)")
-                                .font(.subheadline)
-                            Text("Avg score \(Int((outcome.averageScore * 100).rounded()))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let rationale = outcome.rationale, !rationale.isEmpty {
-                                Text(rationale)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-            }
-
-            if !result.taskResults.isEmpty {
-                DisclosureGroup("Task-by-task notes") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(result.taskResults) { task in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(task.taskId)
-                                        .font(.subheadline.bold())
-                                    Spacer()
-                                    Text("Score \(Int((task.score * 100).rounded()))% · \(task.confidence.rawValue.capitalized)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Text(task.feedback)
-                                    .font(.footnote)
-                                if !task.strengths.isEmpty {
-                                    Text("Strengths: \(task.strengths.joined(separator: ", "))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                if !task.improvements.isEmpty {
-                                    Text("Improve: \(task.improvements.joined(separator: ", "))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(10)
-                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-                    .padding(.top, 6)
-                }
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .accessibilityElement(children: .contain)
-    }
-}
-
-private struct FoundationTracksCard: View {
-    var tracks: [FoundationTrackModel]
-    var goalSummary: String?
-    var targetOutcomes: [String]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Label("Foundation Tracks", systemImage: "target")
-                    .font(.headline)
-                Spacer()
-            }
-            if let trimmedSummary = goalSummary?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !trimmedSummary.isEmpty {
-                Text(trimmedSummary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if !targetOutcomes.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Target outcomes")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    ForEach(targetOutcomes, id: \.self) { outcome in
-                        HStack(alignment: .top, spacing: 6) {
-                            Text("•")
-                            Text(outcome)
-                        }
-                        .font(.caption)
-                    }
-                }
-            }
-            ForEach(tracks) { track in
-                let technologies = track.technologies.joined(separator: ", ")
-                let focusAreas = track.focusAreas.joined(separator: ", ")
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(track.label)
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text(track.priority.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(priorityColor(for: track.priority).opacity(0.18))
-                            .foregroundStyle(priorityColor(for: track.priority))
-                            .clipShape(Capsule())
-                    }
-                    if !technologies.isEmpty {
-                        Text("Technologies: \(technologies)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !focusAreas.isEmpty {
-                        Text("Focus areas: \(focusAreas)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let weeks = track.suggestedWeeks {
-                        Text("Suggested duration: \(weeks) week\(weeks == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    if let notes = track.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !notes.isEmpty {
-                        Text(notes)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-        )
-    }
-
-    private func priorityColor(for priority: String) -> Color {
-        switch priority.lowercased() {
-        case "now":
-            return .red
-        case "up_next", "up-next":
-            return .orange
-        case "later":
-            return .blue
-        default:
-            return .accentColor
-        }
-    }
 }
 
 struct AssessmentSubmissionDetailView: View {

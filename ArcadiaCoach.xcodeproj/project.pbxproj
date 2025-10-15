@@ -35,6 +35,12 @@
 		AA0010172924F97A00B8BEA0 /* FocusTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F172924F97A00B8BEA0 /* FocusTimerView.swift */; };
 		B1C0A1012F1CA4B200C1A1A1 /* FoundationTracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C0A0012F1CA4B200C1A1A1 /* FoundationTracks.swift */; };
 		B1C0A1022F1CA4B200C1A1A1 /* LearnerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C0A0022F1CA4B200C1A1A1 /* LearnerProfile.swift */; };
+		AA77D0112F9CB00000B8BEA0 /* DashboardSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */; };
+		AA77D0312F9CB1B000B8BEA0 /* DashboardEloSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */; };
+		AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */; };
+		AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */; };
+		AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */; };
+		AA77D0B12F9CB1B40B8BEA0 /* FoundationTracksCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */; };
 	AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA001F182924F9F600B8BEA0 /* Assets.xcassets */; };
 	67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B27837E18E79D5DF33F3BC /* EloPlan.swift */; };
 	CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */; };
@@ -81,6 +87,7 @@
 		B1C0A0012F1CA4B200C1A1A1 /* FoundationTracks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationTracks.swift; sourceTree = "<group>"; };
 		B1C0A0022F1CA4B200C1A1A1 /* LearnerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnerProfile.swift; sourceTree = "<group>"; };
 		AA30B0012D1A000000B8BEA0 /* AssessmentSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentSubmission.swift; sourceTree = "<group>"; };
+		AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSection.swift; sourceTree = "<group>"; };
 		AA001F072924F97A00B8BEA0 /* BackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendService.swift; sourceTree = "<group>"; };
 		AA001F082924F97A00B8BEA0 /* MCPTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTypes.swift; sourceTree = "<group>"; };
 		AA001F092924F97A00B8BEA0 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
@@ -91,6 +98,11 @@
 		AA001F0D2924F97A00B8BEA0 /* ChatPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPanel.swift; sourceTree = "<group>"; };
 		AA001F0E2924F97A00B8BEA0 /* LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonView.swift; sourceTree = "<group>"; };
 		AA001F0F2924F97A00B8BEA0 /* QuizSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSummaryView.swift; sourceTree = "<group>"; };
+		AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardEloSection.swift; sourceTree = "<group>"; };
+		AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScheduleSection.swift; sourceTree = "<group>"; };
+		AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssessmentsSection.swift; sourceTree = "<group>"; };
+		AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardResourcesSection.swift; sourceTree = "<group>"; };
+		AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationTracksCard.swift; sourceTree = "<group>"; };
 		AA001F102924F97A00B8BEA0 /* MilestoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneView.swift; sourceTree = "<group>"; };
 		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentView.swift; sourceTree = "<group>"; };
 		AA001F122924F97A00B8BEA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -172,6 +184,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			B1C0A0022F1CA4B200C1A1A1 /* LearnerProfile.swift */,
 			AA10A0012B925F0000B8BEA0 /* OnboardingAssessment.swift */,
 			AA30B0012D1A000000B8BEA0 /* AssessmentSubmission.swift */,
+			AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */,
 		);
 		path = Models;
 		sourceTree = "<group>";
@@ -223,6 +236,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA10A0032B925F0000B8BEA0 /* CurriculumOutlineView.swift */,
 		AA10A0022B925F0000B8BEA0 /* OnboardingAssessmentFlow.swift */,
 		AA30B0052D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift */,
+		AA77D0C12F9CB1C00B8BEA0 /* Dashboard */,
 		AA001F242924FB9500B8BEA0 /* Components */,
 	);
 	path = Views;
@@ -253,6 +267,18 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */,
 		);
 		path = Components;
+		sourceTree = "<group>";
+	};
+	AA77D0C12F9CB1C00B8BEA0 /* Dashboard */ = {
+		isa = PBXGroup;
+		children = (
+			AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */,
+			AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */,
+			AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */,
+			AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */,
+			AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */,
+		);
+		path = Dashboard;
 		sourceTree = "<group>";
 	};
 	AA001F2F29250E7400B8BEA0 /* AdvancedChatKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedChatKitView.swift; sourceTree = "<group>"; };
@@ -381,6 +407,10 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA00100E2924F97A00B8BEA0 /* LessonView.swift in Sources */,
 			AA00100D2924F97A00B8BEA0 /* ChatPanel.swift in Sources */,
 			AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */,
+			AA77D0312F9CB1B000B8BEA0 /* DashboardEloSection.swift in Sources */,
+			AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */,
+			AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */,
+			AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */,
 			CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */,
 			AA00100B2924F97A00B8BEA0 /* OnboardingView.swift in Sources */,
 			AA00101F29250A0000B8BEA0 /* ArcadiaChatbotView.swift in Sources */,
@@ -395,6 +425,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */,
 			AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */,
 			AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
+			AA77D0112F9CB00000B8BEA0 /* DashboardSection.swift in Sources */,
 			AA30B0002D1A000000B8BEA0 /* AssessmentSubmission.swift in Sources */,
 			67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */,
 			B1C0A1012F1CA4B200C1A1A1 /* FoundationTracks.swift in Sources */,
@@ -409,6 +440,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA10A0112B925F0000B8BEA0 /* OnboardingAssessment.swift in Sources */,
 			AA10A0132B925F0000B8BEA0 /* CurriculumOutlineView.swift in Sources */,
 			AA30B0042D1A000000B8BEA0 /* DeveloperSubmissionDashboard.swift in Sources */,
+			AA77D0B12F9CB1B40B8BEA0 /* FoundationTracksCard.swift in Sources */,
 		);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

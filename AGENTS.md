@@ -285,10 +285,10 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Upgraded client caching with per-slice persistence, "Load more" UX, debounce guards, and UI-side dedupe so the dashboard never shows duplicate tiles.
     - Added automatic hybrid resync so legacy fallbacks replay into Postgres once database connectivity returns.
     - **Follow-ups:** Extend dedupe heuristics for near-matching labels and add automated UI tests that assert one tile per category/track.
-23. **Phase 23 – Dashboard Navigation & Tabbed Layout**
-    - Break the current dashboard into focused views/tabs (ELO, schedule, assessments, resources) so each surface remains scannable.
-    - Rework the layout hierarchy (sidebars, accordions, paging) so large data sets no longer render in a single scroll-heavy column.
-    - Update routing and telemetry to capture tab-level engagement and ensure existing widgets migrate cleanly.
+23. **Phase 23 – Dashboard Navigation & Tabbed Layout** ✅ *(completed October 15, 2025; see `docs/phase-23-dashboard-navigation.md`)*
+    - Introduced segmented dashboard tabs (ELO, Schedule, Assessments, Resources) with persisted selection backed by `AppSettings`.
+    - Extracted dashboard subviews into `Views/Dashboard/` components and moved session controls/content into the Resources tab with onboarding/assessment gating intact.
+    - Wired new telemetry (`dashboard_tab_selected`, `session_action_triggered`) and refreshed the Xcode project to include the dashboard sources.
 24. **Phase 24 – Assessment Surface Lifecycle**
     - Hide the Assessment tab once onboarding completes and surface a clear entry point to relaunch onboarding when needed.
     - Preserve developer tooling for forced resets while ensuring learners don’t see dormant assessment UI.
