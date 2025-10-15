@@ -20,6 +20,7 @@ struct ArcadiaChatbotView: View {
     var onRemoveAttachment: ((String) -> Void)? = nil
     var allowsImagesOnly: Bool = false
     var onSubmit: (String) async -> Void
+    var clipboard: ClipboardManaging = AppClipboardManager.shared
 
     @State private var draft: String = ""
     @FocusState private var isTextFocused: Bool
@@ -112,6 +113,7 @@ struct ArcadiaChatbotView: View {
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
         .transition(.move(edge: message.role == .user ? .trailing : .leading).combined(with: .opacity))
+        .selectableContent()
     }
 
     private func avatar(systemName: String) -> some View {
@@ -153,6 +155,12 @@ struct ArcadiaChatbotView: View {
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
         .frame(maxWidth: 420, alignment: alignment)
+        .selectableContent()
+        .contextMenu {
+            Button("Copy") {
+                clipboard.copy(message.text)
+            }
+        }
     }
 
     @ViewBuilder
@@ -217,6 +225,7 @@ struct ArcadiaChatbotView: View {
 
             Spacer()
         }
+        .selectableContent()
     }
 
     @ViewBuilder
@@ -255,6 +264,7 @@ struct ArcadiaChatbotView: View {
                     Text("No files attached.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .selectableContent()
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(composerAttachments) { attachment in
@@ -293,6 +303,21 @@ struct ArcadiaChatbotView: View {
                             }
                             .padding(10)
                             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .selectableContent()
+                            .contextMenu {
+                                Button("Copy Name") {
+                                    clipboard.copy(attachment.name)
+                                }
+                                Button("Copy Metadata") {
+                                    let metadata = "\(attachment.name) • \(attachment.sizeLabel) • \(attachment.mimeType)"
+                                    clipboard.copy(metadata)
+                                }
+                                if let snippet = attachment.previewSnippet {
+                                    Button("Copy Preview") {
+                                        clipboard.copy(snippet)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

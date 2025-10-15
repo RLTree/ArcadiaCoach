@@ -63,5 +63,6 @@ struct WidgetCardView: View {
         .padding(14)
         .background(backgroundStyle, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
+        .selectableContent()
     }
 }

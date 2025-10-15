@@ -41,7 +41,6 @@ let package = Package(
                 "ViewModels/AppViewModel.swift",
                 "ViewModels/SessionViewModel.swift",
                 "ViewModels/DeveloperToolsViewModel.swift",
-                "Views",
             ],
             sources: [
                 "Models/EloEngine.swift",
@@ -55,7 +54,9 @@ let package = Package(
                 "Models/AgentModels.swift",
                 "Services/BackendService.swift",
                 "Services/ScheduleSliceCache.swift",
+                "Services/AppClipboardManager.swift",
                 "ViewModels/AgentChatViewModel.swift",
+                "Views/Components/SelectableContentModifier.swift",
             ],
             swiftSettings: [
                 .define("SWIFT_PACKAGE"),

@@ -559,6 +559,8 @@ struct AssessmentSubmissionDetailView: View {
         return appVM.modulesByCategory
     }
 
+    private let clipboard: ClipboardManaging = AppClipboardManager.shared
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -638,6 +640,16 @@ struct AssessmentSubmissionDetailView: View {
         }
         .padding(20)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .selectableContent()
+        .contextMenu {
+            Button("Copy Status") {
+                clipboard.copy(submission.statusLabel)
+            }
+            Button("Copy Summary Line") {
+                let summary = "Submitted \(submission.submittedAt.formatted(date: .abbreviated, time: .shortened)) • \(submission.answeredCount) prompts"
+                clipboard.copy(summary)
+            }
+        }
     }
 
     @ViewBuilder
@@ -648,39 +660,56 @@ struct AssessmentSubmissionDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Attachments", systemImage: "paperclip")
                     .font(.headline)
-                    ForEach(submission.attachments) { attachment in
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: icon(for: attachment.kind))
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(attachment.name)
-                                    .font(.callout.weight(.semibold))
-                                if let size = attachment.sizeLabel {
-                                    Text(size)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                if let description = attachment.description, !description.isEmpty {
-                                    Text(description)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                if let destination = attachment.resolvedURL(baseURL: settings.chatkitBackendURL) {
-                                    Link("Open", destination: destination)
-                                        .font(.caption)
-                                }
-                                if let source = attachment.source, !source.isEmpty {
-                                    Text("Source: \(source)")
+                ForEach(submission.attachments) { attachment in
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: icon(for: attachment.kind))
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(attachment.name)
+                                .font(.callout.weight(.semibold))
+                            if let size = attachment.sizeLabel {
+                                Text(size)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let description = attachment.description, !description.isEmpty {
+                                Text(description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let destination = attachment.resolvedURL(baseURL: settings.chatkitBackendURL) {
+                                Link("Open", destination: destination)
+                                    .font(.caption)
+                            }
+                            if let source = attachment.source, !source.isEmpty {
+                                Text("Source: \(source)")
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                             }
                         }
                     }
                     .padding(.vertical, 6)
+                    .selectableContent()
+                    .contextMenu {
+                        Button("Copy Name") {
+                            clipboard.copy(attachment.name)
+                        }
+                        if let size = attachment.sizeLabel {
+                            Button("Copy Size") {
+                                clipboard.copy(size)
+                            }
+                        }
+                        if let description = attachment.description, !description.isEmpty {
+                            Button("Copy Description") {
+                                clipboard.copy(description)
+                            }
+                        }
+                    }
                 }
             }
             .padding(20)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
         }
     }
 
@@ -712,6 +741,7 @@ struct AssessmentSubmissionDetailView: View {
         }
         .padding(20)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .selectableContent()
     }
 
     @ViewBuilder
@@ -745,6 +775,24 @@ struct AssessmentSubmissionDetailView: View {
             }
             .padding(20)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
+            .contextMenu {
+                Button("Copy Feedback") {
+                    clipboard.copy(grading.overallFeedback)
+                }
+                if !grading.strengths.isEmpty {
+                    let strengths = grading.strengths.joined(separator: "\n")
+                    Button("Copy Strengths") {
+                        clipboard.copy(strengths)
+                    }
+                }
+                if !grading.focusAreas.isEmpty {
+                    let focus = grading.focusAreas.joined(separator: "\n")
+                    Button("Copy Focus Areas") {
+                        clipboard.copy(focus)
+                    }
+                }
+            }
         }
     }
 
@@ -758,6 +806,15 @@ struct AssessmentSubmissionDetailView: View {
             }
             .padding(20)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
+            .contextMenu {
+                Button("Copy Category Impact") {
+                    let lines = categoryOutcomes.map { outcome in
+                        "\(appVM.label(for: outcome.categoryKey)): \(outcome.ratingDelta)"
+                    }
+                    clipboard.copy(lines.joined(separator: "\n"))
+                }
+            }
         }
     }
 
@@ -819,10 +876,29 @@ struct AssessmentSubmissionDetailView: View {
                     }
                     .padding(12)
                     .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                    .selectableContent()
+                    .contextMenu {
+                        Button("Copy Feedback") {
+                            clipboard.copy(task.feedback)
+                        }
+                        Button("Copy Summary") {
+                            let summary = "\(task.taskId) – \(Int((task.score * 100).rounded()))% (\(task.confidence.rawValue))"
+                            clipboard.copy(summary)
+                        }
+                    }
                 }
             }
             .padding(20)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
+            .contextMenu {
+                let lines = grading.taskResults.map { task in
+                    "\(task.taskId): \(Int((task.score * 100).rounded()))%"
+                }
+                Button("Copy All Task Scores") {
+                    clipboard.copy(lines.joined(separator: "\n"))
+                }
+            }
         }
     }
 
@@ -881,5 +957,17 @@ struct AssessmentSubmissionDetailView: View {
         }
         .padding(12)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .selectableContent()
+        .contextMenu {
+            let label = appVM.label(for: outcome.categoryKey)
+            Button("Copy Category") {
+                clipboard.copy(label)
+            }
+            if let rationale = outcome.rationale, !rationale.isEmpty {
+                Button("Copy Rationale") {
+                    clipboard.copy(rationale)
+                }
+            }
+        }
     }
 }

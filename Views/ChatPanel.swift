@@ -22,6 +22,7 @@ struct ChatPanel: View {
     @State private var selectedModelId: String = "gpt-5"
     @State private var suppressModelChange = false
 
+    private let clipboard: ClipboardManaging = AppClipboardManager.shared
     private let modelOptions: [ChatModelOption] = [
         ChatModelOption(
             id: "gpt-5",
@@ -93,12 +94,14 @@ struct ChatPanel: View {
                     Text("Connected to \(backend).")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .selectableContent()
                 }
 
                 if let error = viewModel.lastError, !error.isEmpty {
                     Text(error)
                         .font(.footnote)
                         .foregroundStyle(.red)
+                        .selectableContent()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,11 +222,13 @@ struct ChatPanel: View {
             Divider()
             Text("Previous Sessions")
                 .font(.headline)
+                .selectableContent()
 
             if viewModel.recents.isEmpty {
                 Text("Once you chat with Arcadia Coach, your transcripts will appear here for quick reference.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .selectableContent()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
@@ -359,6 +364,20 @@ struct ChatPanel: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.primary.opacity(0.05))
         )
+        .selectableContent()
+        .contextMenu {
+            Button("Copy Assessment Status") {
+                clipboard.copy(readiness.displayText)
+            }
+            Button("Copy Latest Submission Info") {
+                let info = """
+                Submitted: \(submissionLabel)
+                Graded: \(gradingLabel)
+                Average: \(averageLabel ?? "N/A")
+                """
+                clipboard.copy(info)
+            }
+        }
     }
 
     @ViewBuilder
@@ -406,6 +425,13 @@ struct ChatPanel: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.primary.opacity(0.03))
             )
+            .selectableContent()
+            .contextMenu {
+                Button("Copy Top Categories") {
+                    let rows = entries.prefix(4).map { "\($0.label): \($0.value)" }
+                    clipboard.copy(rows.joined(separator: "\n"))
+                }
+            }
         }
     }
 
@@ -466,6 +492,19 @@ struct ChatPanel: View {
                         : (summary.id == selectedTranscriptId ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
                 )
         )
+        .selectableContent()
+        .contextMenu {
+            Button("Copy Title") {
+                clipboard.copy(summary.title)
+            }
+            Button("Copy Snippet") {
+                clipboard.copy(summary.snippet)
+            }
+            Button("Copy Last Updated") {
+                let timestamp = summary.lastUpdated.formatted(date: .abbreviated, time: .shortened)
+                clipboard.copy(timestamp)
+            }
+        }
     }
 
     private func transcriptPreview(_ transcript: ChatTranscript) -> some View {
@@ -544,6 +583,19 @@ struct ChatPanel: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
+        .selectableContent()
+        .contextMenu {
+            Button("Copy Title") {
+                clipboard.copy(transcript.title)
+            }
+            Button("Copy Transcript") {
+                let combined = transcript.messages.map { message -> String in
+                    let speaker = message.role == "user" ? "You" : "Coach"
+                    return "\(speaker): \(message.text)"
+                }.joined(separator: "\n\n")
+                clipboard.copy(combined)
+            }
+        }
     }
 
     private func configureViewModel(with backend: String) {

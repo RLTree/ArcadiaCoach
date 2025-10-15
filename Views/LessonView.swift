@@ -32,6 +32,7 @@ struct LessonView: View {
                     }
                 }
                 .padding(.horizontal, 8)
+                .selectableContent()
             }
         }
         .padding(10)

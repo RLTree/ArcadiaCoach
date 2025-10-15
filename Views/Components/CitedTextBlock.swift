@@ -16,5 +16,6 @@ struct CitedTextBlock: View {
                 CitationFootnotesView(groups: parsed.groups)
             }
         }
+        .selectableContent()
     }
 }

@@ -15,6 +15,7 @@ struct WidgetStatRowView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .selectableContent()
     }
 
     private typealias EnumeratedItem = EnumeratedSequence<[WidgetStatItem]>.Element

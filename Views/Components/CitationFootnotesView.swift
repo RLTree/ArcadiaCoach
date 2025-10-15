@@ -29,5 +29,6 @@ struct CitationFootnotesView: View {
                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
             }
         }
+        .selectableContent()
     }
 }

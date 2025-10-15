@@ -63,5 +63,6 @@ struct WidgetListView: View {
             }
         }
         .padding(8)
+        .selectableContent()
     }
 }
