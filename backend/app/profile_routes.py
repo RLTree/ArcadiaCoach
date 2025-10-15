@@ -36,6 +36,9 @@ from .learner_profile import (
     AssessmentSection,
     AssessmentTask,
     CurriculumSchedule,
+    EloCategoryPlan,
+    EloCategoryDefinition,
+    EloRubricBand,
     LearnerProfile,
     OnboardingAssessment,
     ScheduleWarning,
@@ -275,6 +278,31 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
     )
 
 
+def _plan_from_payload(payload: EloCategoryPlanPayload) -> EloCategoryPlan:
+    categories: List[EloCategoryDefinition] = []
+    for entry in payload.categories:
+        categories.append(
+            EloCategoryDefinition(
+                key=entry.key,
+                label=entry.label,
+                description=entry.description,
+                focus_areas=list(entry.focus_areas),
+                weight=entry.weight,
+                rubric=[
+                    EloRubricBand(level=band.level, descriptor=band.descriptor)
+                    for band in entry.rubric
+                ],
+                starting_rating=entry.starting_rating,
+            )
+        )
+    return EloCategoryPlan(
+        generated_at=payload.generated_at,
+        source_goal=payload.source_goal,
+        strategy_notes=payload.strategy_notes,
+        categories=categories,
+    )
+
+
 @router.get("/{username}", response_model=LearnerProfilePayload, status_code=status.HTTP_200_OK)
 def get_profile(username: str) -> LearnerProfilePayload:
     profile = profile_store.get(username)
@@ -305,6 +333,23 @@ def get_elo_category_plan(username: str) -> EloCategoryPlanPayload:
             detail=f"ELO categories for '{username}' are not set.",
         )
     return payload.elo_category_plan
+
+
+@router.post(
+    "/{username}/elo-plan",
+    response_model=EloCategoryPlanPayload,
+    status_code=status.HTTP_200_OK,
+)
+def set_elo_category_plan(username: str, payload: EloCategoryPlanPayload) -> EloCategoryPlanPayload:
+    plan = _plan_from_payload(payload)
+    profile = profile_store.set_elo_category_plan(username, plan)
+    serialized = _serialize_profile(profile)
+    if serialized.elo_category_plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to persist the learner ELO plan.",
+        )
+    return serialized.elo_category_plan
 
 
 @router.get(
