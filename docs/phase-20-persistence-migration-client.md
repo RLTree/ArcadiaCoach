@@ -1,6 +1,6 @@
 # Phase 20 – Persistence Migration – Client Integration
 
-_Status: in progress (draft October 15, 2025)_
+_Status: completed October 15, 2025_
 
 This snapshot captures the first implementation pass for Phase 20. Key highlights:
 
@@ -20,6 +20,6 @@ This snapshot captures the first implementation pass for Phase 20. Key highlight
 - Schedule payloads returned to the agent include slice metadata so tools can reason about paginated windows without fetching the entire horizon.
 
 ## Outstanding work
-- Wire slice-aware schedule fetching into the SwiftUI surfaces (e.g., load-more affordances).
+- Roll out server-side ELO category deduplication and schedule slice adoption (tracked in Phase 22 – ELO Integrity & Responsiveness).
 - Extend MCP widget streaming so long-horizon dashboards reuse the new slice metadata.
 - Finalise documentation once deployment rollout steps are rehearsed (Render hooks, staging verification).

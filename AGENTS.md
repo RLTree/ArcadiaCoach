@@ -82,6 +82,10 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_DATABASE_POOL_SIZE` | Optional SQLAlchemy pool size (defaults to 10). |
 | `ARCADIA_DATABASE_MAX_OVERFLOW` | Optional overflow connection limit (defaults to 10). |
 | `ARCADIA_DATABASE_ECHO` | Set `true` to log SQL statements locally. |
+| `ARCADIA_DB_MIGRATION_TIMEOUT` | Seconds the migration runner waits for the database before failing (default `60`). |
+| `ARCADIA_DB_MIGRATION_POLL_INTERVAL` | Seconds between readiness probes during migrations (default `3`). |
+| `ARCADIA_DB_MIGRATION_REVISION` | Optional Alembic revision override for the migration runner (default `head`). |
+| `ARCADIA_DB_TELEMETRY_INTERVAL` | Minimum seconds between database pool telemetry events (set to `0` to log every checkout/checkin). |
 | `ARCADIA_PERSISTENCE_MODE` | Selects the active persistence backend: `database` (default), `legacy`, or `hybrid` fallback. |
 | `ARCADIA_MCP_URL` | MCP server URL (local dev defaults to `http://127.0.0.1:8001/mcp`) |
 | `ARCADIA_MCP_LABEL` | Label shown in the tool config (default `Arcadia_Coach_Widgets`) |
@@ -101,13 +105,18 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
    cd mcp_server
    uv run python server.py --host 127.0.0.1 --port 8001
    ```
-3. Start the backend:
+3. Apply database migrations (first run and whenever schema changes land):
+   ```bash
+   cd backend
+   python -m scripts.run_migrations
+   ```
+   _Need a specific revision?_ Use `uv run alembic upgrade <revision>` instead. Backfill legacy data with `uv run python -m scripts.backfill_json_stores` if needed.
+4. Start the backend:
    ```bash
    cd backend
    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
-   _First run after Phase 19:_ apply migrations with `uv run alembic upgrade head` and backfill legacy data with `uv run python -m scripts.backfill_json_stores` if needed.
-4. Test the agent directly:
+5. Test the agent directly:
    ```python
    from agents import Runner, RunConfig, ModelSettings
    from backend.app.arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
@@ -117,7 +126,12 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
    Runner.run_sync(agent, "learn transformers", context=context,
                    run_config=RunConfig(model_settings=ModelSettings()))
    ```
-5. On the macOS Dashboard, use the **Upcoming Schedule** refresh button to hit `GET /api/profile/<username>/schedule?refresh=true` and confirm cadence notes/day offsets match the backend response.
+6. On the macOS Dashboard, use the **Upcoming Schedule** refresh button to hit `GET /api/profile/<username>/schedule?refresh=true` and confirm cadence notes/day offsets match the backend response.
+7. (Optional) Snapshot pool health for on-call handoffs:
+   ```bash
+   cd backend
+   python -m scripts.db_metrics
+   ```
 
 **Hosted-only limitation:** The production backend runs at `https://chat.arcadiacoach.com`, and the MCP server lives at `https://mcp.arcadiacoach.com` (tool base URL `https://mcp.arcadiacoach.com/mcp`). Because OpenAI requires the domain to be pre-approved, we cannot exercise the full stack against localhost; all integration tests must target the hosted endpoints.
 

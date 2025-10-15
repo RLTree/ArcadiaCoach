@@ -2,14 +2,17 @@ import logging
 from typing import Any, Dict, Optional
 
 from chatkit.server import StreamingResult
-from fastapi import Depends, FastAPI, File, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
+from sqlalchemy import text
 
 from . import developer_routes, onboarding_routes, profile_routes, session_routes
 from .chat_server import ArcadiaChatServer, create_chat_server
 from .config import Settings, get_settings
+from .db.monitoring import get_pool_snapshot
+from .db.session import get_engine
 from .logging_config import configure_logging
 
 
@@ -41,6 +44,25 @@ def get_chat_server() -> ArcadiaChatServer:
 @app.get("/healthz")
 def health(settings: Settings = Depends(get_settings)) -> Dict[str, str]:
     return {"status": "ok", "mode": "custom-chatkit"}
+
+
+@app.get("/healthz/database")
+def health_database(settings: Settings = Depends(get_settings)) -> Dict[str, Any]:
+    try:
+        engine = get_engine()
+    except RuntimeError as exc:
+        logger.exception("Database engine unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Database health check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+
+    snapshot = get_pool_snapshot(engine)
+    return {"status": "ok", "pool": snapshot, "persistence_mode": settings.arcadia_persistence_mode}
 
 
 @app.post("/chatkit")

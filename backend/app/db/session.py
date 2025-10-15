@@ -9,6 +9,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Settings, get_settings
+from .monitoring import instrument_engine
 
 
 class SessionManager(Protocol):
@@ -47,6 +48,7 @@ def get_engine() -> Engine:
     if _engine is None:
         settings = get_settings()
         _engine = _build_engine(settings)
+        instrument_engine(_engine)
         _session_factory = sessionmaker(
             bind=_engine,
             autoflush=False,
