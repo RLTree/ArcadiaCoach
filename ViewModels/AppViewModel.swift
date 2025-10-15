@@ -44,7 +44,11 @@ final class AppViewModel: ObservableObject {
     @Published var onboardingAssessment: OnboardingAssessment?
     @Published var assessmentResult: AssessmentGradingResult?
     // Phase 8 – Track submission/grading history for dashboard + chat surfaces.
-    @Published var assessmentHistory: [AssessmentSubmissionRecord] = []
+    @Published var assessmentHistory: [AssessmentSubmissionRecord] = [] {
+        didSet {
+            evaluateAssessmentSeenState()
+        }
+    }
     @Published var assessmentResponses: [String:String] = [:]
     @Published var pendingAssessmentAttachments: [AssessmentSubmissionRecord.Attachment] = []
     @Published var showingAssessmentFlow: Bool = false
@@ -58,12 +62,19 @@ final class AppViewModel: ObservableObject {
     @Published var learnerTimezone: String?
     @Published var goalInference: GoalInferenceModel?
     @Published var foundationTracks: [FoundationTrackModel] = []
+    @Published var hasUnseenAssessmentResults: Bool = false
 
     private var lastScheduleEventSignature: String?
     private var lastScheduleEventTimestamp: Date?
     private let defaultScheduleSliceSpan = 7
     private var lastBackendBaseURL: String?
     private var lastLearnerUsername: String?
+    private var assessmentResultTracker = AssessmentResultTracker()
+    private lazy var iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -746,6 +757,26 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func updateLastSeenAssessmentSubmissionId(_ id: String?) {
+        let wasUnseen = hasUnseenAssessmentResults
+        let latest = assessmentResultTracker.updateLastSeen(id, history: assessmentHistory)
+        hasUnseenAssessmentResults = assessmentResultTracker.hasUnseenResults
+        if let latest, hasUnseenAssessmentResults, !wasUnseen {
+            recordAssessmentUnseenTelemetry(for: latest)
+        }
+    }
+
+    @discardableResult
+    func markAssessmentResultsAsSeen() -> String? {
+        let previouslyUnseen = hasUnseenAssessmentResults
+        let seenId = assessmentResultTracker.markResultsSeen(history: assessmentHistory)
+        hasUnseenAssessmentResults = assessmentResultTracker.hasUnseenResults
+        if previouslyUnseen, let latest = latestGradedAssessment {
+            recordAssessmentSeenTelemetry(for: latest)
+        }
+        return seenId
+    }
+
     func openAssessmentFlow() {
         showingAssessmentFlow = true
     }
@@ -771,6 +802,8 @@ final class AppViewModel: ObservableObject {
         pendingAssessmentAttachments.removeAll()
         lastBackendBaseURL = nil
         lastLearnerUsername = nil
+        assessmentResultTracker.reset()
+        hasUnseenAssessmentResults = false
     }
 
     var requiresAssessment: Bool {
@@ -900,6 +933,29 @@ final class AppViewModel: ObservableObject {
         }
         let validIds = Set(assessment.tasks.map { $0.taskId })
         assessmentResponses = assessmentResponses.filter { validIds.contains($0.key) }
+    }
+
+    private func evaluateAssessmentSeenState() {
+        let wasUnseen = hasUnseenAssessmentResults
+        let latest = assessmentResultTracker.apply(history: assessmentHistory)
+        hasUnseenAssessmentResults = assessmentResultTracker.hasUnseenResults
+        if hasUnseenAssessmentResults, !wasUnseen, let latest {
+            recordAssessmentUnseenTelemetry(for: latest)
+        }
+    }
+
+    private func recordAssessmentUnseenTelemetry(for submission: AssessmentSubmissionRecord) {
+        guard let grading = submission.grading else { return }
+        var metadata: [String:String] = ["submissionId": submission.submissionId]
+        metadata["evaluatedAt"] = iso8601Formatter.string(from: grading.evaluatedAt)
+        TelemetryReporter.shared.record(event: "assessment_results_unseen", metadata: metadata)
+    }
+
+    private func recordAssessmentSeenTelemetry(for submission: AssessmentSubmissionRecord) {
+        guard let grading = submission.grading else { return }
+        var metadata: [String:String] = ["submissionId": submission.submissionId]
+        metadata["evaluatedAt"] = iso8601Formatter.string(from: grading.evaluatedAt)
+        TelemetryReporter.shared.record(event: "assessment_results_seen", metadata: metadata)
     }
 
     private func makeSubmissionItems(for assessment: OnboardingAssessment) -> [BackendService.AssessmentSubmissionUploadItem]? {

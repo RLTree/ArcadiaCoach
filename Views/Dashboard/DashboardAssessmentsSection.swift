@@ -6,6 +6,7 @@ struct DashboardAssessmentsSection: View {
 
     let awaitingAssessmentResults: Bool
     let requiresAssessment: Bool
+    let hasUnseenResults: Bool
     let categoryLabels: [String:String]
     let onRunOnboarding: () -> Void
     let onOpenAssessmentFlow: () -> Void
@@ -97,13 +98,21 @@ struct DashboardAssessmentsSection: View {
                 }
             }
 
-            HStack {
-                Button {
-                    onOpenAssessmentFlow()
-                } label: {
-                    Label("Open assessment", systemImage: "checkmark.circle")
+            if hasUnseenResults {
+                Label("New grading ready to review", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            HStack(spacing: 12) {
+                if requiresAssessment {
+                    Button {
+                        onOpenAssessmentFlow()
+                    } label: {
+                        Label("Open assessment", systemImage: "checkmark.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
 
                 Button {
                     onRunOnboarding()
@@ -116,6 +125,12 @@ struct DashboardAssessmentsSection: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            if hasUnseenResults {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.accentColor.opacity(0.45), lineWidth: 2)
+            }
+        }
     }
 
     @ViewBuilder
@@ -130,7 +145,7 @@ struct DashboardAssessmentsSection: View {
             }
             Spacer()
             Button("Resume") {
-                appVM.openAssessmentFlow()
+                onOpenAssessmentFlow()
             }
             .buttonStyle(.borderedProminent)
         }

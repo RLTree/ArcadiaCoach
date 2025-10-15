@@ -20,4 +20,5 @@ final class AppSettings: ObservableObject {
     @AppStorage("learnerStrengths") var learnerStrengths: String = ""
     @AppStorage("learnerTimezone") var learnerTimezone: String = TimeZone.current.identifier
     @AppStorage("dashboardSection") var dashboardSection: String = DashboardSection.elo.rawValue
+    @AppStorage("lastSeenAssessmentSubmissionId") var lastSeenAssessmentSubmissionId: String = ""
 }

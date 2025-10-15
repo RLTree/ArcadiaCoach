@@ -46,6 +46,10 @@ struct HomeView: View {
         return Dictionary(uniqueKeysWithValues: plan.categories.map { ($0.key, $0.label) })
     }
 
+    private var shouldShowAssessmentTab: Bool {
+        appVM.requiresAssessment
+    }
+
     var body: some View {
         ZStack(alignment: .center) {
             Color(nsColor: .windowBackgroundColor)
@@ -56,12 +60,14 @@ struct HomeView: View {
                     .tabItem { Label("Dashboard", systemImage: "rectangle.grid.2x2") }
                     .tag(MainTab.dashboard)
 
-                assessmentTab
-                    .tabItem {
-                        Label("Assessment", systemImage: "checklist")
-                    }
-                    .tag(MainTab.assessment)
-                    .badge(assessmentTabBadge)
+                if shouldShowAssessmentTab {
+                    assessmentTab
+                        .tabItem {
+                            Label("Assessment", systemImage: "checklist")
+                        }
+                        .tag(MainTab.assessment)
+                        .badge(assessmentTabBadge)
+                }
 
                 ChatPanel()
                     .environmentObject(settings)
@@ -88,6 +94,7 @@ struct HomeView: View {
                         "initial": "true"
                     ]
                 )
+                appVM.updateLastSeenAssessmentSubmissionId(settings.lastSeenAssessmentSubmissionId)
                 refreshLearnerProfile()
                 Task {
                     await session.applyUserContext(
@@ -121,6 +128,12 @@ struct HomeView: View {
                 event: "dashboard_tab_selected",
                 metadata: ["tab": newValue.rawValue]
             )
+            if newValue == .assessments {
+                let seenId = appVM.markAssessmentResultsAsSeen() ?? ""
+                if settings.lastSeenAssessmentSubmissionId != seenId {
+                    settings.lastSeenAssessmentSubmissionId = seenId
+                }
+            }
         }
         .onChange(of: settings.chatkitBackendURL) { newValue in
             Task {
@@ -157,16 +170,32 @@ struct HomeView: View {
         .onChange(of: settings.learnerTimezone) { _ in
             refreshLearnerProfile()
         }
+        .onChange(of: settings.lastSeenAssessmentSubmissionId) { newValue in
+            appVM.updateLastSeenAssessmentSubmissionId(newValue)
+        }
         .onChange(of: appVM.requiresAssessment) { required in
             if required {
                 selectedTab = .assessment
-            } else if selectedTab == .dashboard {
-                dashboardSection = .assessments
+            } else {
+                if selectedTab == .assessment {
+                    selectedTab = .dashboard
+                }
+                if selectedTab == .dashboard {
+                    dashboardSection = .assessments
+                }
             }
         }
         .onChange(of: appVM.awaitingAssessmentResults) { awaiting in
             if !awaiting, selectedTab == .dashboard {
                 dashboardSection = .assessments
+            }
+        }
+        .onChange(of: appVM.hasUnseenAssessmentResults) { hasUnseen in
+            if hasUnseen && dashboardSection == .assessments {
+                let seenId = appVM.markAssessmentResultsAsSeen() ?? ""
+                if settings.lastSeenAssessmentSubmissionId != seenId {
+                    settings.lastSeenAssessmentSubmissionId = seenId
+                }
             }
         }
         .alert(item: $session.lastError) { error in
@@ -177,8 +206,10 @@ struct HomeView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .developerResetCompleted)) { _ in
-            selectedTab = .assessment
+            selectedTab = appVM.requiresAssessment ? .assessment : .dashboard
             showOnboarding = true
+            settings.lastSeenAssessmentSubmissionId = ""
+            appVM.updateLastSeenAssessmentSubmissionId(nil)
         }
         .onReceive(appVM.$learnerTimezone) { timezone in
             guard let timezone, !timezone.isEmpty else { return }
@@ -265,12 +296,53 @@ struct HomeView: View {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 20) {
                     header
+                    assessmentResultsNudge
                     dashboardSegmentedPicker
                     selectedDashboardSection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var assessmentResultsNudge: some View {
+        if appVM.hasUnseenAssessmentResults && dashboardSection != .assessments {
+            Button {
+                presentAssessmentResults(from: "nudge")
+            } label: {
+                HStack(alignment: .center, spacing: 14) {
+                    Image(systemName: "sparkles")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("New grading available")
+                            .font(.headline.weight(.semibold))
+                        Text("Review the latest feedback and ELO updates.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 14)
+                .padding(.horizontal, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.accentColor.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
+            )
+            .accessibilityHint("Opens the Assessments section to view recent grading.")
+            .transition(.opacity)
         }
     }
 
@@ -311,9 +383,10 @@ struct HomeView: View {
             DashboardAssessmentsSection(
                 awaitingAssessmentResults: appVM.awaitingAssessmentResults,
                 requiresAssessment: appVM.requiresAssessment,
+                hasUnseenResults: appVM.hasUnseenAssessmentResults,
                 categoryLabels: categoryLabels,
                 onRunOnboarding: { showOnboarding = true },
-                onOpenAssessmentFlow: { appVM.openAssessmentFlow() }
+                onOpenAssessmentFlow: openAssessmentTab
             )
             .transition(.opacity)
         case .resources:
@@ -402,6 +475,14 @@ struct HomeView: View {
         }
     }
 
+    private func presentAssessmentResults(from source: String) {
+        var metadata: [String:String] = ["source": source]
+        TelemetryReporter.shared.record(event: "assessment_results_nudge_tapped", metadata: metadata)
+        withAnimation(.easeInOut) {
+            dashboardSection = .assessments
+        }
+    }
+
     private func refreshSchedule() {
         Task {
             await appVM.refreshCurriculumSchedule(
@@ -409,6 +490,18 @@ struct HomeView: View {
                 username: settings.arcadiaUsername
             )
         }
+    }
+
+    private func openAssessmentTab() {
+        guard appVM.requiresAssessment else { return }
+        TelemetryReporter.shared.record(
+            event: "assessment_tab_selected",
+            metadata: ["source": "dashboard"]
+        )
+        withAnimation(.easeInOut) {
+            selectedTab = .assessment
+        }
+        appVM.openAssessmentFlow()
     }
 
     private func loadMoreSchedule() {

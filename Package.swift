@@ -49,6 +49,7 @@ let package = Package(
                 "Models/LearnerProfile.swift",
                 "Models/FoundationTracks.swift",
                 "Models/AssessmentSubmission.swift",
+                "Models/AssessmentResultTracker.swift",
                 "Models/OnboardingAssessment.swift",
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",
