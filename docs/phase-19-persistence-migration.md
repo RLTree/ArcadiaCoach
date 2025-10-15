@@ -1,17 +1,17 @@
-# Phase 19 – Persistence Migration (Work in Progress)
+# Phase 19 – Persistence Migration – Data Layer
 
-_Status: in development (October 15, 2025)_
+_Status: completed October 15, 2025_
 
 This phase introduces PostgreSQL as the system of record for Arcadia Coach. The legacy JSON stores located under `backend/app/data/` remain readable for backfill but are no longer written during runtime.
 
-## What landed in this iteration
+## Key outcomes
 
-- Added SQLAlchemy + Alembic to the backend runtime and surfaced helpers in `app/db/`.
+- Added SQLAlchemy + Alembic to the backend runtime and surfaced helpers in `app/db/` so services share a single engine/session lifecycle.
 - Implemented ORM models and repositories for learner profiles, curriculum schedules, memory, assessment submissions, and attachment metadata.
 - Replaced the JSON-backed stores with database-backed facades while keeping their public interface stable for existing routes and services.
 - Created initial Alembic migration `20241015_01_initial_persistence.py` to provision all new tables and indexes.
 - Added a `scripts/backfill_json_stores.py` command that imports historical learner profiles, submissions, and pending attachments into PostgreSQL.
-- Updated the assessment submission regression suite to run against SQLite for local testing.
+- Updated the assessment submission regression suite to run against SQLite for local testing and verified the Render deployment against the managed Postgres instance.
 
 ## Local setup
 
@@ -40,7 +40,7 @@ This phase introduces PostgreSQL as the system of record for Arcadia Coach. The 
 
 ## Follow-ups
 
-- Wire Alembic migrations into CI so schema drift is caught automatically.
-- Extend repository coverage to handle vector memory uploads once Phase 20 begins.
-- Harden the backfill script with idempotent resume support and checksum logging before production execution.
-- Introduce monitoring for connection pool metrics (see Phase 33) once production traffic migrates.
+- Automate Alembic migrations via Render deploy hooks / workers so schema changes run before each rollout (Phase 21).
+- Extend repository coverage to handle vector memory uploads and client sync surfaces (Phase 20).
+- Harden the backfill script with idempotent resume support and checksum logging before production execution (Phase 21).
+- Introduce monitoring for connection pool metrics and alerting once production traffic migrates (Phase 35).
