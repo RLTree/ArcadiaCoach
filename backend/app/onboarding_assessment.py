@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Sequence, Tuple, cast
 from uuid import uuid4
@@ -40,7 +41,9 @@ from .telemetry import emit_event
 from .curriculum_foundations import ensure_foundational_curriculum
 from .curriculum_sequencer import generate_schedule_for_user
 from .goal_parser import ensure_goal_inference
+
 logger = logging.getLogger(__name__)
+_INVALID_ESCAPE_PATTERN = re.compile(r'\\(?!["\\/bfnrtu])')
 
 
 class OnboardingPlanResult(BaseModel):
@@ -75,12 +78,23 @@ def _coerce_plan_output(payload: Any) -> OnboardingPlanPayload:
     if isinstance(payload, BaseModel):
         return OnboardingPlanPayload.model_validate(payload.model_dump())
     if isinstance(payload, str):
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Agent returned invalid JSON for onboarding plan: {exc}") from exc
+        data = _loads_plan_json(payload)
         return OnboardingPlanPayload.model_validate(data)
     raise TypeError(f"Unsupported onboarding plan payload type: {type(payload).__name__}")
+
+
+def _loads_plan_json(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        sanitized = _INVALID_ESCAPE_PATTERN.sub(r"\\\\", raw)
+        if sanitized != raw:
+            try:
+                logger.warning("Sanitised invalid escape sequences in onboarding plan payload.")
+                return json.loads(sanitized)
+            except json.JSONDecodeError as inner_exc:
+                raise ValueError(f"Agent returned invalid JSON for onboarding plan: {inner_exc}") from inner_exc
+        raise ValueError(f"Agent returned invalid JSON for onboarding plan: {exc}") from exc
 
 
 def _normalise_module(payload: CurriculumModulePayload) -> CurriculumModule:
