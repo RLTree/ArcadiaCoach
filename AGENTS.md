@@ -266,7 +266,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Replaced the JSON-backed stores with SQLAlchemy repositories and Alembic migrations so learner profiles, submissions, schedules, and attachments now live in PostgreSQL.  
     - Added connection management helpers, pooling defaults, and a `backfill_json_stores.py` utility to migrate historical data safely.  
     - Documented new database env vars, developer workflow updates, and Render rollout steps so teammates can apply migrations consistently.  
-    - **Follow-ups:** automate Alembic migrations within the deployment pipeline, add database health/telemetry dashboards, and harden rollback tooling (tracked under Phases 21 and 35).
+    - **Follow-ups:** automate Alembic migrations within the deployment pipeline, add database health/telemetry dashboards, and harden rollback tooling (tracked under Phases 40–42).
 
 20. **Phase 20 – Persistence Migration – Client Integration** ✅ *(completed October 15, 2025; see `docs/phase-20-persistence-migration-client.md`)*  
     - Added persistence-mode switching (`database` / `legacy` / `hybrid`) so phased rollouts can fail over safely.  
@@ -278,7 +278,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Wrapped backend boot in `start.sh` so `python -m scripts.run_migrations` blocks deployments on schema drift before Uvicorn starts.  
     - Added `/healthz/database`, pool instrumentation, and the `scripts.db_metrics` probe so ops can monitor connection health in staging/production.  
     - Authored the database recovery runbook covering backup validation, failover rotation, and rollback paths.  
-    - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 37–38).
+    - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 40–42).
 22. **Phase 22 – ELO Integrity & Responsiveness** ✅ *(completed October 15, 2025; see `docs/phase-22-elo-integrity.md`)*
     - Deduplicated overlapping ELO categories (label-first canonical keys) and foundation tracks, emitting `elo_category_collision` telemetry when merges occur.
     - Adopted schedule slicing across backend tools, agent prompts, and the macOS client, adding the `schedule_slice` telemetry event for latency monitoring.
@@ -289,10 +289,12 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Introduced segmented dashboard tabs (ELO, Schedule, Assessments, Resources) with persisted selection backed by `AppSettings`.
     - Extracted dashboard subviews into `Views/Dashboard/` components and moved session controls/content into the Resources tab with onboarding/assessment gating intact.
     - Wired new telemetry (`dashboard_tab_selected`, `session_action_triggered`) and refreshed the Xcode project to include the dashboard sources.
+    - **Follow-ups:** add learner-level tab engagement analytics and ship a post-grading prompt that nudges learners toward the Assessments tab when results land.
 24. **Phase 24 – Assessment Surface Lifecycle**
     - Hide the Assessment tab once onboarding completes and surface a clear entry point to relaunch onboarding when needed.
     - Preserve developer tooling for forced resets while ensuring learners don’t see dormant assessment UI.
     - Add regression coverage confirming the tab only reappears when onboarding is explicitly restarted.
+    - Introduce a dashboard call-to-action that nudges learners toward the Assessments tab when new grading results arrive.
 25. **Phase 25 – Clipboard & Selection Support**
     - Enable Command+C (and related shortcuts) across chat, lessons, assessment feedback, and widgets so learners can copy text.
     - Audit focus/selection behaviours to ensure accessibility expectations (voiceover, keyboard navigation) remain intact.
@@ -333,32 +335,38 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Schedule periodic reassessments and surface their status alongside historical submissions.
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.
     - Define thresholds for triggering reassessment vs. lightweight check-ins.
-35. **Phase 35 – Developer Code Tooling Enhancements**
-    - Add code-entry affordances (syntax highlighting, editor shortcuts) and evaluate optional lint/run hooks for in-app prompts.
-    - Ensure accessibility preferences (font sizing, colour choices) are respected in the coding surface.
-    - Provide developer-oriented toggles for sandboxed execution once backend support exists.
-36. **Phase 36 – API Reliability & Test Coverage**
+35. **Phase 35 – Code Editor Foundations**
+    - Ship syntax highlighting, inline code formatting, and editor shortcuts inside assessment and lesson surfaces.
+    - Respect accessibility preferences (font sizing, colour themes, reduced motion) across every code-entry context.
+    - Add UI tests that lock in the new editor behaviours and keyboard interactions.
+36. **Phase 36 – Developer Sandbox & Execution Toggles**
+    - Evaluate optional lint/run hooks for in-app prompts and surface clear affordances when sandbox execution is available.
+    - Provide developer-oriented toggles for sandboxed execution, logging verbosity, and failure triage.
+    - Document the security and resource guardrails required before enabling execution in production.
+37. **Phase 37 – API Reliability & Test Coverage**
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).
     - Add contract tests for assessment history payloads, including legacy compatibility verification.
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.
-37. **Phase 37 – Evaluation & Benchmarking Framework**
+38. **Phase 38 – Evaluation & Benchmarking Framework**
     - Validate GPT-graded outcomes against representative human reviews and build a replayable evaluation harness.
     - Curate ground-truth datasets across lesson types and surface scorecards to the team.
     - Track model drift and regression deltas, feeding results into adaptive curriculum decisions.
-38. **Phase 38 – Adaptive Safety & Prompt Hardening**
+39. **Phase 39 – Adaptive Safety & Prompt Hardening**
     - Tune grading and response prompts (language, scoring thresholds, guardrails) using insights from the evaluation framework.
     - Revisit default model/web-search settings, codify safety policies, and document escalation paths for risky content.
     - Align tooling with OpenAI policy updates and ensure guardrail prompts are centrally versioned.
-39. **Phase 39 – QA & Release Readiness**
-    - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
-    - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
-    - Capture release notes and rollback procedures.
 40. **Phase 40 – Agent Observability Dashboards**
     - Build dashboards tracking agent tool usage, grading latency, token consumption, and database telemetry (`db_pool_status`).
     - Connect the dashboards to alerting thresholds so on-call responders receive actionable signals.
-41. **Phase 41 – Agent Configuration & Runbooks**
+    - Feed dashboard metrics back into release readiness reviews and on-call runbooks.
+41. **Phase 41 – QA & Release Readiness**
+    - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
+    - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
+    - Capture release notes, rollback procedures, and sign-off criteria.
+42. **Phase 42 – Agent Configuration & Runbooks**
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.
     - Expand alert routing (web search success, migration duration, telemetry failures) and codify the escalation matrix.
+    - Finalise playbooks for release, rollback, and incident response.
 ## Known Corrections & References
 
 ### SwiftUI overlay sizing and scroll behaviour (added October 12, 2025)
