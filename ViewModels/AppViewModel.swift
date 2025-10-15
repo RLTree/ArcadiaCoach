@@ -53,6 +53,7 @@ final class AppViewModel: ObservableObject {
     @Published var latestQuiz: EndQuiz?
     @Published var latestMilestone: EndMilestone?
     @Published var scheduleRefreshing: Bool = false
+    @Published var loadingScheduleSlice: Bool = false
     @Published var adjustingScheduleItemId: String?
     @Published var learnerTimezone: String?
     @Published var goalInference: GoalInferenceModel?
@@ -94,74 +95,236 @@ final class AppViewModel: ObservableObject {
     }
 
     func refreshCurriculumSchedule(baseURL: String, username: String) async {
+        await requestSchedule(
+            baseURL: baseURL,
+            username: username,
+            refresh: true,
+            startDay: nil,
+            daySpan: nil,
+            pageToken: nil
+        )
+    }
+
+    func loadNextScheduleSlice(baseURL: String, username: String, daySpan: Int? = nil) async {
+        guard let nextStart = curriculumSchedule?.slice?.nextStartDay else { return }
+        await requestSchedule(
+            baseURL: baseURL,
+            username: username,
+            refresh: false,
+            startDay: nil,
+            daySpan: daySpan,
+            pageToken: nextStart
+        )
+    }
+
+    private func requestSchedule(
+        baseURL: String,
+        username: String,
+        refresh: Bool,
+        startDay: Int?,
+        daySpan: Int?,
+        pageToken: Int?
+    ) async {
         guard let trimmedBase = BackendService.trimmed(url: baseURL) else { return }
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUsername.isEmpty else { return }
-        scheduleRefreshing = true
+
+        let mergeSlices = !refresh && ((startDay ?? 0) > 0 || pageToken != nil)
         let startedAt = Date()
-        TelemetryReporter.shared.record(
-            event: "schedule_refresh_started",
-            metadata: [
-                "username": trimmedUsername,
-                "refresh": "true",
-            ]
-        )
-        defer { scheduleRefreshing = false }
+        let startEvent = refresh ? "schedule_refresh_started" : "schedule_slice_started"
+        var startMetadata: [String: String] = [
+            "username": trimmedUsername,
+            "refresh": refresh ? "true" : "false",
+        ]
+        if let startDay { startMetadata["startDay"] = "\(startDay)" }
+        if let daySpan { startMetadata["daySpan"] = "\(daySpan)" }
+        if let pageToken { startMetadata["pageToken"] = "\(pageToken)" }
+
+        if mergeSlices {
+            loadingScheduleSlice = true
+        } else {
+            scheduleRefreshing = true
+        }
+        TelemetryReporter.shared.record(event: startEvent, metadata: startMetadata)
+
+        defer {
+            if mergeSlices {
+                loadingScheduleSlice = false
+            } else {
+                scheduleRefreshing = false
+            }
+        }
+
         do {
             let schedule = try await BackendService.fetchCurriculumSchedule(
                 baseURL: trimmedBase,
                 username: trimmedUsername,
-                refresh: true
+                refresh: refresh,
+                startDay: startDay,
+                daySpan: daySpan,
+                pageToken: pageToken
             )
-            curriculumSchedule = schedule
-            if let timezone = schedule.timezone, !timezone.isEmpty {
+            let merged = mergeSchedules(
+                current: curriculumSchedule,
+                incoming: schedule,
+                merge: mergeSlices && curriculumSchedule != nil
+            )
+            curriculumSchedule = merged
+            if let timezone = merged.timezone, !timezone.isEmpty {
                 learnerTimezone = timezone
             }
             error = nil
             let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
-            var metadata: [String: String] = [
-                "username": trimmedUsername,
-                "durationMs": "\(durationMs)",
-                "itemCount": "\(schedule.items.count)",
-                "isStale": schedule.isStale ? "true" : "false",
-                "warningCount": "\(schedule.warnings.count)",
-            ]
-            if let timezone = schedule.timezone, !timezone.isEmpty {
-                metadata["timezone"] = timezone
-            }
-            if let anchor = schedule.anchorDate {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withFullDate]
-                metadata["anchorDate"] = formatter.string(from: anchor)
-            }
+            let metadata = scheduleTelemetryMetadata(
+                schedule: merged,
+                username: trimmedUsername,
+                durationMs: durationMs,
+                refresh: refresh,
+                startDay: startDay,
+                daySpan: daySpan,
+                pageToken: pageToken,
+                usedCache: false
+            )
             TelemetryReporter.shared.record(
-                event: "schedule_refresh_completed",
+                event: refresh ? "schedule_refresh_completed" : "schedule_slice_completed",
                 metadata: metadata
             )
         } catch let serviceError as BackendServiceError {
-            error = serviceError.localizedDescription
             let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            error = serviceError.localizedDescription
+            var metadata: [String: String] = [
+                "username": trimmedUsername,
+                "durationMs": "\(durationMs)",
+                "error": serviceError.localizedDescription,
+            ]
+            if let startDay { metadata["startDay"] = "\(startDay)" }
+            if let daySpan { metadata["daySpan"] = "\(daySpan)" }
+            if let pageToken { metadata["pageToken"] = "\(pageToken)" }
             TelemetryReporter.shared.record(
-                event: "schedule_refresh_failed",
-                metadata: [
-                    "username": trimmedUsername,
-                    "durationMs": "\(durationMs)",
-                    "error": serviceError.localizedDescription,
-                ]
+                event: refresh ? "schedule_refresh_failed" : "schedule_slice_failed",
+                metadata: metadata
             )
+            if !refresh, let cached = ScheduleSliceCache.shared.load(username: trimmedUsername) {
+                curriculumSchedule = cached
+                if let timezone = cached.timezone, !timezone.isEmpty {
+                    learnerTimezone = timezone
+                }
+                let cacheMetadata = scheduleTelemetryMetadata(
+                    schedule: cached,
+                    username: trimmedUsername,
+                    durationMs: durationMs,
+                    refresh: refresh,
+                    startDay: startDay,
+                    daySpan: daySpan,
+                    pageToken: pageToken,
+                    usedCache: true
+                )
+                TelemetryReporter.shared.record(
+                    event: "schedule_slice_cache_loaded",
+                    metadata: cacheMetadata
+                )
+            }
         } catch {
             let nsError = error as NSError
             self.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
             let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            var metadata: [String: String] = [
+                "username": trimmedUsername,
+                "durationMs": "\(durationMs)",
+                "error": self.error ?? "unknown",
+            ]
+            if let startDay { metadata["startDay"] = "\(startDay)" }
+            if let daySpan { metadata["daySpan"] = "\(daySpan)" }
+            if let pageToken { metadata["pageToken"] = "\(pageToken)" }
             TelemetryReporter.shared.record(
-                event: "schedule_refresh_failed",
-                metadata: [
-                    "username": trimmedUsername,
-                    "durationMs": "\(durationMs)",
-                    "error": self.error ?? "unknown",
-                ]
+                event: refresh ? "schedule_refresh_failed" : "schedule_slice_failed",
+                metadata: metadata
             )
+            if !refresh, let cached = ScheduleSliceCache.shared.load(username: trimmedUsername) {
+                curriculumSchedule = cached
+                if let timezone = cached.timezone, !timezone.isEmpty {
+                    learnerTimezone = timezone
+                }
+                let cacheMetadata = scheduleTelemetryMetadata(
+                    schedule: cached,
+                    username: trimmedUsername,
+                    durationMs: durationMs,
+                    refresh: refresh,
+                    startDay: startDay,
+                    daySpan: daySpan,
+                    pageToken: pageToken,
+                    usedCache: true
+                )
+                TelemetryReporter.shared.record(
+                    event: "schedule_slice_cache_loaded",
+                    metadata: cacheMetadata
+                )
+            }
         }
+    }
+
+    private func mergeSchedules(
+        current: CurriculumSchedule?,
+        incoming: CurriculumSchedule,
+        merge: Bool
+    ) -> CurriculumSchedule {
+        guard merge, let current else { return incoming }
+        var merged = incoming
+        let incomingIds = Set(incoming.items.map { $0.itemId })
+        let retained = current.items.filter { !incomingIds.contains($0.itemId) }
+        merged.items.append(contentsOf: retained)
+        merged.items.sort { lhs, rhs in
+            if lhs.recommendedDayOffset == rhs.recommendedDayOffset {
+                return lhs.recommendedMinutes > rhs.recommendedMinutes
+            }
+            return lhs.recommendedDayOffset < rhs.recommendedDayOffset
+        }
+        merged.isStale = incoming.isStale || current.isStale
+        return merged
+    }
+
+    private func scheduleTelemetryMetadata(
+        schedule: CurriculumSchedule,
+        username: String,
+        durationMs: Int,
+        refresh: Bool,
+        startDay: Int?,
+        daySpan: Int?,
+        pageToken: Int?,
+        usedCache: Bool
+    ) -> [String: String] {
+        var metadata: [String: String] = [
+            "username": username,
+            "durationMs": "\(durationMs)",
+            "itemCount": "\(schedule.items.count)",
+            "isStale": schedule.isStale ? "true" : "false",
+            "warningCount": "\(schedule.warnings.count)",
+            "usedCache": usedCache ? "true" : "false",
+            "refresh": refresh ? "true" : "false",
+        ]
+        if let timezone = schedule.timezone, !timezone.isEmpty {
+            metadata["timezone"] = timezone
+        }
+        if let anchor = schedule.anchorDate {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withFullDate]
+            metadata["anchorDate"] = formatter.string(from: anchor)
+        }
+        if let slice = schedule.slice {
+            metadata["sliceStartDay"] = "\(slice.startDay)"
+            metadata["sliceEndDay"] = "\(slice.endDay)"
+            metadata["sliceDaySpan"] = "\(slice.daySpan)"
+            metadata["sliceHasMore"] = slice.hasMore ? "true" : "false"
+            metadata["sliceTotalItems"] = "\(slice.totalItems)"
+            metadata["sliceTotalDays"] = "\(slice.totalDays)"
+            if let next = slice.nextStartDay {
+                metadata["sliceNextStartDay"] = "\(next)"
+            }
+        }
+        if let startDay { metadata["startDay"] = "\(startDay)" }
+        if let daySpan { metadata["daySpan"] = "\(daySpan)" }
+        if let pageToken { metadata["pageToken"] = "\(pageToken)" }
+        return metadata
     }
 
     func deferScheduleItem(
@@ -604,6 +767,9 @@ final class AppViewModel: ObservableObject {
         eloPlan = snapshot.eloCategoryPlan
         curriculumPlan = snapshot.curriculumPlan
         curriculumSchedule = snapshot.curriculumSchedule
+        if let schedule = snapshot.curriculumSchedule {
+            ScheduleSliceCache.shared.store(schedule: schedule, username: snapshot.username)
+        }
         adjustingScheduleItemId = nil
         onboardingAssessment = snapshot.onboardingAssessment
         assessmentResult = snapshot.onboardingAssessmentResult

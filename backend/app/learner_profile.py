@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .assessment_result import AssessmentGradingResult
+from .cache import schedule_cache
+from .config import get_settings
 from .db.session import session_scope
 
 logger = logging.getLogger(__name__)
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
 DEFAULT_VECTOR_STORE_ID = "vs_68e81d741f388191acdaabce2f92b7d5"
 MAX_MEMORY_RECORDS = 150
 
@@ -169,6 +175,18 @@ class ScheduleRationaleEntry(BaseModel):
     adjustment_notes: List[str] = Field(default_factory=list)
 
 
+class ScheduleSliceMetadata(BaseModel):
+    """Metadata describing a paginated slice of the curriculum schedule."""
+
+    start_day: int = Field(ge=0)
+    end_day: int = Field(ge=0)
+    day_span: int = Field(ge=1)
+    total_items: int = Field(ge=0)
+    total_days: int = Field(ge=0)
+    has_more: bool = False
+    next_start_day: Optional[int] = Field(default=None, ge=0)
+
+
 class CurriculumSchedule(BaseModel):
     """Rolling schedule for upcoming lessons, quizzes, and milestones."""
 
@@ -187,6 +205,82 @@ class CurriculumSchedule(BaseModel):
     long_range_item_count: int = Field(default=0, ge=0)
     extended_weeks: int = Field(default=0, ge=0)
     long_range_category_keys: List[str] = Field(default_factory=list)
+    slice: Optional[ScheduleSliceMetadata] = None
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _normalize_username(value: str) -> str:
+    normalized = value.strip().lower()
+    if not normalized:
+        raise ValueError("Username cannot be empty.")
+    return normalized
+
+
+def _normalise_timezone(raw: Optional[str]) -> Optional[str]:
+    if raw is None:
+        return None
+    trimmed = raw.strip()
+    if not trimmed:
+        return None
+    try:
+        zone = ZoneInfo(trimmed)
+    except ZoneInfoNotFoundError:
+        logger.warning("Ignoring unsupported timezone value: %s", trimmed)
+        return None
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to parse timezone value: %s", trimmed)
+        return None
+    return zone.key
+
+
+def _strip_schedule_slice(schedule: CurriculumSchedule) -> CurriculumSchedule:
+    clone = schedule.model_copy(deep=True)
+    clone.slice = None
+    return clone
+
+
+def slice_schedule(
+    schedule: CurriculumSchedule,
+    start_day: Optional[int] = None,
+    day_span: Optional[int] = None,
+) -> CurriculumSchedule:
+    """Return a copy of the schedule filtered to the requested day window."""
+    if start_day is None and day_span is None:
+        return _strip_schedule_slice(schedule)
+
+    start = max(int(start_day) if start_day is not None else 0, 0)
+    total_days = max(schedule.time_horizon_days, 1)
+    span = max(int(day_span) if day_span is not None else total_days - start, 1)
+    limit = start + span
+
+    clone = schedule.model_copy(deep=True)
+    full_items = sorted(clone.items, key=lambda item: item.recommended_day_offset)
+    filtered: List[SequencedWorkItem] = [
+        item for item in full_items if start <= item.recommended_day_offset < limit
+    ]
+
+    if filtered:
+        end_day = max(item.recommended_day_offset for item in filtered)
+    else:
+        end_day = start
+
+    has_more = any(item.recommended_day_offset >= limit for item in full_items)
+    next_start = limit if has_more else None
+
+    clone.items = filtered
+    clone.slice = ScheduleSliceMetadata(
+        start_day=start,
+        end_day=end_day,
+        day_span=span,
+        total_items=len(full_items),
+        total_days=total_days,
+        has_more=has_more,
+        next_start_day=next_start,
+    )
+    return clone
 
 
 class AssessmentTask(BaseModel):
@@ -242,44 +336,51 @@ class LearnerProfile(BaseModel):
     onboarding_assessment_result: Optional[AssessmentGradingResult] = None
     goal_inference: Optional[GoalParserInference] = None
     foundation_tracks: List[FoundationTrack] = Field(default_factory=list)
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: datetime = Field(default_factory=_now)
 
 
-class LearnerProfileStore:
-    """Database-backed facade that preserves the previous store API."""
+class _DatabaseLearnerProfileStore:
+    """Database-backed persistence layer mirroring the legacy store API."""
+
+    @staticmethod
+    def _clone(profile: LearnerProfile) -> LearnerProfile:
+        copy = profile.model_copy(deep=True)
+        if copy.curriculum_schedule:
+            copy.curriculum_schedule.slice = None
+        return copy
 
     def get(self, username: str) -> Optional[LearnerProfile]:
         with session_scope(commit=False) as session:
             profile = _repo().get(session, username)
-            return profile.model_copy(deep=True) if profile else None
+            return self._clone(profile) if profile else None
 
     def upsert(self, profile: LearnerProfile) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().upsert(session, profile)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def apply_metadata(self, username: str, metadata: Dict[str, Any]) -> LearnerProfile:
         payload = dict(metadata)
-        timezone_value = payload.get("timezone")
-        if isinstance(timezone_value, str):
-            normalized = self._normalise_timezone(timezone_value)
+        tz_value = payload.get("timezone")
+        if isinstance(tz_value, str):
+            normalized = _normalise_timezone(tz_value)
             if normalized:
                 payload["timezone"] = normalized
             else:
                 payload.pop("timezone", None)
         with session_scope() as session:
             stored = _repo().apply_metadata(session, username, payload)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def append_memory(self, username: str, note_id: str, note: str, tags: Iterable[str]) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().append_memory(session, username, note_id, note, tags)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().set_elo_category_plan(session, username, plan)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def set_curriculum_and_assessment(
         self,
@@ -289,12 +390,12 @@ class LearnerProfileStore:
     ) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().set_curriculum_and_assessment(session, username, curriculum, assessment)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def set_goal_inference(self, username: str, inference: GoalParserInference) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().set_goal_inference(session, username, inference)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def set_curriculum_schedule(
         self,
@@ -303,27 +404,28 @@ class LearnerProfileStore:
         *,
         adjustments: Optional[Dict[str, int]] = None,
     ) -> LearnerProfile:
-        resolved_tz = schedule.timezone or self._extract_timezone(username)
-        normalized_tz = self._normalise_timezone(resolved_tz) if resolved_tz else "UTC"
-        schedule.timezone = normalized_tz
+        prepared = schedule.model_copy(deep=True)
+        resolved_tz = prepared.timezone or self._extract_timezone(username)
+        prepared.timezone = _normalise_timezone(resolved_tz) or "UTC"
+        prepared.slice = None
         with session_scope() as session:
             stored = _repo().set_curriculum_schedule(
                 session,
                 username,
-                schedule,
+                prepared,
                 adjustments=adjustments,
             )
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().apply_schedule_adjustment(session, username, item_id, target_offset)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def update_schedule_adjustments(self, username: str, adjustments: Dict[str, int]) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().update_schedule_adjustments(session, username, adjustments)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def apply_assessment_result(
         self,
@@ -333,12 +435,12 @@ class LearnerProfileStore:
     ) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().apply_assessment_result(session, username, result, elo_snapshot)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().update_assessment_status(session, username, status)
-            return stored.model_copy(deep=True)
+            return self._clone(stored)
 
     def delete(self, username: str) -> bool:
         with session_scope() as session:
@@ -348,20 +450,474 @@ class LearnerProfileStore:
         profile = self.get(username)
         return profile.timezone if profile else None
 
+
+class _LegacyLearnerProfileStore:
+    """JSON-backed legacy persistence used for rollback and offline modes."""
+
+    def __init__(self, path: Optional[Path] = None) -> None:
+        self._path = path or DATA_DIR / "learner_profiles.json"
+        self._lock = threading.RLock()
+
     @staticmethod
-    def _normalise_timezone(raw: str) -> Optional[str]:
-        trimmed = raw.strip()
-        if not trimmed:
-            return None
+    def _clone(profile: LearnerProfile) -> LearnerProfile:
+        copy = profile.model_copy(deep=True)
+        if copy.curriculum_schedule:
+            copy.curriculum_schedule.slice = None
+        return copy
+
+    def _load_unlocked(self) -> Dict[str, LearnerProfile]:
+        if not self._path.exists():
+            return {}
+        with self._path.open("r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+        profiles: Dict[str, LearnerProfile] = {}
+        for key, payload in raw.items():
+            try:
+                profiles[key] = LearnerProfile.model_validate(payload)
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to parse legacy learner profile %s", key)
+        return profiles
+
+    def _write_unlocked(self, profiles: Dict[str, LearnerProfile]) -> None:
+        payload = {
+            username: self._prepare_for_storage(profile)
+            for username, profile in profiles.items()
+        }
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+
+    @staticmethod
+    def _prepare_for_storage(profile: LearnerProfile) -> Dict[str, Any]:
+        clone = profile.model_copy(deep=True)
+        clone.username = _normalize_username(clone.username)
+        if clone.curriculum_schedule:
+            clone.curriculum_schedule.slice = None
+        return clone.model_dump(mode="json")
+
+    @staticmethod
+    def _touch(profile: LearnerProfile) -> None:
+        profile.last_updated = _now()
+
+    def _ensure_profile(
+        self,
+        profiles: Dict[str, LearnerProfile],
+        username: str,
+        *,
+        create: bool,
+    ) -> tuple[LearnerProfile, bool]:
+        normalized = _normalize_username(username)
+        profile = profiles.get(normalized)
+        created = False
+        if profile is None:
+            if not create:
+                raise LookupError(f"Learner profile for '{username}' was not found.")
+            profile = LearnerProfile(username=normalized)
+            profiles[normalized] = profile
+            created = True
+        return profile, created
+
+    def get(self, username: str) -> Optional[LearnerProfile]:
+        normalized = _normalize_username(username)
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile = profiles.get(normalized)
+            return self._clone(profile) if profile else None
+
+    def upsert(self, profile: LearnerProfile) -> LearnerProfile:
+        clone = profile.model_copy(deep=True)
+        clone.username = _normalize_username(clone.username)
+        if clone.curriculum_schedule:
+            clone.curriculum_schedule.slice = None
+        with self._lock:
+            profiles = self._load_unlocked()
+            self._touch(clone)
+            profiles[clone.username] = clone
+            self._write_unlocked(profiles)
+        return self._clone(clone)
+
+    def apply_metadata(self, username: str, metadata: Dict[str, Any]) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, created = self._ensure_profile(profiles, username, create=True)
+            updated = created
+
+            def _maybe_update(field: str) -> None:
+                nonlocal updated
+                value = metadata.get(field)
+                if isinstance(value, str):
+                    trimmed = value.strip()
+                    if trimmed and getattr(profile, field) != trimmed:
+                        setattr(profile, field, trimmed)
+                        updated = True
+
+            _maybe_update("goal")
+            _maybe_update("use_case")
+            _maybe_update("strengths")
+
+            tz_value = metadata.get("timezone")
+            if isinstance(tz_value, str):
+                normalized_tz = _normalise_timezone(tz_value)
+                if normalized_tz and profile.timezone != normalized_tz:
+                    profile.timezone = normalized_tz
+                    updated = True
+
+            tags_payload = metadata.get("knowledge_tags")
+            if isinstance(tags_payload, Iterable) and not isinstance(tags_payload, (str, bytes)):
+                combined = {tag.lower(): tag for tag in profile.knowledge_tags}
+                for tag in tags_payload:
+                    if isinstance(tag, str) and tag.strip():
+                        combined[tag.strip().lower()] = tag.strip()
+                new_tags = list(combined.values())
+                if new_tags != profile.knowledge_tags:
+                    profile.knowledge_tags = new_tags
+                    updated = True
+
+            session_id = metadata.get("session_id")
+            if isinstance(session_id, str) and session_id:
+                sessions = list(profile.recent_sessions)
+                if session_id not in sessions:
+                    sessions.append(session_id)
+                    profile.recent_sessions = sessions[-10:]
+                    updated = True
+
+            elo_payload = metadata.get("elo")
+            if isinstance(elo_payload, dict):
+                snapshot = dict(profile.elo_snapshot)
+                mutated = False
+                for key, value in elo_payload.items():
+                    if isinstance(key, str) and isinstance(value, (int, float)):
+                        snapshot[key] = int(value)
+                        mutated = True
+                if mutated:
+                    profile.elo_snapshot = snapshot
+                    updated = True
+
+            if updated:
+                self._touch(profile)
+                self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def append_memory(self, username: str, note_id: str, note: str, tags: Iterable[str]) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=True)
+            record = MemoryRecord(
+                note_id=note_id,
+                note=note,
+                tags=[tag.strip() for tag in tags if tag and tag.strip()],
+                created_at=_now(),
+            )
+            records = list(profile.memory_records)
+            records.append(record)
+            profile.memory_records = records[-MAX_MEMORY_RECORDS:]
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=True)
+            profile.elo_category_plan = plan.model_copy(deep=True)
+            snapshot = dict(profile.elo_snapshot)
+            for category in plan.categories:
+                snapshot.setdefault(category.key, int(category.starting_rating))
+            profile.elo_snapshot = snapshot
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def set_curriculum_and_assessment(
+        self,
+        username: str,
+        curriculum: CurriculumPlan,
+        assessment: OnboardingAssessment,
+    ) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=True)
+            profile.curriculum_plan = curriculum.model_copy(deep=True)
+            profile.onboarding_assessment = assessment.model_copy(deep=True)
+            profile.schedule_adjustments = {}
+            profile.curriculum_schedule = None
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def set_goal_inference(self, username: str, inference: GoalParserInference) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=True)
+            profile.goal_inference = inference.model_copy(deep=True)
+            profile.foundation_tracks = [track.model_copy(deep=True) for track in inference.tracks]
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def set_curriculum_schedule(
+        self,
+        username: str,
+        schedule: CurriculumSchedule,
+        *,
+        adjustments: Optional[Dict[str, int]] = None,
+    ) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            prepared = schedule.model_copy(deep=True)
+            prepared.slice = None
+            if prepared.timezone:
+                profile.timezone = prepared.timezone
+            profile.curriculum_schedule = prepared
+            if adjustments is not None:
+                profile.schedule_adjustments = {
+                    item_id: max(int(offset), 0)
+                    for item_id, offset in adjustments.items()
+                    if isinstance(item_id, str)
+                }
+            else:
+                allowed = {item.item_id for item in prepared.items}
+                profile.schedule_adjustments = {
+                    item_id: offset
+                    for item_id, offset in profile.schedule_adjustments.items()
+                    if item_id in allowed
+                }
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
+        if not item_id:
+            raise ValueError("Schedule item id cannot be empty.")
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            adjustments = dict(profile.schedule_adjustments)
+            adjustments[item_id] = max(int(target_offset), 0)
+            profile.schedule_adjustments = adjustments
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def update_schedule_adjustments(self, username: str, adjustments: Dict[str, int]) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            profile.schedule_adjustments = {
+                item_id: max(int(offset), 0)
+                for item_id, offset in adjustments.items()
+                if isinstance(item_id, str)
+            }
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def apply_assessment_result(
+        self,
+        username: str,
+        result: AssessmentGradingResult,
+        elo_snapshot: Dict[str, int],
+    ) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            profile.onboarding_assessment_result = result.model_copy(deep=True)
+            if profile.onboarding_assessment is not None:
+                assessment = profile.onboarding_assessment.model_copy(deep=True)
+                assessment.status = "completed"
+                profile.onboarding_assessment = assessment
+
+            if elo_snapshot:
+                snapshot = dict(profile.elo_snapshot)
+                for key, value in elo_snapshot.items():
+                    if isinstance(key, str) and isinstance(value, (int, float)):
+                        snapshot[key] = max(int(value), 0)
+                profile.elo_snapshot = snapshot
+
+            if profile.curriculum_plan:
+                curriculum = profile.curriculum_plan.model_copy(deep=True)
+                plan_categories = list(profile.elo_category_plan.categories) if profile.elo_category_plan else []
+                goal_inference = profile.goal_inference.model_copy(deep=True) if profile.goal_inference else None
+                from .curriculum_foundations import ensure_foundational_curriculum
+                augmented_categories, augmented_curriculum = ensure_foundational_curriculum(
+                    goal=profile.goal,
+                    plan=curriculum,
+                    categories=plan_categories,
+                    assessment_result=result,
+                    goal_inference=goal_inference,
+                )
+                if profile.elo_category_plan:
+                    plan = profile.elo_category_plan.model_copy(deep=True)
+                    plan.categories = augmented_categories
+                    profile.elo_category_plan = plan
+                else:
+                    profile.elo_category_plan = EloCategoryPlan(categories=augmented_categories)
+                profile.curriculum_plan = augmented_curriculum
+                snapshot = dict(profile.elo_snapshot)
+                for category in profile.elo_category_plan.categories:
+                    snapshot.setdefault(category.key, int(category.starting_rating))
+                profile.elo_snapshot = snapshot
+
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
+        if status not in {"pending", "in_progress", "completed"}:
+            raise ValueError(f"Unsupported onboarding assessment status: {status}")
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            if profile.onboarding_assessment is None:
+                raise LookupError(f"Assessment for '{username}' has not been generated.")
+            assessment = profile.onboarding_assessment.model_copy(deep=True)
+            assessment.status = status
+            profile.onboarding_assessment = assessment
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def delete(self, username: str) -> bool:
+        normalized = _normalize_username(username)
+        with self._lock:
+            profiles = self._load_unlocked()
+            if normalized not in profiles:
+                return False
+            profiles.pop(normalized, None)
+            self._write_unlocked(profiles)
+        return True
+
+
+class LearnerProfileStore:
+    """Facade that delegates to database or legacy persistence based on configuration."""
+
+    def __init__(self, legacy_path: Path | None = None) -> None:
+        settings = get_settings()
+        self._mode = settings.arcadia_persistence_mode
+        self._db_store = _DatabaseLearnerProfileStore()
+        self._legacy_store = _LegacyLearnerProfileStore(path=legacy_path)
+
+    def _call(self, method: str, *args, **kwargs):
+        if self._mode == "legacy":
+            store = self._legacy_store
+            return getattr(store, method)(*args, **kwargs)
         try:
-            zone = ZoneInfo(trimmed)
-        except ZoneInfoNotFoundError:
-            logger.warning("Ignoring unsupported timezone value: %s", trimmed)
-            return None
-        except Exception:  # noqa: BLE001
-            logger.warning("Failed to parse timezone value: %s", trimmed)
-            return None
-        return zone.key
+            store = self._db_store
+            return getattr(store, method)(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            if self._mode == "hybrid":
+                logger.warning(
+                    "Database persistence error during %s; falling back to legacy store: %s",
+                    method,
+                    exc,
+                )
+                return getattr(self._legacy_store, method)(*args, **kwargs)
+            raise
+
+    def _sync_cache(self, username: str, profile: Optional[LearnerProfile]) -> None:
+        if profile and profile.curriculum_schedule:
+            schedule_cache.set(username, profile.curriculum_schedule)
+        else:
+            schedule_cache.invalidate(username)
+
+    def get(self, username: str) -> Optional[LearnerProfile]:
+        profile = self._call("get", username)
+        self._sync_cache(username, profile)
+        return profile
+
+    def upsert(self, profile: LearnerProfile) -> LearnerProfile:
+        stored = self._call("upsert", profile)
+        self._sync_cache(profile.username, stored)
+        return stored
+
+    def apply_metadata(self, username: str, metadata: Dict[str, Any]) -> LearnerProfile:
+        stored = self._call("apply_metadata", username, metadata)
+        self._sync_cache(username, stored)
+        return stored
+
+    def append_memory(self, username: str, note_id: str, note: str, tags: Iterable[str]) -> LearnerProfile:
+        stored = self._call("append_memory", username, note_id, note, tags)
+        self._sync_cache(username, stored)
+        return stored
+
+    def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
+        stored = self._call("set_elo_category_plan", username, plan)
+        self._sync_cache(username, stored)
+        return stored
+
+    def set_curriculum_and_assessment(
+        self,
+        username: str,
+        curriculum: CurriculumPlan,
+        assessment: OnboardingAssessment,
+    ) -> LearnerProfile:
+        stored = self._call("set_curriculum_and_assessment", username, curriculum, assessment)
+        self._sync_cache(username, stored)
+        return stored
+
+    def set_goal_inference(self, username: str, inference: GoalParserInference) -> LearnerProfile:
+        stored = self._call("set_goal_inference", username, inference)
+        self._sync_cache(username, stored)
+        return stored
+
+    def set_curriculum_schedule(
+        self,
+        username: str,
+        schedule: CurriculumSchedule,
+        *,
+        adjustments: Optional[Dict[str, int]] = None,
+    ) -> LearnerProfile:
+        clone = schedule.model_copy(deep=True)
+        resolved_tz = clone.timezone or self._extract_timezone(username)
+        clone.timezone = _normalise_timezone(resolved_tz) or "UTC"
+        clone.slice = None
+        stored = self._call("set_curriculum_schedule", username, clone, adjustments=adjustments)
+        self._sync_cache(username, stored)
+        return stored
+
+    def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
+        stored = self._call("apply_schedule_adjustment", username, item_id, target_offset)
+        self._sync_cache(username, stored)
+        return stored
+
+    def update_schedule_adjustments(self, username: str, adjustments: Dict[str, int]) -> LearnerProfile:
+        stored = self._call("update_schedule_adjustments", username, adjustments)
+        self._sync_cache(username, stored)
+        return stored
+
+    def apply_assessment_result(
+        self,
+        username: str,
+        result: AssessmentGradingResult,
+        elo_snapshot: Dict[str, int],
+    ) -> LearnerProfile:
+        stored = self._call("apply_assessment_result", username, result, elo_snapshot)
+        self._sync_cache(username, stored)
+        return stored
+
+    def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
+        stored = self._call("update_assessment_status", username, status)
+        self._sync_cache(username, stored)
+        return stored
+
+    def delete(self, username: str) -> bool:
+        deleted = self._call("delete", username)
+        if deleted:
+            schedule_cache.invalidate(username)
+        return deleted
+
+    def _extract_timezone(self, username: str) -> Optional[str]:
+        if self._mode == "legacy":
+            profile = self._legacy_store.get(username)
+        elif self._mode == "hybrid":
+            try:
+                profile = self._db_store.get(username)
+            except Exception:  # noqa: BLE001
+                profile = self._legacy_store.get(username)
+        else:
+            profile = self._db_store.get(username)
+        return profile.timezone if profile else None
 
 
 profile_store = LearnerProfileStore()
@@ -372,12 +928,14 @@ __all__ = [
     "CurriculumModule",
     "CurriculumPlan",
     "CurriculumSchedule",
+    "ScheduleSliceMetadata",
     "ScheduleWarning",
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
     "LearnerProfile",
     "LearnerProfileStore",
+    "slice_schedule",
     "SequencedWorkItem",
     "OnboardingAssessment",
     "MemoryRecord",

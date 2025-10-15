@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     database_pool_size: int = Field(10, alias="ARCADIA_DATABASE_POOL_SIZE")
     database_max_overflow: int = Field(10, alias="ARCADIA_DATABASE_MAX_OVERFLOW")
     database_echo: bool = Field(False, alias="ARCADIA_DATABASE_ECHO")
+    arcadia_persistence_mode: Literal["database", "legacy", "hybrid"] = Field(
+        "database",
+        alias="ARCADIA_PERSISTENCE_MODE",
+    )
 
     class Config:
         env_file = os.getenv("ENV_FILE", ".env")

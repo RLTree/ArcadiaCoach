@@ -82,6 +82,7 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_DATABASE_POOL_SIZE` | Optional SQLAlchemy pool size (defaults to 10). |
 | `ARCADIA_DATABASE_MAX_OVERFLOW` | Optional overflow connection limit (defaults to 10). |
 | `ARCADIA_DATABASE_ECHO` | Set `true` to log SQL statements locally. |
+| `ARCADIA_PERSISTENCE_MODE` | Selects the active persistence backend: `database` (default), `legacy`, or `hybrid` fallback. |
 | `ARCADIA_MCP_URL` | MCP server URL (local dev defaults to `http://127.0.0.1:8001/mcp`) |
 | `ARCADIA_MCP_LABEL` | Label shown in the tool config (default `Arcadia_Coach_Widgets`) |
 | `ARCADIA_MCP_REQUIRE_APPROVAL` | MCP approval strategy (default `never`) |

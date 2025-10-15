@@ -190,6 +190,44 @@ def test_schedule_adjustment_endpoint_updates_schedule() -> None:
     profile_store.delete(username)
 
 
+def test_schedule_slice_query_returns_window() -> None:
+    username = "scheduler-slice"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    client = TestClient(app)
+
+    initial = client.get(f"/api/profile/{username}/schedule", params={"refresh": "true"})
+    assert initial.status_code == 200, initial.text
+    full_response = client.get(f"/api/profile/{username}/schedule")
+    assert full_response.status_code == 200, full_response.text
+    full_payload = full_response.json()
+    total_items = len(full_payload["items"])
+    assert total_items > 0
+
+    start_day = 1
+    day_span = 3
+    sliced = client.get(
+        f"/api/profile/{username}/schedule",
+        params={"start_day": start_day, "day_span": day_span},
+    )
+    assert sliced.status_code == 200, sliced.text
+    payload = sliced.json()
+    assert "slice" in payload, payload
+    slice_meta = payload["slice"]
+
+    assert slice_meta["start_day"] == start_day
+    assert slice_meta["day_span"] == day_span
+    assert slice_meta["total_items"] == total_items
+    assert slice_meta["total_days"] == full_payload["time_horizon_days"]
+    assert "has_more" in slice_meta
+
+    for item in payload["items"]:
+        offset = item["recommended_day_offset"]
+        assert start_day <= offset < start_day + day_span
+
+    profile_store.delete(username)
+
+
 def test_schedule_refresh_fallback_reuses_previous_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
     username = "scheduler-fallback"
     profile_store.delete(username)

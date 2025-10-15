@@ -196,6 +196,16 @@ struct ScheduleRationaleEntry: Codable, Hashable, Identifiable {
 }
 
 struct CurriculumSchedule: Codable, Hashable {
+    struct Slice: Codable, Hashable {
+        var startDay: Int
+        var endDay: Int
+        var daySpan: Int
+        var totalItems: Int
+        var totalDays: Int
+        var hasMore: Bool
+        var nextStartDay: Int?
+    }
+
     var generatedAt: Date
     var timeHorizonDays: Int
     var timezone: String?
@@ -212,6 +222,7 @@ struct CurriculumSchedule: Codable, Hashable {
     var longRangeItemCount: Int = 0
     var extendedWeeks: Int = 0
     var longRangeCategoryKeys: [String] = []
+    var slice: Slice?
 
     struct Group: Hashable, Identifiable {
         var offset: Int

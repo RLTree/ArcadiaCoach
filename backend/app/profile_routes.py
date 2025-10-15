@@ -40,6 +40,7 @@ from .learner_profile import (
     ScheduleWarning,
     FoundationModuleReference,
     FoundationTrack,
+    slice_schedule,
     profile_store,
 )
 from .telemetry import emit_event
@@ -316,7 +317,24 @@ def get_curriculum_schedule(
         default=False,
         description="Set to true to regenerate the schedule using the latest learner signals.",
     ),
+    start_day: Optional[int] = Query(
+        default=None,
+        ge=0,
+        description="Optional day offset to start the returned slice (0 = today).",
+    ),
+    day_span: Optional[int] = Query(
+        default=None,
+        ge=1,
+        le=42,
+        description="Number of days to include in the slice. Defaults to the remaining horizon.",
+    ),
+    page_token: Optional[int] = Query(
+        default=None,
+        ge=0,
+        description="Resume token from a previous schedule slice (next_start_day).",
+    ),
 ) -> CurriculumSchedulePayload:
+    requested_start = page_token if page_token is not None else start_day
     profile = profile_store.get(username)
     if profile is None:
         raise HTTPException(
@@ -375,7 +393,20 @@ def get_curriculum_schedule(
                 regenerated=True,
                 **_schedule_metrics(profile.curriculum_schedule),
             )
-    schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    schedule = profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    sliced_schedule = slice_schedule(schedule, requested_start, day_span)
+    schedule_payload = _schedule_payload(sliced_schedule)
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -492,7 +523,8 @@ def _schedule_metrics(schedule: CurriculumSchedule | None) -> Dict[str, Any]:
         return {}
     total_minutes = sum(item.recommended_minutes for item in schedule.items)
     unique_days = len({item.recommended_day_offset for item in schedule.items})
-    return {
+    slice_meta = getattr(schedule, "slice", None)
+    metrics: Dict[str, Any] = {
         "item_count": len(schedule.items),
         "is_stale": bool(schedule.is_stale),
         "horizon_days": schedule.time_horizon_days,
@@ -505,3 +537,15 @@ def _schedule_metrics(schedule: CurriculumSchedule | None) -> Dict[str, Any]:
         "long_range_weeks": schedule.extended_weeks,
         "user_adjusted_count": sum(1 for item in schedule.items if item.user_adjusted),
     }
+    if slice_meta is not None:
+        metrics.update(
+            {
+                "slice_start_day": slice_meta.start_day,
+                "slice_day_span": slice_meta.day_span,
+                "slice_has_more": slice_meta.has_more,
+                "slice_total_items": slice_meta.total_items,
+            }
+        )
+        if slice_meta.next_start_day is not None:
+            metrics["slice_next_start_day"] = slice_meta.next_start_day
+    return metrics

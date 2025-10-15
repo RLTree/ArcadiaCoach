@@ -142,6 +142,16 @@ class ScheduleRationaleEntryPayload(BaseModel):
     adjustment_notes: List[str] = Field(default_factory=list)
 
 
+class ScheduleSlicePayload(BaseModel):
+    start_day: int
+    end_day: int
+    day_span: int
+    total_items: int
+    total_days: int
+    has_more: bool = False
+    next_start_day: Optional[int] = None
+
+
 class CurriculumSchedulePayload(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     time_horizon_days: int = Field(default=14, ge=1)
@@ -159,6 +169,7 @@ class CurriculumSchedulePayload(BaseModel):
     long_range_item_count: int = Field(default=0, ge=0)
     extended_weeks: int = Field(default=0, ge=0)
     long_range_category_keys: List[str] = Field(default_factory=list)
+    slice: Optional[ScheduleSlicePayload] = None
 
 
 class OnboardingCurriculumPayload(BaseModel):

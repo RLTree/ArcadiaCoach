@@ -53,6 +53,7 @@ let package = Package(
                 "Models/WidgetModels.swift",
                 "Models/AgentModels.swift",
                 "Services/BackendService.swift",
+                "Services/ScheduleSliceCache.swift",
                 "ViewModels/AgentChatViewModel.swift",
             ],
             swiftSettings: [

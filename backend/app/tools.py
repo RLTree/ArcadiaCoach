@@ -46,6 +46,7 @@ from .agent_models import (
     OnboardingCurriculumPayload,
     ScheduleRationaleEntryPayload,
     ScheduleWarningPayload,
+    ScheduleSlicePayload,
     SequencedWorkItemPayload,
     SkillRatingPayload,
 )
@@ -143,6 +144,18 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         )
         for entry in getattr(schedule, "rationale_history", [])
     ]
+    slice_payload: ScheduleSlicePayload | None = None
+    slice_meta = getattr(schedule, "slice", None)
+    if slice_meta is not None:
+        slice_payload = ScheduleSlicePayload(
+            start_day=slice_meta.start_day,
+            end_day=slice_meta.end_day,
+            day_span=slice_meta.day_span,
+            total_items=slice_meta.total_items,
+            total_days=slice_meta.total_days,
+            has_more=slice_meta.has_more,
+            next_start_day=slice_meta.next_start_day,
+        )
     return CurriculumSchedulePayload(
         generated_at=schedule.generated_at,
         time_horizon_days=schedule.time_horizon_days,
@@ -160,6 +173,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         long_range_item_count=getattr(schedule, "long_range_item_count", 0),
         extended_weeks=getattr(schedule, "extended_weeks", 0),
         long_range_category_keys=list(getattr(schedule, "long_range_category_keys", [])),
+        slice=slice_payload,
     )
 
 

@@ -68,7 +68,16 @@ final class BackendServiceTests: XCTestCase {
             "projected_weekly_minutes": 130,
             "long_range_item_count": 6,
             "extended_weeks": 18,
-            "long_range_category_keys": ["backend", "frontend"]
+            "long_range_category_keys": ["backend", "frontend"],
+            "slice": {
+                "start_day": 0,
+                "end_day": 6,
+                "day_span": 7,
+                "total_items": 18,
+                "total_days": 126,
+                "has_more": true,
+                "next_start_day": 7
+            }
         }
         """
         let data = Data(json.utf8)
@@ -88,6 +97,10 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.longRangeItemCount, 6)
         XCTAssertEqual(schedule.extendedWeeks, 18)
         XCTAssertEqual(schedule.longRangeCategoryKeys, ["backend", "frontend"])
+        XCTAssertEqual(schedule.slice?.startDay, 0)
+        XCTAssertEqual(schedule.slice?.daySpan, 7)
+        XCTAssertEqual(schedule.slice?.hasMore, true)
+        XCTAssertEqual(schedule.slice?.nextStartDay, 7)
     }
 
     func testLearnerProfileSnapshotDecodesGoalInference() throws {

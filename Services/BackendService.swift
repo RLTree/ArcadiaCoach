@@ -228,7 +228,14 @@ final class BackendService {
         }
     }
 
-    static func fetchCurriculumSchedule(baseURL: String, username: String, refresh: Bool) async throws -> CurriculumSchedule {
+    static func fetchCurriculumSchedule(
+        baseURL: String,
+        username: String,
+        refresh: Bool,
+        startDay: Int? = nil,
+        daySpan: Int? = nil,
+        pageToken: Int? = nil
+    ) async throws -> CurriculumSchedule {
         guard let trimmedBase = trimmed(url: baseURL) else {
             throw BackendServiceError.missingBackend
         }
@@ -241,8 +248,21 @@ final class BackendService {
         guard var components = URLComponents(string: trimmedBase + "/" + route) else {
             throw BackendServiceError.invalidURL
         }
+        var queryItems: [URLQueryItem] = []
         if refresh {
-            components.queryItems = [URLQueryItem(name: "refresh", value: "true")]
+            queryItems.append(URLQueryItem(name: "refresh", value: "true"))
+        }
+        if let startDay {
+            queryItems.append(URLQueryItem(name: "start_day", value: String(startDay)))
+        }
+        if let daySpan {
+            queryItems.append(URLQueryItem(name: "day_span", value: String(daySpan)))
+        }
+        if let pageToken {
+            queryItems.append(URLQueryItem(name: "page_token", value: String(pageToken)))
+        }
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
         }
         guard let url = components.url else {
             throw BackendServiceError.invalidURL
@@ -264,7 +284,9 @@ final class BackendService {
         }
 
         do {
-            return try decoder.decode(CurriculumSchedule.self, from: data)
+            let schedule = try decoder.decode(CurriculumSchedule.self, from: data)
+            await ScheduleSliceCache.shared.store(schedule: schedule, username: trimmedUsername)
+            return schedule
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)
         }
