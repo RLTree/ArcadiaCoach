@@ -1170,6 +1170,16 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
     duration_ms = (time.perf_counter() - start) * 1000.0
     schedule.is_stale = False
     schedule.warnings.clear()
+    if previous_schedule is not None:
+        previous_lookup = {item.item_id: item for item in previous_schedule.items}
+        for item in schedule.items:
+            prior = previous_lookup.get(item.item_id)
+            if prior is None:
+                continue
+            item.launch_status = getattr(prior, "launch_status", item.launch_status)
+            item.last_launched_at = getattr(prior, "last_launched_at", item.last_launched_at)
+            item.last_completed_at = getattr(prior, "last_completed_at", item.last_completed_at)
+            item.active_session_id = getattr(prior, "active_session_id", item.active_session_id)
     applied_deltas: Dict[str, Tuple[int, int]] = {}
     if adjustments:
         adjusted_items, applied_deltas = sequencer._apply_adjustments(schedule.items, adjustments)

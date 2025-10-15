@@ -2,26 +2,38 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
 from chatkit.types import ThreadMetadata
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-import json
-import logging
 from openai import AuthenticationError, OpenAIError
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import BaseModel, Field, ValidationError, ConfigDict
 
-from .agent_models import EndLearn, EndMilestone, EndQuiz, WidgetEnvelope
+from .agent_models import (
+    CurriculumSchedulePayload,
+    EndLearn,
+    EndMilestone,
+    EndQuiz,
+    ScheduleLaunchContentPayload,
+    ScheduleLaunchResponsePayload,
+    WidgetEnvelope,
+)
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
-from .learner_profile import profile_store
+from .learner_profile import LearnerProfile, SequencedWorkItem, profile_store
 from .memory_store import MemoryStore
 from .prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
+from .telemetry import emit_event
+from .tools import _schedule_payload
 
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -75,6 +87,48 @@ def _reset_state(session_id: Optional[str]) -> None:
         _session_states.pop(session_id, None)
     else:
         _session_states.clear()
+
+
+def _schedule_locked_reason(
+    item: SequencedWorkItem,
+    schedule_items: Sequence[SequencedWorkItem],
+) -> Optional[str]:
+    if item.kind != "milestone" or item.launch_status == "completed":
+        return None
+    incomplete_prereqs = [
+        other
+        for other in schedule_items
+        if other.item_id != item.item_id
+        and other.kind != "milestone"
+        and other.recommended_day_offset <= item.recommended_day_offset
+        and other.launch_status != "completed"
+    ]
+    if incomplete_prereqs:
+        return "Complete earlier lessons and quizzes before unlocking this milestone."
+    return None
+
+
+def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProfile) -> str:
+    lines: List[str] = [
+        f"Deliver the scheduled {item.kind} titled '{item.title}'.",
+        f"Recommended duration: approximately {item.recommended_minutes} minutes.",
+    ]
+    if item.summary:
+        lines.append(f"Summary: {item.summary}")
+    if item.objectives:
+        objective_lines = "\n".join(f"- {objective}" for objective in item.objectives)
+        lines.append(f"Objectives:\n{objective_lines}")
+    if item.expected_outcome:
+        lines.append(f"Expected outcome: {item.expected_outcome}")
+    if item.focus_reason:
+        lines.append(f"Focus reason: {item.focus_reason}")
+    if profile.goal:
+        lines.append(f"Learner goal: {profile.goal}")
+    if profile.strengths:
+        lines.append(f"Learner strengths: {profile.strengths}")
+    if profile.use_case:
+        lines.append(f"Learner use case: {profile.use_case}")
+    return "\n\n".join(lines)
 
 
 async def _run_structured(
@@ -336,6 +390,19 @@ class TopicRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ScheduleLaunchRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    item_id: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
+    force: bool = False
+
+
+class ScheduleCompleteRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    item_id: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
+
+
 class ResetRequest(BaseModel):
     session_id: Optional[str] = None
 
@@ -402,6 +469,256 @@ def _merge_attachments(
             merged.append(cleaned)
             index[key] = cleaned
     return merged
+
+
+@router.post(
+    "/schedule/launch",
+    response_model=ScheduleLaunchResponsePayload,
+    status_code=status.HTTP_200_OK,
+)
+async def launch_schedule_item(
+    payload: ScheduleLaunchRequest,
+    settings: Settings = Depends(get_settings),
+) -> ScheduleLaunchResponsePayload:
+    started_at = perf_counter()
+    username = payload.username.strip()
+    item_id = payload.item_id.strip()
+    if not username or not item_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username and schedule item id are required.",
+        )
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    schedule = profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    item = next((entry for entry in schedule.items if entry.item_id == item_id), None)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule item '{item_id}' was not found.",
+        )
+    locked_reason = _schedule_locked_reason(item, schedule.items)
+    if locked_reason and not payload.force:
+        emit_event(
+            "schedule_launch_initiated",
+            username=username,
+            item_id=item_id,
+            kind=item.kind,
+            status="blocked",
+            reason=locked_reason,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "milestone_locked", "message": locked_reason},
+        )
+    previous_status = item.launch_status
+    session_id = payload.session_id or item.active_session_id or f"{username}-{uuid4().hex[:8]}"
+    now = datetime.now(timezone.utc)
+    try:
+        profile = profile_store.update_schedule_item(
+            username,
+            item_id,
+            status="in_progress",
+            last_launched_at=now,
+            active_session_id=session_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    schedule = profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    item = next((entry for entry in schedule.items if entry.item_id == item_id), item)
+    emit_event(
+        "schedule_launch_initiated",
+        username=username,
+        item_id=item_id,
+        kind=item.kind,
+        status="in_progress",
+        previous_status=previous_status,
+        session_id=session_id,
+    )
+    metadata: Dict[str, Any] = {
+        "username": username,
+        "schedule_item_id": item.item_id,
+        "schedule_kind": item.kind,
+        "schedule_category": item.category_key,
+        "recommended_minutes": str(item.recommended_minutes),
+    }
+    if profile.goal:
+        metadata["goal"] = profile.goal
+    if profile.use_case:
+        metadata["use_case"] = profile.use_case
+    if profile.strengths:
+        metadata["strengths"] = profile.strengths
+    if profile.timezone:
+        metadata["timezone"] = profile.timezone
+    message = _build_schedule_launch_message(item, profile)
+    expecting_map: Dict[str, Type[BaseModel]] = {
+        "lesson": EndLearn,
+        "quiz": EndQuiz,
+        "milestone": EndMilestone,
+    }
+    expected_cls = expecting_map.get(item.kind)
+    if expected_cls is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported schedule item kind '{item.kind}'.",
+        )
+    try:
+        result = await _run_structured(
+            settings,
+            session_id,
+            message,
+            expected_cls,
+            metadata=metadata,
+            augment_with_preferences=True,
+        )
+    except (OpenAIError, AuthenticationError, ValidationError) as exc:
+        profile_store.update_schedule_item(
+            username,
+            item_id,
+            status=previous_status,
+            active_session_id=session_id if previous_status == "in_progress" else None,
+            clear_active_session=previous_status != "in_progress",
+        )
+        emit_event(
+            "schedule_launch_completed",
+            username=username,
+            item_id=item_id,
+            kind=item.kind,
+            status="failed",
+            session_id=session_id,
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to generate the scheduled content. Try again shortly.",
+        ) from exc
+    duration_ms = int((perf_counter() - started_at) * 1000)
+    refreshed_profile = profile_store.get(username)
+    if refreshed_profile is None or refreshed_profile.curriculum_schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    schedule_payload = _schedule_payload(refreshed_profile.curriculum_schedule)
+    if schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    item_payload = next((entry for entry in schedule_payload.items if entry.item_id == item_id), None)
+    if item_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule item '{item_id}' was not found.",
+        )
+    content_kwargs: Dict[str, Any] = {"kind": item.kind, "session_id": session_id}
+    if item.kind == "lesson":
+        content_kwargs["lesson"] = result
+    elif item.kind == "quiz":
+        content_kwargs["quiz"] = result
+    else:
+        content_kwargs["milestone"] = result
+    content_payload = ScheduleLaunchContentPayload(**content_kwargs)
+    emit_event(
+        "schedule_launch_completed",
+        username=username,
+        item_id=item_id,
+        kind=item.kind,
+        status="delivered",
+        session_id=session_id,
+        duration_ms=duration_ms,
+    )
+    return ScheduleLaunchResponsePayload(
+        schedule=schedule_payload,
+        item=item_payload,
+        content=content_payload,
+    )
+
+
+@router.post(
+    "/schedule/complete",
+    response_model=CurriculumSchedulePayload,
+    status_code=status.HTTP_200_OK,
+)
+def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedulePayload:
+    username = payload.username.strip()
+    item_id = payload.item_id.strip()
+    if not username or not item_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username and schedule item id are required.",
+        )
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    schedule = profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    item = next((entry for entry in schedule.items if entry.item_id == item_id), None)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule item '{item_id}' was not found.",
+        )
+    previous_launch = item.last_launched_at
+    previous_status = item.launch_status
+    now = datetime.now(timezone.utc)
+    try:
+        profile = profile_store.update_schedule_item(
+            username,
+            item_id,
+            status="completed",
+            last_completed_at=now,
+            clear_active_session=True,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    if schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    duration_ms: Optional[int] = None
+    if previous_launch is not None:
+        duration_ms = int((now - previous_launch).total_seconds() * 1000)
+    emit_event(
+        "schedule_launch_completed",
+        username=username,
+        item_id=item_id,
+        kind=item.kind,
+        status="completed",
+        session_id=payload.session_id or item.active_session_id,
+        duration_ms=duration_ms,
+        previous_status=previous_status,
+    )
+    return schedule_payload
 
 
 @router.post("/lesson", response_model=EndLearn, status_code=status.HTTP_200_OK)

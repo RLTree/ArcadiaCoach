@@ -118,10 +118,6 @@ struct HomeView: View {
             appVM.recordQuiz(quiz)
             sessionContentExpanded = true
         }
-        .onReceive(session.$milestone.compactMap { $0 }) { milestone in
-            appVM.recordMilestone(milestone)
-            sessionContentExpanded = true
-        }
         .onChange(of: dashboardSection) { newValue in
             settings.dashboardSection = newValue.rawValue
             TelemetryReporter.shared.record(
@@ -374,9 +370,13 @@ struct HomeView: View {
                 isRefreshing: appVM.scheduleRefreshing,
                 isLoadingNextSlice: appVM.loadingScheduleSlice,
                 adjustingItemId: appVM.adjustingScheduleItemId,
+                launchingItemId: appVM.launchingScheduleItemId,
+                completingItemId: appVM.completingScheduleItemId,
                 refreshAction: refreshSchedule,
                 adjustAction: deferSchedule,
-                loadMoreAction: loadMoreSchedule
+                loadMoreAction: loadMoreSchedule,
+                launchAction: { item, force in launchSchedule(item: item, force: force) },
+                completeAction: { item in completeSchedule(item: item) }
             )
             .transition(.opacity)
         case .assessments:
@@ -395,9 +395,6 @@ struct HomeView: View {
                 needsOnboarding: needsOnboarding,
                 sessionContentExpanded: $sessionContentExpanded,
                 onRunOnboarding: { showOnboarding = true },
-                onStartLesson: { await session.loadLesson(backendURL: settings.chatkitBackendURL, topic: "transformers") },
-                onStartQuiz: { await session.loadQuiz(backendURL: settings.chatkitBackendURL, topic: "pytorch") },
-                onStartMilestone: { await session.loadMilestone(backendURL: settings.chatkitBackendURL, topic: "roadmap") },
                 onClearSessionContent: {
                     appVM.clearSessionContent()
                 }
@@ -524,6 +521,82 @@ struct HomeView: View {
                 days: days,
                 reason: "manual_defer_\(days)"
             )
+        }
+    }
+
+    private func launchSchedule(item: SequencedWorkItem, force: Bool) {
+        Task { @MainActor in
+            guard let base = BackendService.trimmed(url: settings.chatkitBackendURL) else {
+                appVM.error = BackendServiceError.missingBackend.localizedDescription
+                return
+            }
+            let username = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !username.isEmpty else {
+                appVM.error = BackendServiceError.invalidURL.localizedDescription
+                return
+            }
+            let action = sessionAction(for: item.kind)
+            session.activeAction = action
+            session.lastError = nil
+            do {
+                let response = try await appVM.launchScheduleItem(
+                    baseURL: base,
+                    username: username,
+                    item: item,
+                    sessionId: session.sessionId,
+                    force: force
+                )
+                session.applyLaunchResponse(response)
+                if response.content.lesson != nil || response.content.quiz != nil || response.content.milestone != nil {
+                    sessionContentExpanded = true
+                }
+            } catch let serviceError as BackendServiceError {
+                appVM.error = serviceError.localizedDescription
+            } catch {
+                let nsError = error as NSError
+                appVM.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            }
+            session.activeAction = nil
+        }
+    }
+
+    private func completeSchedule(item: SequencedWorkItem) {
+        Task { @MainActor in
+            guard let base = BackendService.trimmed(url: settings.chatkitBackendURL) else {
+                appVM.error = BackendServiceError.missingBackend.localizedDescription
+                return
+            }
+            let username = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !username.isEmpty else {
+                appVM.error = BackendServiceError.invalidURL.localizedDescription
+                return
+            }
+            session.lastError = nil
+            do {
+                try await appVM.completeScheduleItem(
+                    baseURL: base,
+                    username: username,
+                    item: item,
+                    sessionId: session.sessionId
+                )
+                session.lastEventDescription = "Marked \"\(item.title)\" complete."
+            } catch let serviceError as BackendServiceError {
+                appVM.error = serviceError.localizedDescription
+            } catch {
+                let nsError = error as NSError
+                appVM.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            }
+        }
+    }
+
+    private func sessionAction(for kind: SequencedWorkItem.Kind) -> SessionAction {
+        switch kind {
+        case .lesson:
+            return .lesson
+        case .quiz:
+            return .quiz
+        case .milestone:
+            return .milestone
         }
     }
 

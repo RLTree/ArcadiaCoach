@@ -316,6 +316,23 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         }
     }
 
+    enum LaunchStatus: String, Codable, Hashable {
+        case pending
+        case inProgress = "in_progress"
+        case completed
+
+        var label: String {
+            switch self {
+            case .pending:
+                return "Not started"
+            case .inProgress:
+                return "In progress"
+            case .completed:
+                return "Completed"
+            }
+        }
+    }
+
     var itemId: String
     var kind: Kind
     var categoryKey: String
@@ -330,6 +347,11 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var expectedOutcome: String?
     var userAdjusted: Bool = false
     var scheduledFor: Date?
+    var launchStatus: LaunchStatus = .pending
+    var lastLaunchedAt: Date?
+    var lastCompletedAt: Date?
+    var activeSessionId: String?
+    var launchLockedReason: String?
 
     var id: String { itemId }
 

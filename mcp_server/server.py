@@ -5,7 +5,7 @@ import re
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -17,7 +17,7 @@ from mcp.server.streamable_http import StreamableHTTPServerTransport
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from starlette.types import Message, Scope, Receive, Send
+from starlette.types import Message, Scope
 
 
 class JSONFormatter(logging.Formatter):

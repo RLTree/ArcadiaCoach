@@ -142,6 +142,10 @@ class SequencedWorkItem(BaseModel):
     expected_outcome: Optional[str] = None
     effort_level: Literal["light", "moderate", "focus"] = "moderate"
     user_adjusted: bool = Field(default=False)
+    launch_status: Literal["pending", "in_progress", "completed"] = "pending"
+    last_launched_at: Optional[datetime] = None
+    last_completed_at: Optional[datetime] = None
+    active_session_id: Optional[str] = None
 
 
 class ScheduleWarning(BaseModel):
@@ -417,6 +421,30 @@ class _DatabaseLearnerProfileStore:
             )
             return self._clone(stored)
 
+    def update_schedule_item(
+        self,
+        username: str,
+        item_id: str,
+        *,
+        status: Optional[str] = None,
+        last_launched_at: Optional[datetime] = None,
+        last_completed_at: Optional[datetime] = None,
+        active_session_id: Optional[str] = None,
+        clear_active_session: bool = False,
+    ) -> LearnerProfile:
+        with session_scope() as session:
+            stored = _repo().update_schedule_item(
+                session,
+                username,
+                item_id,
+                status=status,
+                last_launched_at=last_launched_at,
+                last_completed_at=last_completed_at,
+                active_session_id=active_session_id,
+                clear_active_session=clear_active_session,
+            )
+            return self._clone(stored)
+
     def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().apply_schedule_adjustment(session, username, item_id, target_offset)
@@ -611,6 +639,40 @@ class _LegacyLearnerProfileStore:
             records = list(profile.memory_records)
             records.append(record)
             profile.memory_records = records[-MAX_MEMORY_RECORDS:]
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def update_schedule_item(
+        self,
+        username: str,
+        item_id: str,
+        *,
+        status: Optional[str] = None,
+        last_launched_at: Optional[datetime] = None,
+        last_completed_at: Optional[datetime] = None,
+        active_session_id: Optional[str] = None,
+        clear_active_session: bool = False,
+    ) -> LearnerProfile:
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=False)
+            schedule = profile.curriculum_schedule
+            if schedule is None:
+                raise LookupError(f"No curriculum schedule configured for '{username}'.")
+            matching = next((item for item in schedule.items if item.item_id == item_id), None)
+            if matching is None:
+                raise LookupError(f"Schedule item '{item_id}' not found for '{username}'.")
+            if status:
+                matching.launch_status = status
+            if last_launched_at is not None:
+                matching.last_launched_at = last_launched_at
+            if last_completed_at is not None:
+                matching.last_completed_at = last_completed_at
+            if clear_active_session:
+                matching.active_session_id = None
+            elif active_session_id is not None:
+                matching.active_session_id = active_session_id
             self._touch(profile)
             self._write_unlocked(profiles)
             return self._clone(profile)
@@ -1048,6 +1110,30 @@ class LearnerProfileStore:
         clone.timezone = _normalise_timezone(resolved_tz) or "UTC"
         clone.slice = None
         stored = self._call("set_curriculum_schedule", username, clone, adjustments=adjustments)
+        self._sync_cache(username, stored)
+        return stored
+
+    def update_schedule_item(
+        self,
+        username: str,
+        item_id: str,
+        *,
+        status: Optional[str] = None,
+        last_launched_at: Optional[datetime] = None,
+        last_completed_at: Optional[datetime] = None,
+        active_session_id: Optional[str] = None,
+        clear_active_session: bool = False,
+    ) -> LearnerProfile:
+        stored = self._call(
+            "update_schedule_item",
+            username,
+            item_id,
+            status=status,
+            last_launched_at=last_launched_at,
+            last_completed_at=last_completed_at,
+            active_session_id=active_session_id,
+            clear_active_session=clear_active_session,
+        )
         self._sync_cache(username, stored)
         return stored
 

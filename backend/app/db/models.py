@@ -134,6 +134,10 @@ class CurriculumScheduleItemModel(Base):
     expected_outcome: Mapped[str | None] = mapped_column(Text)
     effort_level: Mapped[str] = mapped_column(String(16), nullable=False)
     user_adjusted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    last_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    active_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 

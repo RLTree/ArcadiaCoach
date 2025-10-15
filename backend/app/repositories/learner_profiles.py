@@ -255,6 +255,56 @@ class LearnerProfileRepository:
         self._record_audit(session, model.id, "curriculum_schedule_set", {"item_count": len(schedule.items)})
         return self._to_domain(session, model)
 
+    def update_schedule_item(
+        self,
+        session: Session,
+        username: str,
+        item_id: str,
+        *,
+        status: Optional[str] = None,
+        last_launched_at: Optional[datetime] = None,
+        last_completed_at: Optional[datetime] = None,
+        active_session_id: Optional[str] = None,
+        clear_active_session: bool = False,
+    ) -> LearnerProfile:
+        model = self._require_model(session, username)
+        schedule_model = self._get_schedule_model(session, model.id)
+        if schedule_model is None:
+            raise LookupError(f"No curriculum schedule configured for '{username}'.")
+        stmt = (
+            select(CurriculumScheduleItemModel)
+            .where(
+                CurriculumScheduleItemModel.schedule_id == schedule_model.id,
+                CurriculumScheduleItemModel.item_id == item_id,
+            )
+        )
+        record = session.execute(stmt).scalar_one_or_none()
+        if record is None:
+            raise LookupError(f"Schedule item '{item_id}' not found for '{username}'.")
+        if status:
+            record.status = status
+        if last_launched_at is not None:
+            record.last_started_at = last_launched_at
+        if last_completed_at is not None:
+            record.last_completed_at = last_completed_at
+        if clear_active_session:
+            record.active_session_id = None
+        elif active_session_id is not None:
+            record.active_session_id = active_session_id
+        session.flush()
+        model.last_updated = datetime.now(timezone.utc)
+        self._record_audit(
+            session,
+            model.id,
+            "curriculum_schedule_item_update",
+            {
+                "item_id": item_id,
+                "status": status,
+                "clear_active_session": clear_active_session,
+            },
+        )
+        return self._to_domain(session, model)
+
     def apply_schedule_adjustment(self, session: Session, username: str, item_id: str, target_offset: int) -> LearnerProfile:
         model = self._require_model(session, username)
         if not item_id:
@@ -525,6 +575,10 @@ class LearnerProfileRepository:
                     "expected_outcome": item.expected_outcome,
                     "effort_level": item.effort_level,
                     "user_adjusted": item.user_adjusted,
+                    "launch_status": item.status,
+                    "last_launched_at": item.last_started_at,
+                    "last_completed_at": item.last_completed_at,
+                    "active_session_id": item.active_session_id,
                 }
                 for item in items
             ],
@@ -571,6 +625,10 @@ class LearnerProfileRepository:
                     expected_outcome=work_item.expected_outcome,
                     effort_level=work_item.effort_level,
                     user_adjusted=work_item.user_adjusted,
+                    status=getattr(work_item, "launch_status", "pending"),
+                    last_started_at=getattr(work_item, "last_launched_at", None),
+                    last_completed_at=getattr(work_item, "last_completed_at", None),
+                    active_session_id=getattr(work_item, "active_session_id", None),
                 )
             )
 

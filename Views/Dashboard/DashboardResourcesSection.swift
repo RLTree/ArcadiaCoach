@@ -8,9 +8,6 @@ struct DashboardResourcesSection: View {
     let needsOnboarding: Bool
     @Binding var sessionContentExpanded: Bool
     let onRunOnboarding: () -> Void
-    let onStartLesson: () async -> Void
-    let onStartQuiz: () async -> Void
-    let onStartMilestone: () async -> Void
     let onClearSessionContent: () -> Void
     private let clipboard: ClipboardManaging = AppClipboardManager.shared
 
@@ -32,54 +29,9 @@ struct DashboardResourcesSection: View {
         }
     }
 
-    private var disabledSessionActions: Bool {
-        needsOnboarding || session.activeAction != nil || appVM.requiresAssessment
-    }
-
     @ViewBuilder
     private var sessionControls: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                GlassButton(
-                    title: "Start Lesson",
-                    systemName: "book.fill",
-                    isBusy: session.activeAction == .lesson,
-                    isDisabled: disabledSessionActions
-                ) {
-                    logSessionAction("lesson")
-                    Task { await onStartLesson() }
-                }
-                GlassButton(
-                    title: "Start Quiz",
-                    systemName: "gamecontroller.fill",
-                    isBusy: session.activeAction == .quiz,
-                    isDisabled: disabledSessionActions
-                ) {
-                    logSessionAction("quiz")
-                    Task { await onStartQuiz() }
-                }
-                GlassButton(
-                    title: "Milestone",
-                    systemName: "flag.checkered",
-                    isBusy: session.activeAction == .milestone,
-                    isDisabled: disabledSessionActions
-                ) {
-                    logSessionAction("milestone")
-                    Task { await onStartMilestone() }
-                }
-                if settings.minimalMode {
-                    GlassButton(title: "Focus", systemName: "timer") {
-                        logSessionAction("focus_timer")
-                        NotificationCenter.default.post(name: .resetFocusTimer, object: nil)
-                    }
-                }
-            }
-            .disabled(
-                settings.chatkitBackendURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
-            .accessibilityElement(children: .contain)
-
             if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
                 Text(lastEvent)
                     .font(.footnote)
@@ -99,6 +51,18 @@ struct DashboardResourcesSection: View {
                     Label("Finish onboarding to enable sessions", systemImage: "exclamationmark.circle")
                 }
                 .buttonStyle(.bordered)
+            }
+            Text("Launch lessons, quizzes, and milestones directly from your curriculum schedule.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .selectableContent()
+            if settings.minimalMode {
+                GlassButton(title: "Focus Timer", systemName: "timer") {
+                    logSessionAction("focus_timer")
+                    NotificationCenter.default.post(name: .resetFocusTimer, object: nil)
+                }
+                .disabled(session.activeAction != nil)
             }
         }
     }

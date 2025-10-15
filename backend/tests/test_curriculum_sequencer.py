@@ -27,6 +27,7 @@ from app.learner_profile import (
     FoundationTrack,
 )
 from app.profile_routes import _serialize_profile
+from app.tools import _schedule_payload
 
 
 def _category(key: str, label: str, weight: float) -> EloCategoryDefinition:
@@ -310,6 +311,45 @@ def test_sequencer_adds_deep_dive_for_high_priority_track() -> None:
     assert deep_dive.recommended_minutes >= reinforcement.recommended_minutes
 
 
+def test_schedule_payload_marks_milestone_locked() -> None:
+    schedule = CurriculumSchedule(
+        items=[
+            SequencedWorkItem(
+                item_id="lesson-foundations",
+                category_key="backend",
+                kind="lesson",
+                title="Backend Foundations",
+                objectives=[],
+                prerequisites=[],
+                recommended_minutes=60,
+                recommended_day_offset=0,
+                effort_level="moderate",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
+                item_id="milestone-backend",
+                category_key="backend",
+                kind="milestone",
+                title="Backend Milestone",
+                objectives=[],
+                prerequisites=["lesson-foundations"],
+                recommended_minutes=120,
+                recommended_day_offset=1,
+                effort_level="focus",
+                launch_status="pending",
+            ),
+        ]
+    )
+    payload = _schedule_payload(schedule)
+    assert payload is not None
+    assert payload.items[1].launch_locked_reason is not None
+
+    schedule.items[0].launch_status = "completed"
+    payload_after = _schedule_payload(schedule)
+    assert payload_after is not None
+    assert payload_after.items[1].launch_locked_reason is None
+
+
 def test_profile_serialization_includes_schedule_payload() -> None:
     schedule = CurriculumSchedule(
         items=[
@@ -397,6 +437,8 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule.long_range_item_count == 2
     assert payload.curriculum_schedule.extended_weeks == 24
     assert payload.curriculum_schedule.long_range_category_keys == ["backend"]
+    assert payload.curriculum_schedule.items[0].launch_status == "pending"
+    assert payload.curriculum_schedule.items[0].last_launched_at is None
 
 
 def test_sequencer_near_term_mix_spans_categories() -> None:

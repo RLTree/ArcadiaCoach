@@ -115,6 +115,11 @@ class SequencedWorkItemPayload(BaseModel):
     expected_outcome: Optional[str] = None
     user_adjusted: bool = False
     scheduled_for: Optional[datetime] = None
+    launch_status: Literal["pending", "in_progress", "completed"] = "pending"
+    last_launched_at: Optional[datetime] = None
+    last_completed_at: Optional[datetime] = None
+    active_session_id: Optional[str] = None
+    launch_locked_reason: Optional[str] = None
 
 
 class ScheduleWarningPayload(BaseModel):
@@ -158,9 +163,9 @@ class CurriculumSchedulePayload(BaseModel):
     timezone: Optional[str] = None
     anchor_date: Optional[date] = None
     cadence_notes: Optional[str] = None
-    items: List[SequencedWorkItemPayload] = Field(default_factory=list)
     is_stale: bool = False
     warnings: List[ScheduleWarningPayload] = Field(default_factory=list)
+    items: List[SequencedWorkItemPayload] = Field(default_factory=list)
     pacing_overview: Optional[str] = None
     category_allocations: List[CategoryPacingPayload] = Field(default_factory=list)
     rationale_history: List[ScheduleRationaleEntryPayload] = Field(default_factory=list)
@@ -170,6 +175,20 @@ class CurriculumSchedulePayload(BaseModel):
     extended_weeks: int = Field(default=0, ge=0)
     long_range_category_keys: List[str] = Field(default_factory=list)
     slice: Optional[ScheduleSlicePayload] = None
+
+
+class ScheduleLaunchContentPayload(BaseModel):
+    kind: Literal["lesson", "quiz", "milestone"]
+    session_id: str
+    lesson: Optional[EndLearn] = None
+    quiz: Optional[EndQuiz] = None
+    milestone: Optional[EndMilestone] = None
+
+
+class ScheduleLaunchResponsePayload(BaseModel):
+    schedule: CurriculumSchedulePayload
+    item: SequencedWorkItemPayload
+    content: ScheduleLaunchContentPayload
 
 
 class OnboardingCurriculumPayload(BaseModel):

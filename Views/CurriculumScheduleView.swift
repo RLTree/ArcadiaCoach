@@ -6,9 +6,13 @@ struct CurriculumScheduleView: View {
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
+    let launchingItemId: String?
+    let completingItemId: String?
     let refreshAction: () -> Void
     let adjustAction: (SequencedWorkItem, Int) -> Void
     let loadMoreAction: () -> Void
+    let launchAction: (SequencedWorkItem, Bool) -> Void
+    let completeAction: (SequencedWorkItem) -> Void
 
     private var scheduleTimeZone: TimeZone? {
         guard let identifier = schedule.timezone else { return nil }
@@ -427,6 +431,19 @@ struct CurriculumScheduleView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            HStack(alignment: .center, spacing: 12) {
+                statusBadge(for: item)
+                Spacer()
+                launchButton(for: item)
+                if item.launchStatus == .inProgress {
+                    completeButton(for: item)
+                }
+            }
+            if let locked = item.launchLockedReason, item.launchStatus != .completed {
+                Label(locked, systemImage: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -487,7 +504,105 @@ struct CurriculumScheduleView: View {
     }
 
     private func rowBackground(for item: SequencedWorkItem) -> Color {
-        item.userAdjusted ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04)
+        switch item.launchStatus {
+        case .completed:
+            return Color.green.opacity(0.12)
+        case .inProgress:
+            return Color.blue.opacity(0.10)
+        case .pending:
+            return item.userAdjusted ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04)
+        }
+    }
+
+    @ViewBuilder
+    private func statusBadge(for item: SequencedWorkItem) -> some View {
+        let color = statusColor(for: item.launchStatus)
+        Label(item.launchStatus.label, systemImage: statusIcon(for: item.launchStatus))
+            .font(.caption.bold())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(color.opacity(0.15), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    @ViewBuilder
+    private func launchButton(for item: SequencedWorkItem) -> some View {
+        Button {
+            launchAction(item, false)
+        } label: {
+            if launchingItemId == item.itemId {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Label(launchButtonTitle(for: item), systemImage: launchButtonIcon(for: item))
+                    .font(.callout.bold())
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(isRefreshing || launchingItemId == item.itemId)
+        .accessibilityLabel("\(launchButtonTitle(for: item)) \(item.title)")
+    }
+
+    @ViewBuilder
+    private func completeButton(for item: SequencedWorkItem) -> some View {
+        Button {
+            completeAction(item)
+        } label: {
+            if completingItemId == item.itemId {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Label("Mark complete", systemImage: "checkmark.circle")
+                    .font(.callout)
+            }
+        }
+        .buttonStyle(.bordered)
+        .disabled(isRefreshing || completingItemId == item.itemId)
+        .accessibilityLabel("Mark \(item.title) as complete")
+    }
+
+    private func launchButtonTitle(for item: SequencedWorkItem) -> String {
+        switch item.launchStatus {
+        case .pending:
+            return item.kind == .milestone ? "Start milestone" : "Start"
+        case .inProgress:
+            return "Resume"
+        case .completed:
+            return "Revisit"
+        }
+    }
+
+    private func launchButtonIcon(for item: SequencedWorkItem) -> String {
+        switch item.launchStatus {
+        case .pending:
+            return "play.fill"
+        case .inProgress:
+            return "arrow.triangle.2.circlepath"
+        case .completed:
+            return "arrow.clockwise"
+        }
+    }
+
+    private func statusColor(for status: SequencedWorkItem.LaunchStatus) -> Color {
+        switch status {
+        case .pending:
+            return .secondary
+        case .inProgress:
+            return .blue
+        case .completed:
+            return .green
+        }
+    }
+
+    private func statusIcon(for status: SequencedWorkItem.LaunchStatus) -> String {
+        switch status {
+        case .pending:
+            return "circle.dotted"
+        case .inProgress:
+            return "bolt.circle"
+        case .completed:
+            return "checkmark.circle.fill"
+        }
     }
 
     private func effortColor(for level: SequencedWorkItem.EffortLevel) -> Color {

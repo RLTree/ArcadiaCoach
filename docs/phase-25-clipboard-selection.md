@@ -14,6 +14,7 @@
 - Updated chat experiences (`ArcadiaChatbotView`, `ChatPanel`) with selectable bubbles, metadata badges, transcript previews, and copy context menus for messages, attachments, and transcript summaries.
 - Enabled selection and copy affordances for lesson content and widget components (`WidgetCardView`, `WidgetListView`, `WidgetStatRowView`, cited text blocks, MCP chatbot widgets).
 - Expanded assessment detail surfaces with selectable text, per-section context menus, and shared clipboard usage for attachments, feedback summaries, category impacts, and task drilldowns.
+- Resolved the AttributeGraph recursion loop by scoping selection modifiers to leaf views and centralising clipboard access through `AppClipboardManager`.
 
 ## Testing
 - `swift test`
@@ -21,5 +22,6 @@
 - Manual verification of Command+C/Ctrl+C and context menu copy actions across chat transcripts, lesson decks, widget cards, and assessment drilldowns.
 
 ## Follow-ups
-- Extend clipboard/context menu coverage to future milestone briefs (Phase 26) and lesson deck components (Phase 28) once those surfaces ship.
-- Monitor feedback for additional copy targets (e.g., schedule tiles) and add telemetry hooks if user demand warrants tracking copy usage.
+- Extend clipboard/context menu coverage to future milestone briefs (Phase 27) and lesson deck components (Phase 29) once those surfaces ship.
+- Monitor schedule-driven launches (Phase 26) for additional copy targets (e.g., schedule cards, launch confirmations) and add telemetry hooks if learners signal friction.
+- Continue listening for feedback on other high-friction surfaces and expand context menus where learners need quicker exports.

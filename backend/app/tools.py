@@ -103,9 +103,30 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
     for warning in getattr(schedule, "warnings", [])
     ]
     items: List[SequencedWorkItemPayload] = []
+
+    def _locked_reason(target: Any, all_items: List[Any]) -> Optional[str]:
+        kind = getattr(target, "kind", None)
+        status = getattr(target, "launch_status", "pending")
+        if kind != "milestone":
+            return None
+        incomplete = [
+            other
+            for other in all_items
+            if getattr(other, "item_id", None) != getattr(target, "item_id", None)
+            and getattr(other, "recommended_day_offset", 0) <= getattr(target, "recommended_day_offset", 0)
+            and getattr(other, "kind", None) != "milestone"
+            and getattr(other, "launch_status", "pending") != "completed"
+        ]
+        if status == "completed":
+            return None
+        if incomplete:
+            return "Complete earlier lessons and quizzes before unlocking this milestone."
+        return None
+
     for item in schedule.items:
         local_date = anchor_date + timedelta(days=item.recommended_day_offset)
         scheduled_for = datetime.combine(local_date, time.min, tzinfo=tz)
+        locked_reason = _locked_reason(item, schedule.items)
         items.append(
             SequencedWorkItemPayload(
                 item_id=item.item_id,
@@ -122,6 +143,11 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 expected_outcome=item.expected_outcome,
                 user_adjusted=getattr(item, "user_adjusted", False),
                 scheduled_for=scheduled_for,
+                launch_status=getattr(item, "launch_status", "pending"),
+                last_launched_at=getattr(item, "last_launched_at", None),
+                last_completed_at=getattr(item, "last_completed_at", None),
+                active_session_id=getattr(item, "active_session_id", None),
+                launch_locked_reason=locked_reason,
             )
         )
     allocations = [

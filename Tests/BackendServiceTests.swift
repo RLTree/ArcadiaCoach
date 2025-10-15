@@ -58,6 +58,80 @@ final class BackendServiceTests: XCTestCase {
         }
     }
     """
+    private let sampleLaunchJSON = """
+    {
+        "schedule": {
+            "generated_at": "2025-10-15T12:00:00Z",
+            "time_horizon_days": 7,
+            "timezone": "UTC",
+            "items": [
+                {
+                    "item_id": "lesson-intro",
+                    "kind": "lesson",
+                    "category_key": "backend",
+                    "title": "Intro Lesson",
+                    "summary": "Kick-off workshop.",
+                    "objectives": [],
+                    "prerequisites": [],
+                    "recommended_minutes": 45,
+                    "recommended_day_offset": 0,
+                    "effort_level": "moderate",
+                    "focus_reason": null,
+                    "expected_outcome": null,
+                    "user_adjusted": false,
+                    "scheduled_for": "2025-10-15T00:00:00Z",
+                    "launch_status": "in_progress",
+                    "last_launched_at": "2025-10-15T12:05:00Z",
+                    "last_completed_at": null,
+                    "active_session_id": "session-123",
+                    "launch_locked_reason": null
+                }
+            ],
+            "category_allocations": [],
+            "rationale_history": [],
+            "is_stale": false,
+            "warnings": [],
+            "sessions_per_week": 3,
+            "projected_weekly_minutes": 120,
+            "long_range_item_count": 2,
+            "extended_weeks": 4,
+            "long_range_category_keys": []
+        },
+        "item": {
+            "item_id": "lesson-intro",
+            "kind": "lesson",
+            "category_key": "backend",
+            "title": "Intro Lesson",
+            "summary": "Kick-off workshop.",
+            "objectives": [],
+            "prerequisites": [],
+            "recommended_minutes": 45,
+            "recommended_day_offset": 0,
+            "effort_level": "moderate",
+            "focus_reason": null,
+            "expected_outcome": null,
+            "user_adjusted": false,
+            "scheduled_for": "2025-10-15T00:00:00Z",
+            "launch_status": "in_progress",
+            "last_launched_at": "2025-10-15T12:05:00Z",
+            "last_completed_at": null,
+            "active_session_id": "session-123",
+            "launch_locked_reason": null
+        },
+        "content": {
+            "kind": "lesson",
+            "session_id": "session-123",
+            "lesson": {
+                "intent": "learn",
+                "display": "Intro Lesson",
+                "widgets": [],
+                "citations": []
+            },
+            "quiz": null,
+            "milestone": null
+        }
+    }
+    """
     func testEndpointBuildsAPIPath() {
         let url = BackendService.endpoint(baseURL: "https://example.com", path: "api/session/lesson")
         XCTAssertEqual(url?.absoluteString, "https://example.com/api/session/lesson")
@@ -101,6 +175,20 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.slice?.daySpan, 7)
         XCTAssertEqual(schedule.slice?.hasMore, true)
         XCTAssertEqual(schedule.slice?.nextStartDay, 7)
+    }
+
+    func testScheduleLaunchResponseDecodes() throws {
+        let data = Data(sampleLaunchJSON.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode(BackendService.ScheduleLaunchResponse.self, from: data)
+
+        XCTAssertEqual(response.item.launchStatus, .inProgress)
+        XCTAssertEqual(response.content.kind, "lesson")
+        XCTAssertEqual(response.content.sessionId, "session-123")
+        XCTAssertNotNil(response.content.lesson)
+        XCTAssertEqual(response.schedule.items.first?.activeSessionId, "session-123")
     }
 
     func testLearnerProfileSnapshotDecodesGoalInference() throws {

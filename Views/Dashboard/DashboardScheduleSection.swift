@@ -6,10 +6,15 @@ struct DashboardScheduleSection: View {
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
+    let launchingItemId: String?
+    let completingItemId: String?
     let refreshAction: () -> Void
     let adjustAction: (SequencedWorkItem, Int) -> Void
     let loadMoreAction: () -> Void
+    let launchAction: (SequencedWorkItem, Bool) -> Void
+    let completeAction: (SequencedWorkItem) -> Void
     private let clipboard: ClipboardManaging = AppClipboardManager.shared
+    @State private var pendingLockedItem: SequencedWorkItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -20,9 +25,13 @@ struct DashboardScheduleSection: View {
                     isRefreshing: isRefreshing,
                     isLoadingNextSlice: isLoadingNextSlice,
                     adjustingItemId: adjustingItemId,
+                    launchingItemId: launchingItemId,
+                    completingItemId: completingItemId,
                     refreshAction: refreshAction,
                     adjustAction: adjustAction,
-                    loadMoreAction: loadMoreAction
+                    loadMoreAction: loadMoreAction,
+                    launchAction: requestLaunch,
+                    completeAction: completeAction
                 )
                 .transition(.opacity)
             } else {
@@ -59,6 +68,28 @@ struct DashboardScheduleSection: View {
                 clipboard.copy(scheduleSummary())
             }
         }
+        .confirmationDialog(
+            pendingLockedItem?.launchLockedReason ?? "Unlock milestone?",
+            isPresented: .init(
+                get: { pendingLockedItem != nil },
+                set: { value in if !value { pendingLockedItem = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let item = pendingLockedItem {
+                Button("Launch milestone anyway") {
+                    launchAction(item, true)
+                    pendingLockedItem = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingLockedItem = nil
+            }
+        } message: {
+            if let message = pendingLockedItem?.launchLockedReason {
+                Text(message)
+            }
+        }
     }
 
     private func scheduleSummary() -> String {
@@ -89,5 +120,13 @@ struct DashboardScheduleSection: View {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func requestLaunch(_ item: SequencedWorkItem, force: Bool) {
+        if !force, item.kind == .milestone, item.launchLockedReason != nil {
+            pendingLockedItem = item
+        } else {
+            launchAction(item, force)
+        }
     }
 }

@@ -156,6 +156,30 @@ final class SessionViewModel: ObservableObject {
         }
     }
 
+    func applyLaunchResponse(_ response: BackendService.ScheduleLaunchResponse) {
+        sessionId = response.content.sessionId
+        switch response.content.kind {
+        case "lesson":
+            if let lesson = response.content.lesson {
+                self.lesson = lesson
+                lastEventDescription = "Launched lesson \"\(lesson.display)\"."
+            }
+        case "quiz":
+            if let quiz = response.content.quiz {
+                self.quiz = quiz
+                let keys = quiz.elo.keys.sorted().joined(separator: ", ")
+                lastEventDescription = "Launched quiz update (ELO keys: \(keys))."
+            }
+        case "milestone":
+            if let milestone = response.content.milestone {
+                self.milestone = milestone
+                lastEventDescription = "Launched milestone \"\(milestone.display)\"."
+            }
+        default:
+            break
+        }
+    }
+
     private func describe(error: Error) -> String {
         if let sessionError = error as? SessionActionError {
             return sessionError.message

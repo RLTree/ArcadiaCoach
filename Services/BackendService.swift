@@ -77,6 +77,19 @@ final class BackendService {
         var metadata: [String: String]?
     }
 
+    private struct ScheduleLaunchPayload: Encodable {
+        var username: String
+        var itemId: String
+        var sessionId: String?
+        var force: Bool?
+    }
+
+    private struct ScheduleCompletePayload: Encodable {
+        var username: String
+        var itemId: String
+        var sessionId: String?
+    }
+
     private struct AssessmentAttachmentLinkPayload: Encodable {
         var name: String?
         var url: String
@@ -103,6 +116,20 @@ final class BackendService {
         var size: Int
         var preview: String?
         var openaiFileId: String?
+    }
+
+    struct ScheduleLaunchContentResponse: Decodable {
+        var kind: String
+        var sessionId: String
+        var lesson: EndLearn?
+        var quiz: EndQuiz?
+        var milestone: EndMilestone?
+    }
+
+    struct ScheduleLaunchResponse: Decodable {
+        var schedule: CurriculumSchedule
+        var item: SequencedWorkItem
+        var content: ScheduleLaunchContentResponse
     }
 
     private struct LegacyLearnerProfileSnapshot: Decodable {
@@ -290,6 +317,66 @@ final class BackendService {
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)
         }
+    }
+
+    static func launchScheduleItem(
+        baseURL: String,
+        username: String,
+        itemId: String,
+        sessionId: String?,
+        force: Bool = false
+    ) async throws -> ScheduleLaunchResponse {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedItemId = itemId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty, !trimmedItemId.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let payload = ScheduleLaunchPayload(
+            username: trimmedUsername,
+            itemId: trimmedItemId,
+            sessionId: normalizedIdentifier(sessionId),
+            force: force ? true : nil
+        )
+        let response = try await post(
+            baseURL: trimmedBase,
+            path: "api/session/schedule/launch",
+            body: payload,
+            expecting: ScheduleLaunchResponse.self
+        )
+        await ScheduleSliceCache.shared.store(schedule: response.schedule, username: trimmedUsername)
+        return response
+    }
+
+    static func completeScheduleItem(
+        baseURL: String,
+        username: String,
+        itemId: String,
+        sessionId: String?
+    ) async throws -> CurriculumSchedule {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedItemId = itemId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty, !trimmedItemId.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let payload = ScheduleCompletePayload(
+            username: trimmedUsername,
+            itemId: trimmedItemId,
+            sessionId: normalizedIdentifier(sessionId)
+        )
+        let schedule = try await post(
+            baseURL: trimmedBase,
+            path: "api/session/schedule/complete",
+            body: payload,
+            expecting: CurriculumSchedule.self
+        )
+        await ScheduleSliceCache.shared.store(schedule: schedule, username: trimmedUsername)
+        return schedule
     }
 
     static func normalizeEloPlan(baseURL: String, username: String) async throws {
@@ -991,6 +1078,12 @@ final class BackendService {
 
     static func trimmed(url: String) -> String? {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func normalizedIdentifier(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 }

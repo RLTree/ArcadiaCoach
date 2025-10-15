@@ -59,6 +59,8 @@ final class AppViewModel: ObservableObject {
     @Published var scheduleRefreshing: Bool = false
     @Published var loadingScheduleSlice: Bool = false
     @Published var adjustingScheduleItemId: String?
+    @Published var launchingScheduleItemId: String?
+    @Published var completingScheduleItemId: String?
     @Published var learnerTimezone: String?
     @Published var goalInference: GoalInferenceModel?
     @Published var foundationTracks: [FoundationTrackModel] = []
@@ -82,6 +84,14 @@ final class AppViewModel: ObservableObject {
         let gained = GameState.xpGain(from: delta)
         game.xp += gained
         game.level = GameState.levelFromXP(game.xp)
+    }
+
+    private func eloDelta(from old: [String:Int], to new: [String:Int]) -> [String:Int] {
+        var diff: [String:Int] = [:]
+        for (key, value) in new {
+            diff[key] = value - (old[key] ?? 1100)
+        }
+        return diff
     }
 
     func loadProfile(baseURL: String, username: String) async {
@@ -134,6 +144,64 @@ final class AppViewModel: ObservableObject {
             daySpan: daySpan ?? curriculumSchedule?.slice?.daySpan ?? defaultScheduleSliceSpan,
             pageToken: nextStart
         )
+    }
+
+    func launchScheduleItem(
+        baseURL: String,
+        username: String,
+        item: SequencedWorkItem,
+        sessionId: String?,
+        force: Bool = false
+    ) async throws -> BackendService.ScheduleLaunchResponse {
+        launchingScheduleItemId = item.itemId
+        defer { launchingScheduleItemId = nil }
+        let response = try await BackendService.launchScheduleItem(
+            baseURL: baseURL,
+            username: username,
+            itemId: item.itemId,
+            sessionId: sessionId,
+            force: force
+        )
+        curriculumSchedule = response.schedule
+        if let timezone = response.schedule.timezone, !timezone.isEmpty {
+            learnerTimezone = timezone
+        }
+        error = nil
+
+        if let lesson = response.content.lesson {
+            recordLesson(lesson)
+        }
+        if let quiz = response.content.quiz {
+            let previous = game.elo
+            applyElo(updated: quiz.elo, delta: eloDelta(from: previous, to: quiz.elo))
+            recordQuiz(quiz)
+        }
+        if let milestone = response.content.milestone {
+            recordMilestone(milestone)
+        }
+
+        return response
+    }
+
+    func completeScheduleItem(
+        baseURL: String,
+        username: String,
+        item: SequencedWorkItem,
+        sessionId: String?
+    ) async throws {
+        completingScheduleItemId = item.itemId
+        defer { completingScheduleItemId = nil }
+        let schedule = try await BackendService.completeScheduleItem(
+            baseURL: baseURL,
+            username: username,
+            itemId: item.itemId,
+            sessionId: sessionId
+        )
+        curriculumSchedule = schedule
+        if let timezone = schedule.timezone, !timezone.isEmpty {
+            learnerTimezone = timezone
+        }
+        error = nil
     }
 
     private func requestSchedule(
