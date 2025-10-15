@@ -12,6 +12,7 @@
 - Rebalanced module ordering with chunk-level guardrails that limit consecutive category runs and ensure the opening weeks include at least three distinct categories.
 - Reworked the long-range refresher injector to iterate categories in a round-robin cycle, respecting consecutive caps while preserving prerequisite ordering.
 - Enforced strict dependency-aware module sequencing so prerequisite modules are scheduled before dependent work, applying priority scores only after dependencies are satisfied.
+- Introduced automatic session splitting so oversized lessons/quizzes/milestones are broken into ≤120-minute parts, stretching schedules over additional weeks without removing content.
 - Introduced `_summarize_distribution` telemetry, emitting `long_range_distribution` events with per-category counts, longest streaks, window coverage, and first-week appearances.
 - Added regression coverage for near-term category mix, long-range streak caps, and telemetry payload validation.
 - Updated the Phase roadmap (`AGENTS.md`) and docs to reflect the new balancing instrumentation.

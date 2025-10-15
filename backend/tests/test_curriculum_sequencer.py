@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult
@@ -41,6 +42,54 @@ def _category(key: str, label: str, weight: float) -> EloCategoryDefinition:
         ],
         starting_rating=1100,
     )
+
+
+def test_large_modules_are_split_into_multiple_sessions() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("ml", "Machine Learning", 1.2),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Deep dive curriculum",
+        success_criteria=["Ship advanced ML pipeline"],
+        modules=[
+            CurriculumModule(
+                module_id="ml-foundations",
+                category_key="ml",
+                title="ML Foundations Marathon",
+                summary="Expanded coverage of ML theory and practice.",
+                objectives=["Revisit ML math", "Implement core algorithms"],
+                activities=["Work through extended labs"],
+                deliverables=["Document takeaway journal"],
+                estimated_minutes=540,
+            )
+        ],
+    )
+    profile = LearnerProfile(
+        username="long-session",
+        goal="Become a senior ML engineer.",
+        use_case="Advanced curriculum planning",
+        strengths="Strong coding background",
+        elo_snapshot={"ml": 900},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    lesson_parts = [item for item in schedule.items if item.item_id.startswith("lesson-ml-foundations")]
+    assert len(lesson_parts) == math.ceil(540 / 120)
+    assert sum(part.recommended_minutes for part in lesson_parts) == 540
+    assert all(part.recommended_minutes <= 120 for part in lesson_parts)
+    assert lesson_parts[0].item_id == "lesson-ml-foundations"
+    assert lesson_parts[-1].item_id == "lesson-ml-foundations-part5"
+
+    quiz_parts = [item for item in schedule.items if item.item_id.startswith("quiz-ml-foundations")]
+    assert quiz_parts, "Expected quiz segments for split module."
+    assert quiz_parts[0].prerequisites == [lesson_parts[-1].item_id]
+    assert all(part.recommended_minutes <= 120 for part in quiz_parts)
 
 
 def test_dependency_order_precedes_priority() -> None:

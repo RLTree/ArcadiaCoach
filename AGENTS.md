@@ -235,6 +235,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 18. **Phase 18 – Sequencer Long-Range Balancing** ✅ *(completed October 15, 2025; see `docs/phase-18-sequencer-long-range-balancing.md`)*  
     - Reordered module chunk sequencing with guardrails that cap consecutive streaks and ensure the opening 6–8 weeks represent at least three categories.  
     - Enforced dependency-aware curriculum ordering so prerequisite modules always precede dependent work before applying priority-based mixing.  
+    - Split oversized lessons/quizzes/milestones into ≤120-minute parts so long-form content stretches over additional sessions instead of being trimmed.  
     - Reworked `_inject_long_range_refreshers` into a round-robin cycle so long-range lessons and quizzes rotate across priority categories while respecting prerequisite ordering.  
     - Added `_summarize_distribution` telemetry and emit `long_range_distribution` with per-category counts, longest runs, first-week appearances, and near-term coverage.  
     - Backfilled regression coverage for near-term mixing, long-range streak caps, and telemetry payloads, then refreshed roadmap/doc snapshots to highlight the balancing instrumentation.  

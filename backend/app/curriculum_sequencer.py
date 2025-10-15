@@ -40,6 +40,8 @@ MIN_NEAR_TERM_CATEGORY_COUNT = 3
 NEAR_TERM_CHUNK_WINDOW = 5
 MAX_CONSECUTIVE_CATEGORY_ITEMS = 4
 MAX_CONSECUTIVE_CATEGORY_CHUNKS = 2
+MAX_SESSION_MINUTES = 120
+MIN_SESSION_MINUTES = 30
 
 
 @dataclass
@@ -96,7 +98,7 @@ class CurriculumSequencer:
             expected_minutes = module.estimated_minutes or 45
             chunk: List[SequencedWorkItem] = []
 
-            chunk.append(
+            lesson_parts = self._split_work_item(
                 SequencedWorkItem(
                     item_id=lesson_id,
                     category_key=module.category_key,
@@ -111,10 +113,12 @@ class CurriculumSequencer:
                     effort_level=effort_level,
                 )
             )
+            chunk.extend(lesson_parts)
+            lesson_tail_id = lesson_parts[-1].item_id
 
             quiz_id = f"quiz-{module.module_id}"
             quiz_minutes = max(20, math.ceil(expected_minutes * 0.4))
-            chunk.append(
+            quiz_parts = self._split_work_item(
                 SequencedWorkItem(
                     item_id=quiz_id,
                     category_key=module.category_key,
@@ -125,19 +129,20 @@ class CurriculumSequencer:
                         "Demonstrate recall of the module's key ideas.",
                         "Identify any gaps surfaced during the lesson.",
                     ],
-                    prerequisites=[lesson_id],
+                    prerequisites=[lesson_tail_id],
                     recommended_minutes=quiz_minutes,
                     focus_reason=f"Validates progress before expanding {context.label.lower()} coverage.",
                     expected_outcome="Score at least 70% to stay on track.",
                     effort_level="light" if quiz_minutes <= 25 else "moderate",
                 )
             )
+            chunk.extend(quiz_parts)
+            quiz_tail_id = quiz_parts[-1].item_id
 
             if not milestone_attached:
                 milestone_id = f"milestone-{module.category_key}"
                 milestone_minutes = 90 if expected_minutes < 90 else expected_minutes + 30
-                milestone_prereqs = [lesson_id, quiz_id]
-                chunk.append(
+                milestone_parts = self._split_work_item(
                     SequencedWorkItem(
                         item_id=milestone_id,
                         category_key=module.category_key,
@@ -148,17 +153,18 @@ class CurriculumSequencer:
                             "Integrate lesson outcomes into a realistic deliverable.",
                             "Document decisions and open questions for agent review.",
                         ],
-                        prerequisites=milestone_prereqs,
+                        prerequisites=[lesson_tail_id, quiz_tail_id],
                         recommended_minutes=milestone_minutes,
                         focus_reason="Creates a tangible artefact to measure competency gains.",
                         expected_outcome="Wrap with notes ready for agent feedback.",
                         effort_level="focus",
                     )
                 )
+                chunk.extend(milestone_parts)
                 milestone_attached = True
 
             reinforcement_minutes = max(45, math.ceil(expected_minutes * 0.6))
-            chunk.append(
+            reinforce_parts = self._split_work_item(
                 SequencedWorkItem(
                     item_id=f"reinforce-{module.module_id}",
                     category_key=module.category_key,
@@ -169,17 +175,19 @@ class CurriculumSequencer:
                         "Revisit the toughest concept from the original module.",
                         "Capture a before/after reflection on confidence and blockers.",
                     ],
-                    prerequisites=[quiz_id],
+                    prerequisites=[quiz_tail_id],
                     recommended_minutes=reinforcement_minutes,
                     focus_reason=f"Reinforces {context.label.lower()} several weeks after the initial lesson.",
                     expected_outcome="Document a concise improvement plan and practice notes.",
                     effort_level=self._effort_level(reinforcement_minutes),
                 )
             )
+            chunk.extend(reinforce_parts)
+            reinforce_tail_id = reinforce_parts[-1].item_id
 
             if context.track_weight >= 1.3:
                 deep_minutes = max(60, math.ceil(expected_minutes * 0.75))
-                chunk.append(
+                deep_parts = self._split_work_item(
                     SequencedWorkItem(
                         item_id=f"deepdive-{module.module_id}",
                         category_key=module.category_key,
@@ -190,13 +198,14 @@ class CurriculumSequencer:
                             "Tackle a stretch challenge tied to the goal parser roadmap.",
                             "Document insights and blockers to review with the coach.",
                         ],
-                        prerequisites=[f"reinforce-{module.module_id}"],
+                        prerequisites=[reinforce_tail_id],
                         recommended_minutes=deep_minutes,
                         focus_reason="Goal parser flagged this track as high priority; apply spaced repetition for long-term retention.",
                         expected_outcome="Share a reflection detailing breakthroughs, blockers, and next experiments.",
                         effort_level=self._effort_level(deep_minutes),
                     )
                 )
+                chunk.extend(deep_parts)
 
             module_chunks.append((module.category_key, chunk))
 
@@ -430,6 +439,51 @@ class CurriculumSequencer:
                 ):
                     dependencies.add(other.module_id)
         return dependencies
+
+    def _split_work_item(self, item: SequencedWorkItem) -> List[SequencedWorkItem]:
+        minutes = max(int(item.recommended_minutes or MIN_SESSION_MINUTES), MIN_SESSION_MINUTES)
+        if minutes <= MAX_SESSION_MINUTES:
+            cloned = item.model_copy()
+            cloned.prerequisites = list(item.prerequisites)
+            cloned.recommended_minutes = minutes
+            cloned.user_adjusted = False
+            return [cloned]
+
+        parts = math.ceil(minutes / MAX_SESSION_MINUTES)
+        base_minutes = minutes // parts
+        remainder = minutes % parts
+        results: List[SequencedWorkItem] = []
+        base_title = item.title
+
+        for index in range(parts):
+            part_minutes = base_minutes + (1 if index < remainder else 0)
+            if part_minutes < MIN_SESSION_MINUTES:
+                part_minutes = MIN_SESSION_MINUTES
+            part = item.model_copy()
+            part.recommended_minutes = part_minutes
+            if parts > 1:
+                part.title = f"{base_title} (Part {index + 1} of {parts})"
+            if index == 0:
+                part.item_id = item.item_id
+                part.prerequisites = list(item.prerequisites)
+            else:
+                part.item_id = f"{item.item_id}-part{index + 1}"
+                part.prerequisites = [results[-1].item_id]
+            part.user_adjusted = False
+            results.append(part)
+
+        total_minutes = sum(part.recommended_minutes for part in results)
+        correction = minutes - total_minutes
+        if correction != 0:
+            last = results[-1]
+            adjusted = last.recommended_minutes + correction
+            if adjusted < MIN_SESSION_MINUTES:
+                adjusted = MIN_SESSION_MINUTES
+            if adjusted > MAX_SESSION_MINUTES:
+                adjusted = MAX_SESSION_MINUTES
+            last.recommended_minutes = adjusted
+
+        return results
 
     def _balance_module_chunks(
         self,
