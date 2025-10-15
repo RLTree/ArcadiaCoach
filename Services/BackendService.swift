@@ -292,6 +292,43 @@ final class BackendService {
         }
     }
 
+    static func normalizeEloPlan(baseURL: String, username: String) async throws {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+
+        let snapshot = try await fetchProfile(baseURL: trimmedBase, username: trimmedUsername)
+        guard let plan = snapshot.eloCategoryPlan else {
+            throw BackendServiceError.decodingFailure("ELO plan not available for \(trimmedUsername)")
+        }
+
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/profile/\(encodedUsername)/elo-plan") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(plan)
+
+        logger.debug("POST \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+    }
+
     private struct ScheduleAdjustmentPayload: Encodable {
         var itemId: String
         var days: Int

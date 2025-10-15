@@ -62,6 +62,8 @@ final class AppViewModel: ObservableObject {
     private var lastScheduleEventSignature: String?
     private var lastScheduleEventTimestamp: Date?
     private let defaultScheduleSliceSpan = 7
+    private var lastBackendBaseURL: String?
+    private var lastLearnerUsername: String?
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -75,6 +77,8 @@ final class AppViewModel: ObservableObject {
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUsername.isEmpty else { return }
         guard let trimmedBase = BackendService.trimmed(url: baseURL) else { return }
+        lastBackendBaseURL = trimmedBase
+        lastLearnerUsername = trimmedUsername
         do {
             let snapshot = try await BackendService.fetchProfile(baseURL: trimmedBase, username: trimmedUsername)
             syncProfile(with: snapshot)
@@ -732,6 +736,7 @@ final class AppViewModel: ObservableObject {
         error = nil
         eloPlan = nil
         curriculumPlan = nil
+        curriculumSchedule = nil
         onboardingAssessment = nil
         assessmentResult = nil
         assessmentHistory = []
@@ -740,6 +745,8 @@ final class AppViewModel: ObservableObject {
         focusedSubmission = nil
         clearSessionContent()
         pendingAssessmentAttachments.removeAll()
+        lastBackendBaseURL = nil
+        lastLearnerUsername = nil
     }
 
     var requiresAssessment: Bool {
@@ -846,6 +853,15 @@ final class AppViewModel: ObservableObject {
         }
         alignEloSnapshotWithPlan()
         pruneAssessmentResponses()
+        if let backend = lastBackendBaseURL,
+           let username = lastLearnerUsername,
+           let schedule = snapshot.curriculumSchedule,
+           schedule.slice == nil,
+           !schedule.items.isEmpty {
+            Task {
+                await refreshCurriculumSchedule(baseURL: backend, username: username)
+            }
+        }
     }
 
     private func pruneAssessmentResponses() {

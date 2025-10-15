@@ -119,6 +119,39 @@ struct SettingsView: View {
                 SettingsSection(title: "Developer Tools") {
                     VStack(alignment: .leading, spacing: 10) {
                         Button {
+                            Task {
+                                await developerTools.normalizeEloPlan(
+                                    baseURL: settings.chatkitBackendURL,
+                                    settings: settings,
+                                    appVM: appVM
+                                )
+                            }
+                        } label: {
+                            if developerTools.normalizeInFlight {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Normalise ELO Categories", systemImage: "wand.and.stars")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(developerTools.normalizeInFlight)
+                        if let normalizedAt = developerTools.lastNormalizedAt {
+                            Text("Last normalised on \(normalizedAt.formatted(date: .numeric, time: .standard)).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let planError = developerTools.planError, !planError.isEmpty {
+                            Text(planError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        } else {
+                            Text("Fetches the current ELO plan, removes duplicate categories, and updates the backend immediately.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
                             showDeveloperResetConfirmation = true
                         } label: {
                             if developerTools.resetInFlight {

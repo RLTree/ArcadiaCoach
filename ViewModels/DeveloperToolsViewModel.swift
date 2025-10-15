@@ -8,6 +8,9 @@ final class DeveloperToolsViewModel: ObservableObject {
     @Published var resetInFlight = false
     @Published var lastError: String?
     @Published var lastResetAt: Date?
+    @Published var normalizeInFlight = false
+    @Published var planError: String?
+    @Published var lastNormalizedAt: Date?
 
     func refreshSubmissions(baseURL: String, username: String?) async {
         guard !isLoadingSubmissions else { return }
@@ -60,6 +63,35 @@ final class DeveloperToolsViewModel: ObservableObject {
         } catch {
             let nsError = error as NSError
             lastError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+        }
+    }
+
+    func normalizeEloPlan(
+        baseURL: String,
+        settings: AppSettings,
+        appVM: AppViewModel
+    ) async {
+        guard !normalizeInFlight else { return }
+        let trimmedBase = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBase.isEmpty else {
+            planError = "Set the ChatKit backend URL before normalising the ELO plan."
+            return
+        }
+        let trimmedUsername = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            planError = "Add a learner username in Settings before normalising the ELO plan."
+            return
+        }
+        normalizeInFlight = true
+        defer { normalizeInFlight = false }
+        do {
+            try await BackendService.normalizeEloPlan(baseURL: trimmedBase, username: trimmedUsername)
+            lastNormalizedAt = Date()
+            planError = nil
+            await appVM.loadProfile(baseURL: trimmedBase, username: trimmedUsername)
+        } catch {
+            let nsError = error as NSError
+            planError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
         }
     }
 }

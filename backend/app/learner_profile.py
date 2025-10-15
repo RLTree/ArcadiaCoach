@@ -982,7 +982,7 @@ class LearnerProfileStore:
     def get(self, username: str) -> Optional[LearnerProfile]:
         profile = self._call("get", username)
         if profile is not None:
-            profile = self._sanitize_profile(profile)
+            profile = self._sanitize_profile(username, profile)
         self._sync_cache(username, profile)
         return profile
 
@@ -1002,7 +1002,8 @@ class LearnerProfileStore:
         return stored
 
     def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
-        stored = self._call("set_elo_category_plan", username, plan)
+        normalized_plan, _ = _dedupe_elo_plan(plan)
+        stored = self._call("set_elo_category_plan", username, normalized_plan)
         self._sync_cache(username, stored)
         return stored
 
@@ -1071,18 +1072,14 @@ class LearnerProfileStore:
                 pass
         return deleted
 
-    def _sanitize_profile(self, profile: LearnerProfile) -> LearnerProfile:
-        updates: Dict[str, Any] = {}
+    def _sanitize_profile(self, username: str, profile: LearnerProfile) -> LearnerProfile:
         if profile.elo_category_plan and profile.elo_category_plan.categories:
             normalized_plan, changed = _dedupe_elo_plan(profile.elo_category_plan)
             if changed:
-                updates["elo_category_plan"] = normalized_plan
-                snapshot = dict(profile.elo_snapshot)
-                for category in normalized_plan.categories:
-                    snapshot.setdefault(category.key, int(category.starting_rating))
-                updates["elo_snapshot"] = snapshot
-        if updates:
-            return profile.model_copy(update=updates)
+                try:
+                    return self._call("set_elo_category_plan", username, normalized_plan)
+                except Exception:  # noqa: BLE001
+                    logger.exception("Failed to persist sanitized ELO plan for %s", username)
         return profile
 
     def _extract_timezone(self, username: str) -> Optional[str]:
