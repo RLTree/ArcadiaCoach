@@ -113,6 +113,7 @@ struct CurriculumScheduleView: View {
         }
         .padding(20)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .selectableContent()
     }
 
     private var showLoadMoreButton: Bool {

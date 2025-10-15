@@ -3,17 +3,16 @@ import SwiftUI
 struct SelectableContentModifier: ViewModifier {
     let isEnabled: Bool
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        Group {
-            if isEnabled {
-                if #available(macOS 12.0, *) {
-                    content.textSelection(.enabled)
-                } else {
-                    content
-                }
+        if isEnabled {
+            if #available(macOS 12.0, *) {
+                content.textSelection(.enabled)
             } else {
                 content
             }
+        } else {
+            content
         }
     }
 }

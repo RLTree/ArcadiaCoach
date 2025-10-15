@@ -10,6 +10,7 @@ struct DashboardAssessmentsSection: View {
     let categoryLabels: [String:String]
     let onRunOnboarding: () -> Void
     let onOpenAssessmentFlow: () -> Void
+    private let clipboard: ClipboardManaging = AppClipboardManager.shared
 
     var body: some View {
         if awaitingAssessmentResults {
@@ -33,6 +34,12 @@ struct DashboardAssessmentsSection: View {
                 assessmentHistorySection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .selectableContent()
+            .contextMenu {
+                Button("Copy assessment overview") {
+                    clipboard.copy(assessmentDashboardSummary())
+                }
+            }
         }
     }
 
@@ -131,6 +138,7 @@ struct DashboardAssessmentsSection: View {
                     .stroke(Color.accentColor.opacity(0.45), lineWidth: 2)
             }
         }
+        .selectableContent()
     }
 
     @ViewBuilder
@@ -151,6 +159,7 @@ struct DashboardAssessmentsSection: View {
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .selectableContent()
     }
 
     @ViewBuilder
@@ -167,6 +176,7 @@ struct DashboardAssessmentsSection: View {
             .frame(maxWidth: .infinity)
             .padding(20)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -197,6 +207,7 @@ struct DashboardAssessmentsSection: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
         }
     }
 
@@ -351,5 +362,35 @@ struct DashboardAssessmentsSection: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .selectableContent()
+    }
+
+    private func assessmentDashboardSummary() -> String {
+        var lines: [String] = []
+        let readiness = appVM.assessmentReadinessStatus.displayText
+        lines.append("Assessment status: \(readiness)")
+
+        if let submittedAt = appVM.latestAssessmentSubmittedAt {
+            lines.append("Last submission: \(submittedAt.formatted(date: .abbreviated, time: .shortened))")
+        } else {
+            lines.append("Last submission: none recorded")
+        }
+
+        if let gradedAt = appVM.latestAssessmentGradeTimestamp {
+            let average = appVM.latestGradedAssessment?.averageScoreLabel ?? "n/a"
+            lines.append("Latest grading: \(gradedAt.formatted(date: .abbreviated, time: .shortened)) (avg \(average))")
+        } else if appVM.assessmentHistory.contains(where: { $0.grading == nil }) {
+            lines.append("Latest grading: pending")
+        }
+
+        if let feedback = appVM.latestGradedAssessment?.grading?.overallFeedback.trimmingCharacters(in: .whitespacesAndNewlines), !feedback.isEmpty {
+            lines.append("Latest feedback: \(feedback)")
+        }
+
+        if !appVM.assessmentHistory.isEmpty {
+            lines.append("Historical submissions: \(appVM.assessmentHistory.count)")
+        }
+
+        return lines.joined(separator: "\n")
     }
 }

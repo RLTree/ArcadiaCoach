@@ -6,7 +6,7 @@
 	objectVersion = 56;
 	objects = {
 
-/* Begin PBXBuildFile section */
+	/* Begin PBXBuildFile section */
 		AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */; };
 		AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
 		AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
@@ -40,6 +40,9 @@
 		AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */; };
 		AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */; };
 		AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */; };
+		AAFF10022FABCDEF00B8BEA0 /* AppClipboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFF10012FABCDEF00B8BEA0 /* AppClipboardManager.swift */; };
+		AAFF10122FABCDEF00B8BEA0 /* SelectableContentModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFF10112FABCDEF00B8BEA0 /* SelectableContentModifier.swift */; };
+		AAFF10222FABCDEF00B8BEA0 /* ClipboardSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFF10212FABCDEF00B8BEA0 /* ClipboardSupportTests.swift */; };
 		AA77D0B12F9CB1B40B8BEA0 /* FoundationTracksCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */; };
 		AAE5D0012F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE5D0002F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift */; };
 		AAE5D0032F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE5D0022F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift */; };
@@ -136,8 +139,11 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */,
 		AA00C0032A3B12E300B8BEA0 /* chatkit.inline.mjs */,
 	); path = ChatKit; sourceTree = "<group>"; };
-	AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = advanced_chatkit.html; sourceTree = "<group>"; };
-	AA00C0032A3B12E300B8BEA0 /* chatkit.inline.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = chatkit.inline.mjs; sourceTree = "<group>"; };
+		AA001F2B29250AF500B8BEA0 /* advanced_chatkit.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = advanced_chatkit.html; sourceTree = "<group>"; };
+		AA00C0032A3B12E300B8BEA0 /* chatkit.inline.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = chatkit.inline.mjs; sourceTree = "<group>"; };
+		AAFF10012FABCDEF00B8BEA0 /* AppClipboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClipboardManager.swift; sourceTree = "<group>"; };
+		AAFF10112FABCDEF00B8BEA0 /* SelectableContentModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableContentModifier.swift; sourceTree = "<group>"; };
+		AAFF10212FABCDEF00B8BEA0 /* ClipboardSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSupportTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +203,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA001F202924FB5F00B8BEA0 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AAFF10012FABCDEF00B8BEA0 /* AppClipboardManager.swift */,
 				AA001F072924F97A00B8BEA0 /* BackendService.swift */,
 				AA001F082924F97A00B8BEA0 /* MCPTypes.swift */,
 				AAF010012F25A00010B8BEA0 /* ScheduleSliceCache.swift */,
@@ -250,6 +257,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA001F232924FB5F00B8BEA0 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				AAFF10212FABCDEF00B8BEA0 /* ClipboardSupportTests.swift */,
 				AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */,
 				AAE5D0022F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift */,
 				AA001F1C2924FA7000B8BEA0 /* TestsInfo.plist */,
@@ -260,6 +268,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 	AA001F242924FB9500B8BEA0 /* Components */ = {
 		isa = PBXGroup;
 		children = (
+			AAFF10112FABCDEF00B8BEA0 /* SelectableContentModifier.swift */,
 			AA001F132924F97A00B8BEA0 /* WidgetCardView.swift */,
 			AA001F142924F97A00B8BEA0 /* WidgetListView.swift */,
 			AA001F152924F97A00B8BEA0 /* WidgetStatRowView.swift */,
@@ -403,6 +412,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA0010162924F97A00B8BEA0 /* GlassButton.swift in Sources */,
 			AA0010152924F97A00B8BEA0 /* WidgetStatRowView.swift in Sources */,
 			AA0010142924F97A00B8BEA0 /* WidgetListView.swift in Sources */,
+			AAFF10122FABCDEF00B8BEA0 /* SelectableContentModifier.swift in Sources */,
 			AA9000142D3A000000B8BEA0 /* CitedTextBlock.swift in Sources */,
 			AA0010132924F97A00B8BEA0 /* WidgetCardView.swift in Sources */,
 			AA0010122924F97A00B8BEA0 /* SettingsView.swift in Sources */,
@@ -429,6 +439,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */,
 			AAF010022F25A00010B8BEA0 /* ScheduleSliceCache.swift in Sources */,
 			AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */,
+			AAFF10022FABCDEF00B8BEA0 /* AppClipboardManager.swift in Sources */,
 			AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */,
 			AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
 			AA77D0112F9CB00000B8BEA0 /* DashboardSection.swift in Sources */,
@@ -455,6 +466,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAFF10222FABCDEF00B8BEA0 /* ClipboardSupportTests.swift in Sources */,
 				AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */,
 				AAE5D0032F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift in Sources */,
 			);

@@ -12,6 +12,7 @@ struct DashboardResourcesSection: View {
     let onStartQuiz: () async -> Void
     let onStartMilestone: () async -> Void
     let onClearSessionContent: () -> Void
+    private let clipboard: ClipboardManaging = AppClipboardManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -23,6 +24,12 @@ struct DashboardResourcesSection: View {
             sessionContentSection
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .selectableContent()
+        .contextMenu {
+            Button("Copy dashboard resources") {
+                clipboard.copy(resourcesSummary())
+            }
+        }
     }
 
     private var disabledSessionActions: Bool {
@@ -77,11 +84,13 @@ struct DashboardResourcesSection: View {
                 Text(lastEvent)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .selectableContent()
             }
             if appVM.requiresAssessment {
                 Text("Complete the onboarding assessment to unlock lessons, quizzes, and milestones.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .selectableContent()
             }
             if needsOnboarding {
                 Button {
@@ -153,6 +162,7 @@ struct DashboardResourcesSection: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            .selectableContent()
         }
     }
 
@@ -164,5 +174,34 @@ struct DashboardResourcesSection: View {
                 "source_section": DashboardSection.resources.rawValue
             ]
         )
+    }
+
+    private func resourcesSummary() -> String {
+        var lines: [String] = []
+        if let curriculum = appVM.curriculumPlan {
+            lines.append("Curriculum outline available: \(curriculum.modules.count) modules")
+        } else {
+            lines.append("Curriculum outline unavailable")
+        }
+
+        if let lastEvent = session.lastEventDescription, !lastEvent.isEmpty {
+            lines.append("Last session event: \(lastEvent)")
+        }
+
+        if appVM.requiresAssessment {
+            lines.append("Assessment required before sessions can start")
+        }
+
+        if let lesson = appVM.latestLesson {
+            lines.append("Latest lesson: \(lesson.display)")
+        }
+        if let quiz = appVM.latestQuiz {
+            lines.append("Latest quiz summary available")
+        }
+        if let milestone = appVM.latestMilestone {
+            lines.append("Latest milestone: \(milestone.display)")
+        }
+
+        return lines.joined(separator: "\n")
     }
 }
