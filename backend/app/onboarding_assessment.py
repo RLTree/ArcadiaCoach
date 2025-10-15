@@ -96,6 +96,10 @@ def _normalise_module(payload: CurriculumModulePayload) -> CurriculumModule:
         activities=[activity.strip() for activity in payload.activities if activity.strip()],
         deliverables=[deliverable.strip() for deliverable in payload.deliverables if deliverable.strip()],
         estimated_minutes=payload.estimated_minutes if payload.estimated_minutes and payload.estimated_minutes > 0 else None,
+        tier=payload.tier if payload.tier and payload.tier > 0 else None,
+        prerequisite_module_ids=[
+            prereq.strip() for prereq in payload.prerequisite_module_ids if isinstance(prereq, str) and prereq.strip()
+        ],
     )
 
 

@@ -501,6 +501,7 @@ def _add_module_from_template(
             activities=list(module_template.activities),
             deliverables=list(module_template.deliverables),
             estimated_minutes=module_template.estimated_minutes,
+            tier=module_template.tier,
         )
     )
     existing_ids.add(module_template.module_id)

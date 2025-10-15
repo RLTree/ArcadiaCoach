@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import heapq
 import logging
 import math
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from .learner_profile import (
     AssessmentGradingResult,
@@ -332,6 +333,7 @@ class CurriculumSequencer:
                     "Document a short learning journal entry summarising gaps and next steps.",
                 ],
                 estimated_minutes=45,
+                tier=1,
             )
             context.modules.append(placeholder)
 
@@ -343,8 +345,91 @@ class CurriculumSequencer:
             priority = self._priority_score(context)
             for module in context.modules:
                 module_entries.append((priority, module))
-        module_entries.sort(key=lambda entry: entry[0], reverse=True)
-        return [module for _, module in module_entries]
+        if not module_entries:
+            return []
+        ordered = self._order_modules_with_dependencies(module_entries)
+        return ordered
+
+    def _order_modules_with_dependencies(
+        self,
+        module_entries: Sequence[Tuple[float, CurriculumModule]],
+    ) -> List[CurriculumModule]:
+        module_map: Dict[str, CurriculumModule] = {}
+        priority_map: Dict[str, float] = {}
+        for priority, module in module_entries:
+            module_map[module.module_id] = module
+            priority_map[module.module_id] = priority
+
+        if not module_map:
+            return []
+
+        graph: Dict[str, Set[str]] = {module_id: set() for module_id in module_map}
+        indegree: Dict[str, int] = {module_id: 0 for module_id in module_map}
+
+        for module_id, module in module_map.items():
+            dependencies = self._module_dependencies(module, module_map)
+            if not dependencies:
+                continue
+            for dependency in dependencies:
+                if dependency == module_id:
+                    logger.warning("Module %s references itself as a prerequisite; skipping.", module_id)
+                    continue
+                if dependency not in module_map:
+                    logger.warning(
+                        "Module %s references missing prerequisite %s; ignoring.",
+                        module_id,
+                        dependency,
+                    )
+                    continue
+                if module_id in graph[dependency]:
+                    continue
+                graph[dependency].add(module_id)
+                indegree[module_id] += 1
+
+        available: List[Tuple[float, str]] = []
+        for module_id, degree in indegree.items():
+            if degree == 0:
+                heapq.heappush(available, (-priority_map.get(module_id, 0.0), module_id))
+
+        ordered_ids: List[str] = []
+        while available:
+            _, module_id = heapq.heappop(available)
+            ordered_ids.append(module_id)
+            for neighbour in graph[module_id]:
+                indegree[neighbour] -= 1
+                if indegree[neighbour] == 0:
+                    heapq.heappush(available, (-priority_map.get(neighbour, 0.0), neighbour))
+
+        if len(ordered_ids) != len(module_map):
+            unresolved = [module_id for module_id, degree in indegree.items() if degree > 0]
+            logger.warning(
+                "Detected module dependency cycle involving %s; falling back to priority order.",
+                ", ".join(unresolved),
+            )
+            fallback = sorted(module_entries, key=lambda entry: entry[0], reverse=True)
+            return [module for _, module in fallback]
+
+        return [module_map[module_id] for module_id in ordered_ids]
+
+    def _module_dependencies(
+        self,
+        module: CurriculumModule,
+        module_map: Dict[str, CurriculumModule],
+    ) -> Set[str]:
+        dependencies: Set[str] = set(module.prerequisite_module_ids or [])
+        module_tier = getattr(module, "tier", None)
+        if module_tier and module_tier > 1:
+            for other in module_map.values():
+                if other.module_id == module.module_id:
+                    continue
+                other_tier = getattr(other, "tier", None)
+                if (
+                    other.category_key == module.category_key
+                    and other_tier
+                    and other_tier < module_tier
+                ):
+                    dependencies.add(other.module_id)
+        return dependencies
 
     def _balance_module_chunks(
         self,

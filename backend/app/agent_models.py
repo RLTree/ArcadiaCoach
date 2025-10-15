@@ -96,6 +96,8 @@ class CurriculumModulePayload(BaseModel):
     activities: List[str] = Field(default_factory=list)
     deliverables: List[str] = Field(default_factory=list)
     estimated_minutes: Optional[int] = None
+    tier: Optional[int] = Field(default=None, ge=1)
+    prerequisite_module_ids: List[str] = Field(default_factory=list)
 
 
 class SequencedWorkItemPayload(BaseModel):

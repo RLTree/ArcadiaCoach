@@ -43,6 +43,60 @@ def _category(key: str, label: str, weight: float) -> EloCategoryDefinition:
     )
 
 
+def test_dependency_order_precedes_priority() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("python", "Python Foundations", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Python progression",
+        success_criteria=["Ship dependable Python automation."],
+        modules=[
+            CurriculumModule(
+                module_id="python-testing",
+                category_key="python",
+                title="Testing & Tooling",
+                summary="Advanced testing patterns.",
+                objectives=["Adopt pytest and tooling."],
+                activities=["Backfill tests."],
+                deliverables=["Testing plan."],
+                estimated_minutes=120,
+                tier=2,
+                prerequisite_module_ids=["python-basics"],
+            ),
+            CurriculumModule(
+                module_id="python-basics",
+                category_key="python",
+                title="Python Basics",
+                summary="Refresh syntax fundamentals.",
+                objectives=["Reinforce syntax."],
+                activities=["Syntax drills."],
+                deliverables=["Practice journal."],
+                estimated_minutes=90,
+                tier=1,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="dependency-check",
+        goal="Automate workflows with reliable Python tooling.",
+        use_case="Agent support.",
+        strengths="Strong SwiftUI background",
+        elo_snapshot={"python": 950},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    lesson_ids = [item.item_id for item in schedule.items if item.item_id.startswith("lesson-")]
+    assert lesson_ids, "Expected lessons in the generated schedule."
+    assert lesson_ids[0] == "lesson-python-basics", "Intro module should precede dependent advanced module."
+    assert any(item.item_id == "lesson-python-testing" for item in schedule.items)
+
+
 def test_curriculum_sequencer_prioritises_low_scores() -> None:
     plan = EloCategoryPlan(
         categories=[

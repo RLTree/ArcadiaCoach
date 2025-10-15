@@ -58,7 +58,9 @@
           "deliverables": [
             "deliver"
           ],
-          "estimated_minutes": 60
+          "estimated_minutes": 60,
+          "tier": null,
+          "prerequisite_module_ids": []
         },
         {
           "module_id": "m2",
@@ -72,7 +74,9 @@
           "deliverables": [
             "deliver"
           ],
-          "estimated_minutes": 60
+          "estimated_minutes": 60,
+          "tier": null,
+          "prerequisite_module_ids": []
         },
         {
           "module_id": "m3",
@@ -86,7 +90,9 @@
           "deliverables": [
             "deliver"
           ],
-          "estimated_minutes": 60
+          "estimated_minutes": 60,
+          "tier": null,
+          "prerequisite_module_ids": []
         },
         {
           "module_id": "m4",
@@ -100,7 +106,9 @@
           "deliverables": [
             "deliver"
           ],
-          "estimated_minutes": 60
+          "estimated_minutes": 60,
+          "tier": null,
+          "prerequisite_module_ids": []
         },
         {
           "module_id": "m5",
@@ -114,7 +122,9 @@
           "deliverables": [
             "deliver"
           ],
-          "estimated_minutes": 60
+          "estimated_minutes": 60,
+          "tier": null,
+          "prerequisite_module_ids": []
         }
       ]
     },

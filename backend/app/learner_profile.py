@@ -59,6 +59,7 @@ class EloCategoryPlan(BaseModel):
 
 class CurriculumModule(BaseModel):
     """Single module within the onboarding curriculum outline."""
+
     module_id: str
     category_key: str
     title: str
@@ -67,6 +68,8 @@ class CurriculumModule(BaseModel):
     activities: List[str] = Field(default_factory=list)
     deliverables: List[str] = Field(default_factory=list)
     estimated_minutes: Optional[int] = None
+    tier: Optional[int] = Field(default=None, ge=1)
+    prerequisite_module_ids: List[str] = Field(default_factory=list)
 
 
 class FoundationModuleReference(BaseModel):
