@@ -39,8 +39,9 @@
 	67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B27837E18E79D5DF33F3BC /* EloPlan.swift */; };
 	CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */; };
 	AA9000102D3A000000B8BEA0 /* CitationFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9000112D3A000000B8BEA0 /* CitationFormatter.swift */; };
-	AA9000122D3A000000B8BEA0 /* CitationFootnotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9000132D3A000000B8BEA0 /* CitationFootnotesView.swift */; };
-	AA9000142D3A000000B8BEA0 /* CitedTextBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9000152D3A000000B8BEA0 /* CitedTextBlock.swift */; };
+		AA9000122D3A000000B8BEA0 /* CitationFootnotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9000132D3A000000B8BEA0 /* CitationFootnotesView.swift */; };
+		AA9000142D3A000000B8BEA0 /* CitedTextBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9000152D3A000000B8BEA0 /* CitedTextBlock.swift */; };
+		AAF010022F25A00010B8BEA0 /* ScheduleSliceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF010012F25A00010B8BEA0 /* ScheduleSliceCache.swift */; };
 	AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */; };
 	AA30B0002D1A000000B8BEA0 /* AssessmentSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0012D1A000000B8BEA0 /* AssessmentSubmission.swift */; };
 		AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA30B0032D1A000000B8BEA0 /* DeveloperToolsViewModel.swift */; };
@@ -180,6 +181,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			children = (
 				AA001F072924F97A00B8BEA0 /* BackendService.swift */,
 				AA001F082924F97A00B8BEA0 /* MCPTypes.swift */,
+				AAF010012F25A00010B8BEA0 /* ScheduleSliceCache.swift */,
 				AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */,
 				AA00C0002A3B060800B8BEA0 /* ChatKitResource.swift */,
 				AA9000112D3A000000B8BEA0 /* CitationFormatter.swift */,
@@ -193,6 +195,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 		AA9000112D3A000000B8BEA0 /* CitationFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationFormatter.swift; sourceTree = "<group>"; };
 		AA9000132D3A000000B8BEA0 /* CitationFootnotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationFootnotesView.swift; sourceTree = "<group>"; };
 		AA9000152D3A000000B8BEA0 /* CitedTextBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitedTextBlock.swift; sourceTree = "<group>"; };
+		AAF010012F25A00010B8BEA0 /* ScheduleSliceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSliceCache.swift; sourceTree = "<group>"; };
 		703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlanSummaryView.swift; sourceTree = "<group>"; };
 	AA001F212924FB5F00B8BEA0 /* ViewModels */ = {
 		isa = PBXGroup;
@@ -388,6 +391,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA00C0012A3B060800B8BEA0 /* ChatKitResource.swift in Sources */,
 			AA0010092924F97A00B8BEA0 /* AppViewModel.swift in Sources */,
 			AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */,
+			AAF010022F25A00010B8BEA0 /* ScheduleSliceCache.swift in Sources */,
 			AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */,
 			AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */,
 			AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
