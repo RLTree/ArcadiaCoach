@@ -41,6 +41,8 @@
 		AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */; };
 		AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */; };
 		AA77D0B12F9CB1B40B8BEA0 /* FoundationTracksCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */; };
+		AAE5D0012F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE5D0002F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift */; };
+		AAE5D0032F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE5D0022F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift */; };
 	AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA001F182924F9F600B8BEA0 /* Assets.xcassets */; };
 	67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B27837E18E79D5DF33F3BC /* EloPlan.swift */; };
 	CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */; };
@@ -103,6 +105,8 @@
 		AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssessmentsSection.swift; sourceTree = "<group>"; };
 		AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardResourcesSection.swift; sourceTree = "<group>"; };
 		AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationTracksCard.swift; sourceTree = "<group>"; };
+		AAE5D0002F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentResultTracker.swift; sourceTree = "<group>"; };
+		AAE5D0022F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentResultTrackerTests.swift; sourceTree = "<group>"; };
 		AA001F102924F97A00B8BEA0 /* MilestoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneView.swift; sourceTree = "<group>"; };
 		AA001F112924F97A00B8BEA0 /* AssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentView.swift; sourceTree = "<group>"; };
 		AA001F122924F97A00B8BEA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -184,6 +188,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			B1C0A0022F1CA4B200C1A1A1 /* LearnerProfile.swift */,
 			AA10A0012B925F0000B8BEA0 /* OnboardingAssessment.swift */,
 			AA30B0012D1A000000B8BEA0 /* AssessmentSubmission.swift */,
+			AAE5D0002F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift */,
 			AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */,
 		);
 		path = Models;
@@ -246,6 +251,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			isa = PBXGroup;
 			children = (
 				AA001F192924FA2300B8BEA0 /* EloEngineTests.swift */,
+				AAE5D0022F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift */,
 				AA001F1C2924FA7000B8BEA0 /* TestsInfo.plist */,
 			);
 			path = Tests;
@@ -427,6 +433,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,
 			AA77D0112F9CB00000B8BEA0 /* DashboardSection.swift in Sources */,
 			AA30B0002D1A000000B8BEA0 /* AssessmentSubmission.swift in Sources */,
+			AAE5D0012F9CCDEB00B8BEA0 /* AssessmentResultTracker.swift in Sources */,
 			67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */,
 			B1C0A1012F1CA4B200C1A1A1 /* FoundationTracks.swift in Sources */,
 			B1C0A1022F1CA4B200C1A1A1 /* LearnerProfile.swift in Sources */,
@@ -449,6 +456,7 @@ AA001F2829250A0000B8BEA0 /* ArcadiaChatbotView.swift */ = {isa = PBXFileReferenc
 			buildActionMask = 2147483647;
 			files = (
 				AA0010192924FA2300B8BEA0 /* EloEngineTests.swift in Sources */,
+				AAE5D0032F9CCDEB00B8BEA0 /* AssessmentResultTrackerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

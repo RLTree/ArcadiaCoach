@@ -16,5 +16,5 @@
 
 ## Follow-ups
 1. Monitor the new telemetry series in staging; wire alerts once `assessment_results_unseen` shows unhealthy backlogs.
-2. Explore surfacing the latest graded submission inline (auto-expanding detail view) when the unseen flag clears, per Phase 33 UI polish goals.
+2. Explore surfacing the latest graded submission inline (auto-expanding detail view) when the unseen flag clears, per Phase 34 UI polish goals.
 3. Evaluate persisting the `Run Onboarding` overlay dismissal reason so developer resets can optionally skip the reminder when testing multiple learners in succession.
