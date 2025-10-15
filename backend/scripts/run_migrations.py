@@ -14,6 +14,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from configparser import InterpolationMissingOptionError
+
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
@@ -62,13 +64,18 @@ def get_alembic_config(config_path: str) -> Config:
 
 
 def resolve_database_url(config: Config) -> str:
-    url = config.get_main_option("sqlalchemy.url")
-    if not url or url == "%(ARCADIA_DATABASE_URL)s":
+    try:
+        url = config.get_main_option("sqlalchemy.url")
+    except InterpolationMissingOptionError:
+        url = None
+
+    if not url or "%(ARCADIA_DATABASE_URL)" in url:
         env_url = os.getenv("ARCADIA_DATABASE_URL")
         if env_url:
             config.set_main_option("sqlalchemy.url", env_url)
             return env_url
         raise RuntimeError("ARCADIA_DATABASE_URL must be set before running migrations.")
+
     return url
 
 

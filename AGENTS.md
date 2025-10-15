@@ -268,68 +268,78 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Documented new database env vars, developer workflow updates, and Render rollout steps so teammates can apply migrations consistently.  
     - **Follow-ups:** automate Alembic migrations within the deployment pipeline, add database health/telemetry dashboards, and harden rollback tooling (tracked under Phases 21 and 35).
 
-20. **Phase 20 – Persistence Migration – Client Integration**
-    - Update the macOS client, MCP server, and agent tooling to consume the new persistence APIs and handle paginated schedule slices.
-    - Remove JSON-file assumptions throughout services, add optimistic write-through caches, and refresh offline fallback logic.
-    - Backfill integration tests validating mixed-version compatibility while rolling out the migration.
-    - Expose feature flags/kill switches so rollback to JSON store remains possible during staged deployment.
+20. **Phase 20 – Persistence Migration – Client Integration** ✅ *(completed October 15, 2025; see `docs/phase-20-persistence-migration-client.md`)*  
+    - Added persistence-mode switching (`database` / `legacy` / `hybrid`) so phased rollouts can fail over safely.  
+    - Delivered schedule pagination + caching for backend APIs, the macOS client, and agent tooling to reduce payload size.  
+    - Updated Swift models and telemetry to handle slice-aware refresh flows with offline caches.  
+    - **Follow-ups:** finish ELO category deduplication and schedule slice adoption telemetry (tracked in Phase 22) and extend slice support to MCP widgets (Phase 24).
+
 21. **Phase 21 – Persistence Migration – Automation & Observability**
     - Add Render deploy hooks or workers that run Alembic migrations automatically and block deploys on schema drift.
     - Stand up database monitoring (connections, slow queries, storage, vacuum stats) and route alerts into the existing telemetry stack.
     - Cement disaster-recovery playbooks: validate backups, rehearse failover, and document rollback steps for the new PostgreSQL store.
-22. **Phase 22 – Milestone Guidance & Adaptive Roadmapping**
+22. **Phase 22 – ELO Integrity & Responsiveness**
+    - Enforce unique ELO category labels/keys by deduplicating goal-parser outputs, merging focus areas, and adding regression tests plus telemetry alerts for collisions.
+    - Complete schedule slice adoption across backend tools, macOS UI, and agent prompts; minimise payload size and surface latency dashboards.
+    - Optimise client-side caching/telemetry batching to reduce schedule refresh lag and capture responsiveness metrics for future tuning.
+    - Harden persistence fallbacks so hybrid mode auto-recovers from database outages without exposing stale or duplicate categories.
+23. **Phase 23 – Milestone Brief Foundations**
     - Generate detailed milestone briefs (objectives, deliverables, success parameters) that live entirely in-app.
     - Clarify which work must happen outside the app while capturing progress notes and artefacts back into Arcadia.
+    - Ensure briefs surface prerequisite lessons/quizzes and ELO dependencies before milestones unlock.
+24. **Phase 24 – Milestone Progress Integration**
     - Feed milestone completion data into the sequencer so future lessons/quizzes adjust automatically.
-23. **Phase 23 – Lesson Deck Foundations**
+    - Display milestone status and outstanding deliverables across dashboard, chat, and MCP widgets using the new slice endpoints.
+    - Extend paginated schedule delivery to MCP widgets and chat overlays to keep milestone context lightweight.
+25. **Phase 25 – Lesson Deck Foundations**
     - Render lessons as presentation-style decks with narrative slides, inline code/examples, and citations to supporting papers/docs.
     - Establish shared deck components and export formats so both chat and dashboard views reuse the same content.
     - Ensure lessons remain self-contained so learners can progress without leaving the app while still offering optional deep-dive links.
-24. **Phase 24 – Lesson Comprehension & Knowledge Checks**
+26. **Phase 26 – Lesson Comprehension & Knowledge Checks**
     - Bundle comprehension checks at the end of each lesson and sync outcomes into the sequencer and ELO model.
     - Add lightweight progress indicators and reminders so learners know when to complete follow-up checks.
     - Resolve outstanding Swift concurrency warnings tied to shared formatters introduced by the new lesson components.
-25. **Phase 25 – Attachment Experience Enhancements**
+27. **Phase 27 – Attachment Experience Enhancements**
     - Extend attachment presentation with inline previews/captions and map `file_search` IDs to human-readable filenames and titles.
     - Harden upload/preview flows for large artifacts with resumable transfers and checksum validation.
     - Document attachment lifecycle policies ahead of persistence migration completion.
-26. **Phase 26 – Citation UX & Linking**
+28. **Phase 28 – Citation UX & Linking**
     - Refresh the agent + client rendering pipeline so Markdown citations consistently show richer metadata across chat, lessons, and dashboard views.
     - Surface backend citation metadata in UI chip components with quick-open/download affordances.
     - Add regression coverage ensuring citation targets remain accessible after persistence migration.
-27. **Phase 27 – Interactive Quiz Runner**
+29. **Phase 29 – Interactive Quiz Runner**
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback loops.
     - Instrument quizzes so outcomes are stored alongside attempt metadata for follow-up analysis.
     - Ensure accessibility and offline considerations are met for the new quiz surfaces.
-28. **Phase 28 – Assessment Review & Feedback Loop**
+30. **Phase 30 – Assessment Review & Feedback Loop**
     - Provide review surfaces so learners can revisit answers, rationales, and references across attempts.
     - Route quiz outcomes into ELO updates and adaptive curriculum adjustments with clearer explanations of rating changes.
     - Capture telemetry on assessment retries to inform future sequencing heuristics.
-29. **Phase 29 – Reassessment & Refresh Cadence**
+31. **Phase 31 – Reassessment & Refresh Cadence**
     - Schedule periodic reassessments and surface their status alongside historical submissions.
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.
     - Define thresholds for triggering reassessment vs. lightweight check-ins.
-30. **Phase 30 – Developer Code Tooling Enhancements**
+32. **Phase 32 – Developer Code Tooling Enhancements**
     - Add code-entry affordances (syntax highlighting, editor shortcuts) and evaluate optional lint/run hooks for in-app prompts.
     - Ensure accessibility preferences (font sizing, colour choices) are respected in the coding surface.
     - Provide developer-oriented toggles for sandboxed execution once backend support exists.
-31. **Phase 31 – API Reliability & Test Coverage**
+33. **Phase 33 – API Reliability & Test Coverage**
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).
     - Add contract tests for assessment history payloads, including legacy compatibility verification.
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.
-32. **Phase 32 – Evaluation & Benchmarking Framework**
+34. **Phase 34 – Evaluation & Benchmarking Framework**
     - Validate GPT-graded outcomes against representative human reviews and build a replayable evaluation harness.
     - Curate ground-truth datasets across lesson types and surface scorecards to the team.
     - Track model drift and regression deltas, feeding results into adaptive curriculum decisions.
-33. **Phase 33 – Adaptive Safety & Prompt Hardening**
+35. **Phase 35 – Adaptive Safety & Prompt Hardening**
     - Tune grading and response prompts (language, scoring thresholds, guardrails) using insights from the evaluation framework.
     - Revisit default model/web-search settings, codify safety policies, and document escalation paths for risky content.
     - Align tooling with OpenAI policy updates and ensure guardrail prompts are centrally versioned.
-34. **Phase 34 – QA & Release Readiness**
+36. **Phase 36 – QA & Release Readiness**
     - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
     - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
     - Capture release notes and rollback procedures.
-35. **Phase 35 – Agent Operations Uplift**
+37. **Phase 37 – Agent Operations Uplift**
     - Build observability dashboards for agent tool usage, grading latency, and token consumption.
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.
     - Add telemetry for automatic `file_search`/`web_search` success and link to alerting.

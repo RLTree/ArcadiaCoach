@@ -4,6 +4,7 @@ import sys
 import types
 
 import pytest
+from configparser import InterpolationMissingOptionError
 
 
 class _ConfigStub:
@@ -36,6 +37,11 @@ class DummyConfig(_ConfigStub):
     pass
 
 
+class RaisingConfig(DummyConfig):
+    def get_main_option(self, key: str) -> str:
+        raise InterpolationMissingOptionError("alembic", key, "%(ARCADIA_DATABASE_URL)s", "arcadia_database_url")
+
+
 def _load_test_config(monkeypatch) -> DummyConfig:
     monkeypatch.setenv("ARCADIA_DATABASE_URL", "sqlite://")
     config = DummyConfig()
@@ -47,6 +53,12 @@ def _load_test_config(monkeypatch) -> DummyConfig:
 def test_resolve_database_url_prefers_env(monkeypatch) -> None:
     config = DummyConfig()
     config.set_main_option("sqlalchemy.url", "%(ARCADIA_DATABASE_URL)s")
+    monkeypatch.setenv("ARCADIA_DATABASE_URL", "sqlite://")
+    assert runner.resolve_database_url(config) == "sqlite://"
+
+
+def test_resolve_database_url_handles_interpolation_error(monkeypatch) -> None:
+    config = RaisingConfig()
     monkeypatch.setenv("ARCADIA_DATABASE_URL", "sqlite://")
     assert runner.resolve_database_url(config) == "sqlite://"
 
