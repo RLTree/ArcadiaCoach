@@ -274,10 +274,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Updated Swift models and telemetry to handle slice-aware refresh flows with offline caches.  
     - **Follow-ups:** finish ELO category deduplication and schedule slice adoption telemetry (tracked in Phase 22) and extend slice support to MCP widgets (Phase 24).
 
-21. **Phase 21 – Persistence Migration – Automation & Observability**
-    - Add Render deploy hooks or workers that run Alembic migrations automatically and block deploys on schema drift.
-    - Stand up database monitoring (connections, slow queries, storage, vacuum stats) and route alerts into the existing telemetry stack.
-    - Cement disaster-recovery playbooks: validate backups, rehearse failover, and document rollback steps for the new PostgreSQL store.
+21. **Phase 21 – Persistence Migration – Automation & Observability** ✅ *(completed October 15, 2025; see `docs/phase-21-persistence-automation.md`)*  
+    - Wrapped backend boot in `start.sh` so `python -m scripts.run_migrations` blocks deployments on schema drift before Uvicorn starts.  
+    - Added `/healthz/database`, pool instrumentation, and the `scripts.db_metrics` probe so ops can monitor connection health in staging/production.  
+    - Authored the database recovery runbook covering backup validation, failover rotation, and rollback paths.  
+    - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 37–38).
 22. **Phase 22 – ELO Integrity & Responsiveness**
     - Enforce unique ELO category labels/keys by deduplicating goal-parser outputs, merging focus areas, and adding regression tests plus telemetry alerts for collisions.
     - Complete schedule slice adoption across backend tools, macOS UI, and agent prompts; minimise payload size and surface latency dashboards.
@@ -339,10 +340,12 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
     - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
     - Capture release notes and rollback procedures.
-37. **Phase 37 – Agent Operations Uplift**
-    - Build observability dashboards for agent tool usage, grading latency, and token consumption.
+37. **Phase 37 – Agent Observability Dashboards**
+    - Build dashboards tracking agent tool usage, grading latency, token consumption, and database telemetry (`db_pool_status`).
+    - Connect the dashboards to alerting thresholds so on-call responders receive actionable signals.
+38. **Phase 38 – Agent Configuration & Runbooks**
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.
-    - Add telemetry for automatic `file_search`/`web_search` success and link to alerting.
+    - Expand alert routing (web search success, migration duration, telemetry failures) and codify the escalation matrix.
 ## Known Corrections & References
 
 ### SwiftUI overlay sizing and scroll behaviour (added October 12, 2025)
@@ -405,6 +408,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 - **What went wrong:** Refreshing a schedule immediately after deferring an item rewrote the unchanged profile JSON, so the request stalled behind a multi-minute disk write on Render.
 - **Correct approach:** Detect unchanged sequencer output, skip persistence when no fields differ, and emit telemetry with `status="unchanged"` so we can monitor redundant refreshes.
 - **Action for future work:** Extend the short-circuit to future persistence migrations and alert if `schedule_generation` repeatedly reports large `duration_ms` despite unchanged payloads.
+
+### Alembic config interpolation placeholders (added October 15, 2025)
+- **What went wrong:** Running `python -m scripts.run_migrations` on Render raised `InterpolationMissingOptionError` because `alembic.ini` still contained the placeholder `%(ARCADIA_DATABASE_URL)s`, which ConfigParser treats as an unresolved variable.
+- **Correct approach:** Detect missing interpolation in the migration wrapper, fall back to the `ARCADIA_DATABASE_URL` environment variable, and keep `alembic.ini` generic for local development.
+- **Action for future work:** When introducing new deployment scripts, exercise them against containerised environments that mimic Render’s ConfigParser behaviour and add companion tests that simulate missing interpolation.
 
 ### Foundation coverage gaps in curriculum (added October 14, 2025)
 - **What went wrong:** The adaptive curriculum assumed learners already had broad Python/data foundations, so onboarding plans after low assessment scores still generated only ~13 items without introducing prerequisite languages, libraries, or extended assessment coverage.
