@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
-from threading import RLock
 from typing import Dict, Iterable, List, Literal, Optional, Sequence, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+from sqlalchemy import delete, select
+from sqlalchemy.orm import selectinload
 
 from .agent_models import (
     AssessmentCategoryOutcomePayload,
@@ -23,13 +23,11 @@ from .agent_models import (
 )
 from .assessment_result import AssessmentGradingResult
 from .assessment_attachments import PendingAssessmentAttachment
+from .db.models import AssessmentSubmissionModel, LearnerProfileModel
+from .db.session import session_scope
 
 
 logger = logging.getLogger(__name__)
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DATA_PATH = DATA_DIR / "assessment_submissions.json"
 
 
 class AssessmentTaskResponse(BaseModel):
@@ -215,13 +213,7 @@ def _parse_attachment_metadata(metadata: Dict[str, str]) -> List[AssessmentSubmi
 
 
 class AssessmentSubmissionStore:
-    """JSON-backed submission log for developer debugging."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = RLock()
-        self._entries: Dict[str, List[AssessmentSubmission]] = {}
-        self._load()
+    """Database-backed submission log for developer debugging."""
 
     def record(
         self,
@@ -230,27 +222,34 @@ class AssessmentSubmissionStore:
         metadata: Dict[str, str] | None = None,
         attachments: Sequence[AssessmentSubmissionAttachment] | None = None,
     ) -> AssessmentSubmission:
-        normalized = username.lower().strip()
+        normalized = username.strip().lower()
         if not normalized:
             raise ValueError("Username cannot be empty when recording submissions.")
 
-        submission = AssessmentSubmission(
-            submission_id=uuid4().hex,
-            username=normalized,
-            submitted_at=datetime.now(timezone.utc),
-            responses=[response.model_copy(deep=True) for response in responses],
-            attachments=[attachment.model_copy(deep=True) for attachment in attachments or []],
-            metadata=dict(metadata or {}),
-        )
-        for response in submission.responses:
+        response_models = [response.model_copy(deep=True) for response in responses]
+        for response in response_models:
             response.word_count = _word_count(response.response)
 
-        with self._lock:
-            bucket = self._entries.setdefault(normalized, [])
-            bucket.append(submission.model_copy(deep=True))
-            self._persist_locked()
-            logger.info("Stored onboarding submission %s for %s", submission.submission_id, normalized)
-            return submission
+        attachment_models = [attachment.model_copy(deep=True) for attachment in attachments or []]
+        metadata_payload = {str(key): str(value) for key, value in (metadata or {}).items()}
+        submission_id = uuid4().hex
+        submitted_at = datetime.now(timezone.utc)
+
+        with session_scope() as session:
+            learner = self._get_learner(session, normalized)
+            model = AssessmentSubmissionModel(
+                learner_id=learner.id,
+                submission_id=submission_id,
+                submitted_at=submitted_at,
+                responses=[response.model_dump(mode="json") for response in response_models],
+                attachments=[attachment.model_dump(mode="json") for attachment in attachment_models],
+                metadata_payload=metadata_payload,
+                grading=None,
+            )
+            session.add(model)
+            session.flush()
+            logger.info("Stored onboarding submission %s for %s", submission_id, normalized)
+            return self._model_to_domain(model, learner.username or normalized)
 
     def apply_grading(
         self,
@@ -258,90 +257,115 @@ class AssessmentSubmissionStore:
         submission_id: str,
         grading: AssessmentGradingResult,
     ) -> AssessmentSubmission:
-        normalized = username.lower().strip()
+        normalized = username.strip().lower()
         if not normalized:
             raise ValueError("Username cannot be empty when applying grading.")
-
-        with self._lock:
-            bucket = self._entries.get(normalized)
-            if not bucket:
-                raise LookupError(f"No submissions found for '{username}'.")
-
-            updated: Optional[AssessmentSubmission] = None
-            for index, entry in enumerate(bucket):
-                if entry.submission_id == submission_id:
-                    bucket[index] = entry = entry.model_copy(deep=True)
-                    entry.grading = grading.model_copy(deep=True)
-                    updated = entry
-                    break
-
-            if updated is None:
-                raise LookupError(f"Submission '{submission_id}' was not found for '{username}'.")
-
-            self._persist_locked()
+        with session_scope() as session:
+            model, learner_username = self._get_submission(session, normalized, submission_id)
+            model.grading = grading.model_dump(mode="json")
+            session.flush()
             logger.info("Attached grading result to submission %s for %s", submission_id, normalized)
-            return updated.model_copy(deep=True)
+            return self._model_to_domain(model, learner_username)
 
     def list_user(self, username: str) -> List[AssessmentSubmission]:
-        normalized = username.lower().strip()
+        normalized = username.strip().lower()
         if not normalized:
             return []
-        with self._lock:
-            entries = self._entries.get(normalized, [])
-            return [entry.model_copy(deep=True) for entry in sorted(entries, key=lambda e: e.submitted_at, reverse=True)]
+        with session_scope(commit=False) as session:
+            learner = self._get_learner(session, normalized, required=False)
+            if learner is None:
+                return []
+            stmt = (
+                select(AssessmentSubmissionModel)
+                .options(selectinload(AssessmentSubmissionModel.learner))
+                .where(AssessmentSubmissionModel.learner_id == learner.id)
+                .order_by(AssessmentSubmissionModel.submitted_at.desc())
+            )
+            rows = session.execute(stmt).scalars().all()
+            return [self._model_to_domain(row, learner.username or normalized) for row in rows]
 
     def list_all(self) -> List[AssessmentSubmission]:
-        with self._lock:
-            collected: List[AssessmentSubmission] = []
-            for entries in self._entries.values():
-                collected.extend(entry.model_copy(deep=True) for entry in entries)
-            collected.sort(key=lambda entry: entry.submitted_at, reverse=True)
-            return collected
+        with session_scope(commit=False) as session:
+            stmt = (
+                select(AssessmentSubmissionModel)
+                .options(selectinload(AssessmentSubmissionModel.learner))
+                .order_by(AssessmentSubmissionModel.submitted_at.desc())
+            )
+            rows = session.execute(stmt).scalars().all()
+            submissions: List[AssessmentSubmission] = []
+            for row in rows:
+                username = row.learner.username if row.learner else ""
+                submissions.append(self._model_to_domain(row, username))
+            return submissions
 
     def delete_user(self, username: str) -> None:
-        normalized = username.lower().strip()
+        normalized = username.strip().lower()
         if not normalized:
             return
-        with self._lock:
-            removed = self._entries.pop(normalized, None)
-            if removed:
-                self._persist_locked()
-                logger.info("Cleared %d submissions for %s", len(removed), normalized)
+        with session_scope() as session:
+            learner = self._get_learner(session, normalized, required=False)
+            if learner is None:
+                logger.info("No submissions found for %s", normalized)
+                return
+            stmt = select(AssessmentSubmissionModel).where(AssessmentSubmissionModel.learner_id == learner.id)
+            existing = session.execute(stmt).scalars().all()
+            session.execute(
+                delete(AssessmentSubmissionModel).where(AssessmentSubmissionModel.learner_id == learner.id)
+            )
+            logger.info("Cleared %d submissions for %s", len(existing), normalized)
 
-    def _load(self) -> None:
-        if not self._path.exists():
-            return
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            logger.warning("Unable to load assessment submissions: %s", exc)
-            return
-        if not isinstance(data, dict):
-            logger.warning("Skipping malformed submissions payload (expected dict).")
-            return
-        for username, entries in data.items():
-            if not isinstance(entries, list):
-                continue
-            bucket: List[AssessmentSubmission] = []
-            for payload in entries:
-                try:
-                    submission = AssessmentSubmission.model_validate(payload)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Skipping invalid submission payload for %s: %s", username, exc)
-                    continue
-                bucket.append(submission)
-            if bucket:
-                self._entries[username] = bucket
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
-    def _persist_locked(self) -> None:
-        dump = {
-            username: [entry.model_dump(mode="json") for entry in entries]
-            for username, entries in self._entries.items()
-        }
-        try:
-            self._path.write_text(json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8")
-        except OSError:
-            logger.exception("Failed to persist assessment submissions to %s", self._path)
+    def _get_learner(self, session, username: str, required: bool = True) -> LearnerProfileModel | None:
+        stmt = select(LearnerProfileModel).where(LearnerProfileModel.username == username)
+        learner = session.execute(stmt).scalar_one_or_none()
+        if learner is None and required:
+            raise LookupError(f"Learner profile '{username}' does not exist.")
+        return learner
+
+    def _get_submission(self, session, username: str, submission_id: str):
+        learner = self._get_learner(session, username)
+        stmt = (
+            select(AssessmentSubmissionModel)
+            .options(selectinload(AssessmentSubmissionModel.learner))
+            .where(
+                AssessmentSubmissionModel.learner_id == learner.id,
+                AssessmentSubmissionModel.submission_id == submission_id,
+            )
+        )
+        model = session.execute(stmt).scalar_one_or_none()
+        if model is None:
+            raise LookupError(f"Submission '{submission_id}' was not found for '{username}'.")
+        return model, learner.username or username
+
+    def _model_to_domain(self, model: AssessmentSubmissionModel, username: str) -> AssessmentSubmission:
+        responses = []
+        for payload in model.responses or []:
+            response = AssessmentTaskResponse.model_validate(payload)
+            if response.word_count <= 0:
+                response.word_count = _word_count(response.response)
+            responses.append(response)
+        attachments = [
+            AssessmentSubmissionAttachment.model_validate(payload)
+            for payload in model.attachments or []
+        ]
+        metadata = {str(key): str(value) for key, value in (model.metadata_payload or {}).items()}
+        grading = (
+            AssessmentGradingResult.model_validate(model.grading)
+            if model.grading
+            else None
+        )
+        return AssessmentSubmission(
+            submission_id=model.submission_id,
+            username=username,
+            submitted_at=model.submitted_at,
+            responses=responses,
+            attachments=attachments,
+            metadata=metadata,
+            grading=grading,
+        )
 
 
 def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmissionPayload:
@@ -425,7 +449,7 @@ def submission_payload(submission: AssessmentSubmission) -> AssessmentSubmission
     )
 
 
-submission_store = AssessmentSubmissionStore(DATA_PATH)
+submission_store = AssessmentSubmissionStore()
 
 __all__ = [
     "AssessmentGradingResult",

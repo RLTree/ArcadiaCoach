@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,9 @@ from app import assessment_attachments, assessment_submission, curriculum_sequen
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult, RubricCriterionResult, TaskGradingResult
 from app.assessment_submission import AssessmentSubmissionStore, AssessmentTaskResponse, submission_payload
 from app.assessment_attachments import AssessmentAttachmentStore
+from app.config import get_settings
+from app.db.base import Base
+from app.db.session import dispose_engine, get_engine
 from app.learner_profile import (
     AssessmentTask,
     CurriculumModule,
@@ -26,18 +30,27 @@ from app.learner_profile import (
 from app.main import app
 
 
-def _store(path: Path) -> AssessmentSubmissionStore:
-    return AssessmentSubmissionStore(path)
+def _setup_db(tmp_path: Path) -> None:
+    db_path = tmp_path / "arcadia.db"
+    os.environ["ARCADIA_DATABASE_URL"] = f"sqlite:///{db_path}"
+    get_settings.cache_clear()
+    dispose_engine()
+    engine = get_engine()
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
 
 
 def _attachment_store(root: Path) -> AssessmentAttachmentStore:
     files_dir = root / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
-    return AssessmentAttachmentStore(root / "attachments.json", files_dir)
+    return AssessmentAttachmentStore(files_dir)
 
 
 def test_submission_store_round_trip(tmp_path: Path) -> None:
-    store = _store(tmp_path / "submissions.json")
+    _setup_db(tmp_path)
+    store = AssessmentSubmissionStore()
+    profile_store = LearnerProfileStore()
+    profile_store.upsert(LearnerProfile(username="Learner-One"))
     response = AssessmentTaskResponse(
         task_id="concept-1",
         response="Describe how async context managers work in Python.",
@@ -112,11 +125,10 @@ def test_submission_store_round_trip(tmp_path: Path) -> None:
 
 
 def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    profile_path = tmp_path / "profiles.json"
-    submissions_path = tmp_path / "submissions.json"
+    _setup_db(tmp_path)
 
-    profile_store = LearnerProfileStore(profile_path)
-    submission_store = AssessmentSubmissionStore(submissions_path)
+    profile_store = LearnerProfileStore()
+    submission_store = AssessmentSubmissionStore()
     attachment_store = _attachment_store(tmp_path / "attachments")
 
     monkeypatch.setattr(onboarding_routes, "profile_store", profile_store, raising=False)

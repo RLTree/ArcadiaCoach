@@ -78,6 +78,10 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_AGENT_MODEL` | Default agent model (string literal from `SUPPORTED_MODELS`) |
 | `ARCADIA_AGENT_REASONING` | Reasoning effort literal: `minimal` / `low` / `medium` / `high` |
 | `ARCADIA_AGENT_ENABLE_WEB` | Toggle web search default (macOS UI can override per turn) |
+| `ARCADIA_DATABASE_URL` | PostgreSQL connection string (required for Phase 19+). |
+| `ARCADIA_DATABASE_POOL_SIZE` | Optional SQLAlchemy pool size (defaults to 10). |
+| `ARCADIA_DATABASE_MAX_OVERFLOW` | Optional overflow connection limit (defaults to 10). |
+| `ARCADIA_DATABASE_ECHO` | Set `true` to log SQL statements locally. |
 | `ARCADIA_MCP_URL` | MCP server URL (local dev defaults to `http://127.0.0.1:8001/mcp`) |
 | `ARCADIA_MCP_LABEL` | Label shown in the tool config (default `Arcadia_Coach_Widgets`) |
 | `ARCADIA_MCP_REQUIRE_APPROVAL` | MCP approval strategy (default `never`) |
@@ -101,6 +105,7 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
    cd backend
    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
+   _First run after Phase 19:_ apply migrations with `uv run alembic upgrade head` and backfill legacy data with `uv run python -m scripts.backfill_json_stores` if needed.
 4. Test the agent directly:
    ```python
    from agents import Runner, RunConfig, ModelSettings
@@ -240,59 +245,67 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added `_summarize_distribution` telemetry and emit `long_range_distribution` with per-category counts, longest runs, first-week appearances, and near-term coverage.  
     - Backfilled regression coverage for near-term mixing, long-range streak caps, and telemetry payloads, then refreshed roadmap/doc snapshots to highlight the balancing instrumentation.  
     - **Follow-ups:** Monitor the new telemetry in staging, adjust streak caps if imbalance resurfaces, and feed milestone unlock signals into the distribution summary during Phase 19.
-19. **Phase 19 – Milestone Guidance & Adaptive Roadmapping**
-    - Generate detailed milestone briefs (objectives, required deliverables, success parameters) that live entirely in-app.
+
+**Next Up – Phase 19 (Pulled Forward): Persistence Migration – Data Layer**  
+    - Stand up managed PostgreSQL (Render, Crunchy Bridge, Neon, or equivalent) as the system of record, replacing the JSON-backed `profile_store`.  
+    - Ship ORM/repository layers, Alembic migrations, and connection pooling tuned for long-running schedules (≥ multi-year horizon).  
+    - Build migration tooling that backfills existing learner profiles, curriculum schedules, memory records, and attachments into the new database with encryption-at-rest and audit trails.  
+    - Implement pagination-ready queries plus archival policies so downstream phases can request partial schedules without loading entire timelines.
+
+20. **Phase 20 – Persistence Migration – Client & Sync**
+    - Update the macOS client, MCP server, and agent tooling to consume the new persistence APIs and handle paginated schedule slices.
+    - Remove JSON-file assumptions throughout services, add optimistic write-through caches, and refresh offline fallback logic.
+    - Backfill integration tests validating mixed-version compatibility while rolling out the migration.
+    - Expose feature flags/kill switches so rollback to JSON store remains possible during staged deployment.
+21. **Phase 21 – Milestone Guidance & Adaptive Roadmapping**
+    - Generate detailed milestone briefs (objectives, deliverables, success parameters) that live entirely in-app.
     - Clarify which work must happen outside the app while capturing progress notes and artefacts back into Arcadia.
     - Feed milestone completion data into the sequencer so future lessons/quizzes adjust automatically.
-20. **Phase 20 – Lesson Deck Foundations**
+22. **Phase 22 – Lesson Deck Foundations**
     - Render lessons as presentation-style decks with narrative slides, inline code/examples, and citations to supporting papers/docs.
     - Establish shared deck components and export formats so both chat and dashboard views reuse the same content.
     - Ensure lessons remain self-contained so learners can progress without leaving the app while still offering optional deep-dive links.
-21. **Phase 21 – Lesson Comprehension & Knowledge Checks**
+23. **Phase 23 – Lesson Comprehension & Knowledge Checks**
     - Bundle comprehension checks at the end of each lesson and sync outcomes into the sequencer and ELO model.
     - Add lightweight progress indicators and reminders so learners know when to complete follow-up checks.
     - Resolve outstanding Swift concurrency warnings tied to shared formatters introduced by the new lesson components.
-22. **Phase 22 – Attachment & Citation Enhancements**
+24. **Phase 24 – Attachment Experience Enhancements**
     - Extend attachment presentation with inline previews/captions and map `file_search` IDs to human-readable filenames and titles.
-    - Expose attachment metadata and citation targets in both backend payloads and SwiftUI so users can open/download referenced sources directly from citation chips.
+    - Harden upload/preview flows for large artifacts with resumable transfers and checksum validation.
+    - Document attachment lifecycle policies ahead of persistence migration completion.
+25. **Phase 25 – Citation UX & Linking**
     - Refresh the agent + client rendering pipeline so Markdown citations consistently show richer metadata across chat, lessons, and dashboard views.
-23. **Phase 23 – Interactive Quiz Runner**
+    - Surface backend citation metadata in UI chip components with quick-open/download affordances.
+    - Add regression coverage ensuring citation targets remain accessible after persistence migration.
+26. **Phase 26 – Interactive Quiz Runner**
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback loops.
     - Instrument quizzes so outcomes are stored alongside attempt metadata for follow-up analysis.
     - Ensure accessibility and offline considerations are met for the new quiz surfaces.
-24. **Phase 24 – Assessment Review & Feedback Loop**
+27. **Phase 27 – Assessment Review & Feedback Loop**
     - Provide review surfaces so learners can revisit answers, rationales, and references across attempts.
-    - Route quiz outcomes into ELO updates and adaptive curriculum adjustments with clear explanation of rating changes.
+    - Route quiz outcomes into ELO updates and adaptive curriculum adjustments with clearer explanations of rating changes.
     - Capture telemetry on assessment retries to inform future sequencing heuristics.
-25. **Phase 25 – Reassessment & Refresh Cadence**
+28. **Phase 28 – Reassessment & Refresh Cadence**
     - Schedule periodic reassessments and surface their status alongside historical submissions.
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.
     - Define thresholds for triggering reassessment vs. lightweight check-ins.
-26. **Phase 26 – Persistence Migration (Data Layer)**
-    - Introduce a durable database for profiles, assessments, chat transcripts, and submissions.
-    - Add repository/service abstractions in the backend to wrap new storage, including migrations for existing JSON data.
-    - Establish schema versioning and seed scripts for dev/staging environments, including encryption-at-rest for stored assessment attachments.
-27. **Phase 27 – Persistence Migration (Client Integration & Sync)**
-    - Update the macOS client and Agents SDK utilities to consume the new persistence APIs.
-    - Remove JSON-file assumptions from the app layer and ensure offline/cache behaviours remain stable.
-    - Backfill smoke tests to verify legacy decode paths are no longer needed.
-28. **Phase 28 – Developer Code Tooling Enhancements**
+29. **Phase 29 – Developer Code Tooling Enhancements**
     - Add code-entry affordances (syntax highlighting, editor shortcuts) and evaluate optional lint/run hooks for in-app prompts.
     - Ensure accessibility preferences (font sizing, colour choices) are respected in the coding surface.
     - Provide developer-oriented toggles for sandboxed execution once backend support exists.
-29. **Phase 29 – API Reliability & Test Coverage**
+30. **Phase 30 – API Reliability & Test Coverage**
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).
     - Add contract tests for assessment history payloads, including legacy compatibility verification.
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.
-30. **Phase 30 – Evaluation & Adaptive Safety**
+31. **Phase 31 – Evaluation & Adaptive Safety**
     - Validate GPT-graded outcomes against representative human reviews and update rubric weights accordingly.
-    - Tune the grading prompt (language, scoring thresholds) using data gathered post-Phase 21/22.
+    - Tune the grading prompt (language, scoring thresholds) using data gathered post-Phase 23–25.
     - Default agents to launch with web search enabled (with per-user override) and document the grading prompt schema.
-31. **Phase 31 – QA & Release Readiness**
+32. **Phase 32 – QA & Release Readiness**
     - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.
     - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).
     - Capture release notes and rollback procedures.
-32. **Phase 32 – Agent Operations Uplift**
+33. **Phase 33 – Agent Operations Uplift**
     - Build observability dashboards for agent tool usage, grading latency, and token consumption.
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.
     - Add telemetry for automatic `file_search`/`web_search` success and link to alerting.
@@ -321,6 +334,12 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 ### ReasoningEffort enum usage (added October 12, 2025)
 - **What went wrong:** We attempted to instantiate `ReasoningEffort(...)`, which fails because the OpenAI SDK exposes it as a typing `Union`/`Literal`. This caused grading runs to drop into the fallback branch.
 - **Correct approach:** Pass the string literal directly (or cast) instead of calling the class constructor, e.g. `cast(ReasoningEffort, effort)`.
+- **Action for future work:** Update any new agent tool wiring to pass raw string literals for reasoning effort tiers and add regression tests for the grading pipeline.
+
+### Curriculum session sizing (added October 15, 2025)
+- **What went wrong:** Sequencer heuristics produced single sessions exceeding 9 hours because reinforcement and deep-dive modules inherited long estimated durations.
+- **Correct approach:** The sequencer now splits every oversized lesson/quiz/milestone into ≤120-minute parts, chaining prerequisites across parts so the learner receives the full content across multiple sessions.
+- **Action for future work:** When authoring new curriculum modules, include realistic `estimated_minutes` values and ensure future phases (e.g., milestone guidance) respect the session-splitting helper rather than bypassing it.
 - **Action for future work:** Whenever we upgrade the OpenAI SDK, confirm enum-like types remain string literals and avoid invoking them like classes. Review the type hints before wiring new agents.
 
 ### Web search enforcement & Markdown citations (added October 13, 2025)

@@ -1,27 +1,31 @@
-"""Learner profile models and lightweight persistence."""
+"""Learner profile models and persistence helpers."""
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
-from threading import RLock
-from typing import Any, Dict, Iterable, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .assessment_result import AssessmentGradingResult
+from .db.session import session_scope
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DATA_PATH = DATA_DIR / "learner_profiles.json"
-
 DEFAULT_VECTOR_STORE_ID = "vs_68e81d741f388191acdaabce2f92b7d5"
 MAX_MEMORY_RECORDS = 150
+
+
+if TYPE_CHECKING:
+    from .repositories.learner_profiles import LearnerProfileRepository
+
+
+def _repo() -> "LearnerProfileRepository":
+    from .repositories.learner_profiles import learner_profiles as repository
+
+    return repository
 
 
 class MemoryRecord(BaseModel):
@@ -242,130 +246,40 @@ class LearnerProfile(BaseModel):
 
 
 class LearnerProfileStore:
-    """Minimal persistence layer for learner profiles."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = RLock()
-        self._profiles: Dict[str, LearnerProfile] = {}
-        self._load()
+    """Database-backed facade that preserves the previous store API."""
 
     def get(self, username: str) -> Optional[LearnerProfile]:
-        username = username.lower()
-        with self._lock:
-            profile = self._profiles.get(username)
+        with session_scope(commit=False) as session:
+            profile = _repo().get(session, username)
             return profile.model_copy(deep=True) if profile else None
 
     def upsert(self, profile: LearnerProfile) -> LearnerProfile:
-        normalized = profile.username.lower()
-        with self._lock:
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().upsert(session, profile)
+            return stored.model_copy(deep=True)
 
     def apply_metadata(self, username: str, metadata: Dict[str, Any]) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                profile = LearnerProfile(username=username)
-            updated = False
-
-            updated |= self._set_if_changed(profile, "goal", metadata.get("goal"))
-            updated |= self._set_if_changed(profile, "use_case", metadata.get("use_case"))
-            updated |= self._set_if_changed(profile, "strengths", metadata.get("strengths"))
-
-            tags_payload = metadata.get("knowledge_tags")
-            if isinstance(tags_payload, Iterable) and not isinstance(tags_payload, (str, bytes)):
-                tags = {
-                    tag.strip()
-                    for tag in tags_payload
-                    if isinstance(tag, str) and tag.strip()
-                }
-                if tags:
-                    combined = {tag.lower(): tag for tag in profile.knowledge_tags}
-                    for tag in tags:
-                        combined[tag.lower()] = tag
-                    profile.knowledge_tags = list(combined.values())
-                    updated = True
-
-            if session_id := metadata.get("session_id"):
-                if isinstance(session_id, str) and session_id not in profile.recent_sessions:
-                    profile.recent_sessions = (profile.recent_sessions + [session_id])[-10:]
-                    updated = True
-
-            if elo := metadata.get("elo"):
-                if isinstance(elo, dict) and elo:
-                    incoming = {
-                        key: int(value)
-                        for key, value in elo.items()
-                        if isinstance(key, str) and isinstance(value, (int, float))
-                    }
-                    if incoming:
-                        profile.elo_snapshot.update(incoming)
-                        updated = True
-
-            timezone_value = metadata.get("timezone")
-            if isinstance(timezone_value, str):
-                normalized_tz = self._normalise_timezone(timezone_value)
-                if normalized_tz and profile.timezone != normalized_tz:
-                    profile.timezone = normalized_tz
-                    updated = True
-
-            if updated:
-                profile.last_updated = datetime.now(timezone.utc)
-                self._profiles[normalized] = profile.model_copy(deep=True)
-                self._persist_locked()
-            return profile.model_copy(deep=True)
+        payload = dict(metadata)
+        timezone_value = payload.get("timezone")
+        if isinstance(timezone_value, str):
+            normalized = self._normalise_timezone(timezone_value)
+            if normalized:
+                payload["timezone"] = normalized
+            else:
+                payload.pop("timezone", None)
+        with session_scope() as session:
+            stored = _repo().apply_metadata(session, username, payload)
+            return stored.model_copy(deep=True)
 
     def append_memory(self, username: str, note_id: str, note: str, tags: Iterable[str]) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                profile = LearnerProfile(username=username)
-            record = MemoryRecord(
-                note_id=note_id,
-                note=note,
-                tags=[tag for tag in (tag.strip() for tag in tags) if tag],
-            )
-            profile.memory_records.append(record)
-            if len(profile.memory_records) > MAX_MEMORY_RECORDS:
-                profile.memory_records = profile.memory_records[-MAX_MEMORY_RECORDS:]
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return profile.model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().append_memory(session, username, note_id, note, tags)
+            return stored.model_copy(deep=True)
 
     def set_elo_category_plan(self, username: str, plan: EloCategoryPlan) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                profile = LearnerProfile(username=username)
-            snapshot = profile.elo_snapshot
-            updated_snapshot: Dict[str, int] = {}
-            for category in plan.categories:
-                rating: Optional[int] = None
-                if category.key in snapshot:
-                    rating = snapshot[category.key]
-                else:
-                    label_rating = next(
-                        (value for key, value in snapshot.items() if key.lower() == category.label.lower()),
-                        None,
-                    )
-                    rating = label_rating
-                if rating is None:
-                    rating = int(category.starting_rating)
-                updated_snapshot[category.key] = int(rating)
-
-            profile.elo_category_plan = plan.model_copy(deep=True)
-            profile.elo_snapshot = updated_snapshot
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().set_elo_category_plan(session, username, plan)
+            return stored.model_copy(deep=True)
 
     def set_curriculum_and_assessment(
         self,
@@ -373,32 +287,14 @@ class LearnerProfileStore:
         curriculum: CurriculumPlan,
         assessment: OnboardingAssessment,
     ) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                profile = LearnerProfile(username=username)
-            profile.curriculum_plan = curriculum.model_copy(deep=True)
-            profile.onboarding_assessment = assessment.model_copy(deep=True)
-            profile.curriculum_schedule = None
-            profile.schedule_adjustments = {}
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().set_curriculum_and_assessment(session, username, curriculum, assessment)
+            return stored.model_copy(deep=True)
 
     def set_goal_inference(self, username: str, inference: GoalParserInference) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                profile = LearnerProfile(username=username)
-            profile.goal_inference = inference.model_copy(deep=True)
-            profile.foundation_tracks = [track.model_copy(deep=True) for track in inference.tracks]
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().set_goal_inference(session, username, inference)
+            return stored.model_copy(deep=True)
 
     def set_curriculum_schedule(
         self,
@@ -407,71 +303,27 @@ class LearnerProfileStore:
         *,
         adjustments: Optional[Dict[str, int]] = None,
     ) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                raise LookupError(f"Learner profile '{username}' does not exist.")
-            resolved_tz = schedule.timezone or profile.timezone
-            normalised_tz = self._normalise_timezone(resolved_tz) if resolved_tz else None
-            if normalised_tz is None:
-                normalised_tz = "UTC"
-            schedule.timezone = normalised_tz
-            if profile.timezone != normalised_tz:
-                profile.timezone = normalised_tz
-            profile.curriculum_schedule = schedule.model_copy(deep=True)
-            if adjustments is not None:
-                allowed_ids = {item.item_id for item in schedule.items}
-                sanitized = {
-                    item_id: max(int(offset), 0)
-                    for item_id, offset in adjustments.items()
-                    if isinstance(item_id, str) and item_id in allowed_ids
-                }
-                profile.schedule_adjustments = sanitized
-            else:
-                allowed_ids = {item.item_id for item in schedule.items}
-                profile.schedule_adjustments = {
-                    item_id: offset
-                    for item_id, offset in profile.schedule_adjustments.items()
-                    if item_id in allowed_ids
-                }
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        resolved_tz = schedule.timezone or self._extract_timezone(username)
+        normalized_tz = self._normalise_timezone(resolved_tz) if resolved_tz else "UTC"
+        schedule.timezone = normalized_tz
+        with session_scope() as session:
+            stored = _repo().set_curriculum_schedule(
+                session,
+                username,
+                schedule,
+                adjustments=adjustments,
+            )
+            return stored.model_copy(deep=True)
 
     def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
-        normalized = username.lower()
-        if not item_id:
-            raise ValueError("Schedule item id cannot be empty.")
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                raise LookupError(f"Learner profile '{username}' does not exist.")
-            adjustments = dict(profile.schedule_adjustments)
-            adjustments[item_id] = max(int(target_offset), 0)
-            profile.schedule_adjustments = adjustments
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().apply_schedule_adjustment(session, username, item_id, target_offset)
+            return stored.model_copy(deep=True)
 
     def update_schedule_adjustments(self, username: str, adjustments: Dict[str, int]) -> LearnerProfile:
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                raise LookupError(f"Learner profile '{username}' does not exist.")
-            sanitized = {
-                item_id: max(int(offset), 0)
-                for item_id, offset in adjustments.items()
-                if isinstance(item_id, str)
-            }
-            profile.schedule_adjustments = sanitized
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().update_schedule_adjustments(session, username, adjustments)
+            return stored.model_copy(deep=True)
 
     def apply_assessment_result(
         self,
@@ -479,119 +331,22 @@ class LearnerProfileStore:
         result: AssessmentGradingResult,
         elo_snapshot: Dict[str, int],
     ) -> LearnerProfile:
-        from .curriculum_foundations import ensure_foundational_curriculum
-
-        normalized = username.lower()
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                raise LookupError(f"Learner profile '{username}' does not exist.")
-            profile.onboarding_assessment_result = result.model_copy(deep=True)
-            if profile.onboarding_assessment is not None:
-                profile.onboarding_assessment.status = "completed"  # type: ignore[assignment]
-            if elo_snapshot:
-                sanitized = {
-                    key: max(int(value), 0)
-                    for key, value in elo_snapshot.items()
-                    if isinstance(key, str)
-                }
-                if sanitized:
-                    profile.elo_snapshot = dict(sanitized)
-            if profile.curriculum_plan:
-                categories = profile.elo_category_plan.categories if profile.elo_category_plan else []
-                augmented_categories, augmented_curriculum = ensure_foundational_curriculum(
-                    goal=profile.goal or "",
-                    plan=profile.curriculum_plan,
-                    categories=categories,
-                    assessment_result=result,
-                    goal_inference=profile.goal_inference,
-                )
-                if profile.elo_category_plan:
-                    updated_plan = profile.elo_category_plan.model_copy(deep=True)
-                    updated_plan.categories = augmented_categories
-                    profile.elo_category_plan = updated_plan
-                else:
-                    profile.elo_category_plan = EloCategoryPlan(categories=augmented_categories)
-                profile.curriculum_plan = augmented_curriculum
-                for category in augmented_categories:
-                    profile.elo_snapshot.setdefault(category.key, int(category.starting_rating))
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().apply_assessment_result(session, username, result, elo_snapshot)
+            return stored.model_copy(deep=True)
 
     def update_assessment_status(self, username: str, status: str) -> LearnerProfile:
-        normalized = username.lower()
-        allowed = {"pending", "in_progress", "completed"}
-        if status not in allowed:
-            raise ValueError(f"Unsupported onboarding assessment status: {status}")
-        with self._lock:
-            profile = self._profiles.get(normalized)
-            if profile is None:
-                raise LookupError(f"Learner profile '{username}' does not exist.")
-            if profile.onboarding_assessment is None:
-                raise LookupError(f"Assessment for '{username}' has not been generated.")
-            profile.onboarding_assessment.status = status  # type: ignore[assignment]
-            profile.last_updated = datetime.now(timezone.utc)
-            self._profiles[normalized] = profile.model_copy(deep=True)
-            self._persist_locked()
-            return self._profiles[normalized].model_copy(deep=True)
+        with session_scope() as session:
+            stored = _repo().update_assessment_status(session, username, status)
+            return stored.model_copy(deep=True)
 
     def delete(self, username: str) -> bool:
-        normalized = username.lower()
-        with self._lock:
-            removed = self._profiles.pop(normalized, None)
-            if removed:
-                self._persist_locked()
-                logger.info("Removed learner profile for %s", normalized)
-                return True
-            return False
+        with session_scope() as session:
+            return _repo().delete(session, username)
 
-    def _set_if_changed(self, profile: LearnerProfile, attr: str, raw_value: Any) -> bool:
-        if not isinstance(raw_value, str):
-            return False
-        trimmed = raw_value.strip()
-        if trimmed and getattr(profile, attr) != trimmed:
-            setattr(profile, attr, trimmed)
-            return True
-        return False
-
-    def _load(self) -> None:
-        if not self._path.exists():
-            return
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            logger.warning("Failed to load learner profiles: %s", exc)
-            return
-        if isinstance(data, dict):
-            records = data.values()
-        elif isinstance(data, list):
-            records = data
-        else:
-            logger.warning("Unexpected learner profile payload type: %s", type(data))
-            return
-
-        for payload in records:
-            try:
-                profile = LearnerProfile.model_validate(payload)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Skipping invalid learner profile payload: %s", exc)
-                continue
-            if profile.curriculum_schedule and not profile.curriculum_schedule.timezone:
-                fallback_tz = profile.timezone or "UTC"
-                profile.curriculum_schedule.timezone = fallback_tz
-            self._profiles[profile.username.lower()] = profile
-
-    def _persist_locked(self) -> None:
-        dump = {
-            username: profile.model_dump(mode="json")
-            for username, profile in self._profiles.items()
-        }
-        try:
-            self._path.write_text(json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8")
-        except OSError:
-            logger.exception("Failed to persist learner profiles to %s", self._path)
+    def _extract_timezone(self, username: str) -> Optional[str]:
+        profile = self.get(username)
+        return profile.timezone if profile else None
 
     @staticmethod
     def _normalise_timezone(raw: str) -> Optional[str]:
@@ -609,7 +364,7 @@ class LearnerProfileStore:
         return zone.key
 
 
-profile_store = LearnerProfileStore(DATA_PATH)
+profile_store = LearnerProfileStore()
 
 __all__ = [
     "AssessmentGradingResult",

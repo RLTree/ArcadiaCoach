@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     arcadia_agent_model: str = Field("gpt-5", alias="ARCADIA_AGENT_MODEL")
     arcadia_agent_reasoning: Literal["minimal", "low", "medium", "high"] = Field("medium", alias="ARCADIA_AGENT_REASONING")
     arcadia_agent_enable_web: bool = Field(False, alias="ARCADIA_AGENT_ENABLE_WEB")
+    database_url: Optional[str] = Field(None, alias="ARCADIA_DATABASE_URL")
+    database_pool_size: int = Field(10, alias="ARCADIA_DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(10, alias="ARCADIA_DATABASE_MAX_OVERFLOW")
+    database_echo: bool = Field(False, alias="ARCADIA_DATABASE_ECHO")
 
     class Config:
         env_file = os.getenv("ENV_FILE", ".env")
