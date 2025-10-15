@@ -42,7 +42,7 @@ class GoalParserModulePayload(BaseModel):
     module_id: str
     category_key: str
     priority: str = Field(default="core")
-    suggested_weeks: Optional[int] = Field(default=None, ge=1)
+    suggested_weeks: Optional[float] = Field(default=None, ge=0.1)
     notes: Optional[str] = None
 
 
