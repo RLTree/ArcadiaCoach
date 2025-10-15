@@ -116,8 +116,10 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     names = [event.name for event in events]
     assert "schedule_generation" in names
     assert "schedule_refresh" in names
+    assert "long_range_distribution" in names
     generation_events = [event for event in events if event.name == "schedule_generation"]
     refresh_events = [event for event in events if event.name == "schedule_refresh"]
+    distribution_events = [event for event in events if event.name == "long_range_distribution"]
     assert generation_events[0].payload["status"] == "success"
     assert refresh_events[0].payload["status"] == "success"
     assert refresh_events[0].payload["regenerated"] is True
@@ -125,6 +127,8 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     assert refresh_events[0].payload["projected_weekly_minutes"] >= 0
     assert "long_range_item_count" in refresh_events[0].payload
     assert "average_session_minutes" in refresh_events[0].payload
+    assert distribution_events[0].payload["horizon_days"] == refreshed.curriculum_schedule.time_horizon_days
+    assert distribution_events[0].payload["window_unique_count"] >= 1
 
     clear_listeners()
     profile_store.delete(username)

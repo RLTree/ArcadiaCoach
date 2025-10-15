@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.assessment_result import AssessmentCategoryOutcome, AssessmentGradingResult
-from app.curriculum_sequencer import CurriculumSequencer
+from app.curriculum_sequencer import (
+    CurriculumSequencer,
+    LONG_RANGE_THRESHOLD_DAYS,
+    NEAR_TERM_SMOOTHING_WINDOW_DAYS,
+    MAX_CONSECUTIVE_CATEGORY_ITEMS,
+)
 from app.learner_profile import (
     CategoryPacing,
     CurriculumModule,
@@ -289,3 +294,143 @@ def test_profile_serialization_includes_schedule_payload() -> None:
     assert payload.curriculum_schedule.long_range_item_count == 2
     assert payload.curriculum_schedule.extended_weeks == 24
     assert payload.curriculum_schedule.long_range_category_keys == ["backend"]
+
+
+def test_sequencer_near_term_mix_spans_categories() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend", "Backend Systems", 1.4),
+            _category("frontend", "Frontend Flow", 1.1),
+            _category("data", "Data Foundations", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Cross-disciplinary roadmap.",
+        success_criteria=["Ship cohesive experience."],
+        modules=[
+            CurriculumModule(
+                module_id="backend-async",
+                category_key="backend",
+                title="Async Services",
+                summary="Strengthen backend async primitives.",
+                objectives=["Refine async tasks"],
+                activities=["Instrument tracing"],
+                deliverables=["Async audit"],
+                estimated_minutes=90,
+            ),
+            CurriculumModule(
+                module_id="frontend-accessibility",
+                category_key="frontend",
+                title="Accessible Navigation",
+                summary="Harden SwiftUI navigation for accessibility.",
+                objectives=["Improve focus order"],
+                activities=["Audit accessibility tree"],
+                deliverables=["Accessibility report"],
+                estimated_minutes=70,
+            ),
+            CurriculumModule(
+                module_id="data-modeling",
+                category_key="data",
+                title="Data Modeling",
+                summary="Establish durable analytics pipelines.",
+                objectives=["Design warehouse schema"],
+                activities=["Model critical dashboards"],
+                deliverables=["Schema proposal"],
+                estimated_minutes=80,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="mix-check",
+        goal="Deliver cohesive full-stack improvements.",
+        use_case="Adaptive curriculum coaching.",
+        strengths="Strong design instincts",
+        elo_snapshot={"backend": 950, "frontend": 1020, "data": 980},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    window_limit = NEAR_TERM_SMOOTHING_WINDOW_DAYS
+    window_categories = {
+        item.category_key for item in schedule.items if item.recommended_day_offset < window_limit
+    }
+
+    assert len(window_categories) >= 3, "Expected at least three categories represented in the near-term window."
+
+
+def test_long_range_refreshers_limit_consecutive_runs() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend", "Backend Systems", 1.3),
+            _category("frontend", "Frontend Flow", 1.0),
+            _category("data", "Data Fluency", 0.9),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Balanced roadmap.",
+        success_criteria=["Ship balanced upgrades."],
+        modules=[
+            CurriculumModule(
+                module_id="backend-foundations",
+                category_key="backend",
+                title="Backend Foundations",
+                summary="Refresh backend architecture.",
+                objectives=["Refactor core services"],
+                activities=["Pair on service design"],
+                deliverables=["Async plan"],
+                estimated_minutes=100,
+            ),
+            CurriculumModule(
+                module_id="frontend-polish",
+                category_key="frontend",
+                title="Frontend Polish",
+                summary="Elevate SwiftUI ergonomics.",
+                objectives=["Improve state management"],
+                activities=["Accessibility audit"],
+                deliverables=["Navigation prototype"],
+                estimated_minutes=80,
+            ),
+            CurriculumModule(
+                module_id="data-analytics",
+                category_key="data",
+                title="Analytics Foundations",
+                summary="Build analytics baseline.",
+                objectives=["Define metrics"],
+                activities=["Author dashboards"],
+                deliverables=["Analytics backlog"],
+                estimated_minutes=85,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="long-range-check",
+        goal="Sustain balanced learning momentum.",
+        use_case="Adaptive loop improvements.",
+        strengths="Rapid prototyping",
+        elo_snapshot={"backend": 920, "frontend": 1010, "data": 960},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    long_range_items = [
+        item for item in schedule.items if item.recommended_day_offset >= LONG_RANGE_THRESHOLD_DAYS
+    ]
+    assert long_range_items, "Expected spaced refreshers to populate the long-range horizon."
+    long_range_categories = {item.category_key for item in long_range_items}
+    assert len(long_range_categories) >= 2, "Expected at least two categories in the long-range sequence."
+
+    consecutive = 1
+    for earlier, later in zip(long_range_items, long_range_items[1:]):
+        if later.category_key == earlier.category_key:
+            consecutive += 1
+            assert (
+                consecutive <= MAX_CONSECUTIVE_CATEGORY_ITEMS
+            ), f"Detected {consecutive} consecutive items for {later.category_key}"
+        else:
+            consecutive = 1

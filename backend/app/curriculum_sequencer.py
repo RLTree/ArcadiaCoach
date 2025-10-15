@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 import math
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Tuple
 
 from .learner_profile import (
     AssessmentGradingResult,
@@ -34,6 +34,11 @@ REFRESHER_MIN_GAP_DAYS = 21
 CHECKPOINT_MIN_GAP_DAYS = 35
 MAX_LONG_RANGE_REFRESH_CYCLES = 6
 MAX_RATIONALE_HISTORY = 6
+NEAR_TERM_SMOOTHING_WINDOW_DAYS = 56
+MIN_NEAR_TERM_CATEGORY_COUNT = 3
+NEAR_TERM_CHUNK_WINDOW = 5
+MAX_CONSECUTIVE_CATEGORY_ITEMS = 4
+MAX_CONSECUTIVE_CATEGORY_CHUNKS = 2
 
 
 @dataclass
@@ -78,17 +83,19 @@ class CurriculumSequencer:
             raise ValueError("No curriculum categories available for sequencing.")
 
         pacing_sessions = self._determine_sessions_per_week(previous_schedule, adjustments)
-        timeline: List[SequencedWorkItem] = []
         module_order = self._prioritize_modules(categories.values())
+        module_chunks: List[Tuple[str, List[SequencedWorkItem]]] = []
+        milestone_attached = False
 
-        for ranking, module in enumerate(module_order, start=1):
+        for module in module_order:
             context = categories[module.category_key]
             lesson_id = f"lesson-{module.module_id}"
             focus_reason = self._focus_reason(context, profile.goal)
             effort_level = self._effort_level(module.estimated_minutes)
             expected_minutes = module.estimated_minutes or 45
+            chunk: List[SequencedWorkItem] = []
 
-            timeline.append(
+            chunk.append(
                 SequencedWorkItem(
                     item_id=lesson_id,
                     category_key=module.category_key,
@@ -106,7 +113,7 @@ class CurriculumSequencer:
 
             quiz_id = f"quiz-{module.module_id}"
             quiz_minutes = max(20, math.ceil(expected_minutes * 0.4))
-            timeline.append(
+            chunk.append(
                 SequencedWorkItem(
                     item_id=quiz_id,
                     category_key=module.category_key,
@@ -125,11 +132,11 @@ class CurriculumSequencer:
                 )
             )
 
-            if ranking == 1:
+            if not milestone_attached:
                 milestone_id = f"milestone-{module.category_key}"
                 milestone_minutes = 90 if expected_minutes < 90 else expected_minutes + 30
                 milestone_prereqs = [lesson_id, quiz_id]
-                timeline.append(
+                chunk.append(
                     SequencedWorkItem(
                         item_id=milestone_id,
                         category_key=module.category_key,
@@ -147,9 +154,10 @@ class CurriculumSequencer:
                         effort_level="focus",
                     )
                 )
+                milestone_attached = True
 
             reinforcement_minutes = max(45, math.ceil(expected_minutes * 0.6))
-            timeline.append(
+            chunk.append(
                 SequencedWorkItem(
                     item_id=f"reinforce-{module.module_id}",
                     category_key=module.category_key,
@@ -170,7 +178,7 @@ class CurriculumSequencer:
 
             if context.track_weight >= 1.3:
                 deep_minutes = max(60, math.ceil(expected_minutes * 0.75))
-                timeline.append(
+                chunk.append(
                     SequencedWorkItem(
                         item_id=f"deepdive-{module.module_id}",
                         category_key=module.category_key,
@@ -188,6 +196,13 @@ class CurriculumSequencer:
                         effort_level=self._effort_level(deep_minutes),
                     )
                 )
+
+            module_chunks.append((module.category_key, chunk))
+
+        balanced_chunks = self._balance_module_chunks(module_chunks)
+        timeline: List[SequencedWorkItem] = []
+        for _, chunk in balanced_chunks:
+            timeline.extend(chunk)
 
         scheduled_items = self._assign_day_offsets(timeline, sessions_per_week=pacing_sessions)
         scheduled_items = self._inject_long_range_refreshers(
@@ -330,6 +345,76 @@ class CurriculumSequencer:
                 module_entries.append((priority, module))
         module_entries.sort(key=lambda entry: entry[0], reverse=True)
         return [module for _, module in module_entries]
+
+    def _balance_module_chunks(
+        self,
+        chunks: List[Tuple[str, List[SequencedWorkItem]]],
+    ) -> List[Tuple[str, List[SequencedWorkItem]]]:
+        if len(chunks) <= 1:
+            return chunks
+
+        balanced = list(chunks)
+
+        changed = True
+        while changed:
+            changed = False
+            streak = 1
+            for idx in range(1, len(balanced)):
+                previous_key = balanced[idx - 1][0]
+                current_key = balanced[idx][0]
+                if current_key == previous_key:
+                    streak += 1
+                    if streak > MAX_CONSECUTIVE_CATEGORY_CHUNKS:
+                        swap_idx = self._find_next_distinct_chunk(balanced, idx + 1, current_key)
+                        if swap_idx is None or swap_idx == 0:
+                            continue
+                        balanced[idx], balanced[swap_idx] = balanced[swap_idx], balanced[idx]
+                        changed = True
+                        streak = 1
+                else:
+                    streak = 1
+
+        available_categories = {key for key, _ in balanced}
+        if len(available_categories) >= MIN_NEAR_TERM_CATEGORY_COUNT:
+            seen: set[str] = set()
+            for idx in range(min(len(balanced), NEAR_TERM_CHUNK_WINDOW)):
+                key = balanced[idx][0]
+                if idx == 0:
+                    seen.add(key)
+                    continue
+                if key in seen:
+                    swap_idx = self._find_chunk_with_new_category(balanced, idx + 1, seen)
+                    if swap_idx is None:
+                        break
+                    balanced[idx], balanced[swap_idx] = balanced[swap_idx], balanced[idx]
+                    key = balanced[idx][0]
+                seen.add(key)
+
+        return balanced
+
+    def _find_next_distinct_chunk(
+        self,
+        chunks: Sequence[Tuple[str, List[SequencedWorkItem]]],
+        start_idx: int,
+        disallowed_key: str,
+    ) -> Optional[int]:
+        for idx in range(start_idx, len(chunks)):
+            candidate_key, _ = chunks[idx]
+            if candidate_key != disallowed_key:
+                return idx
+        return None
+
+    def _find_chunk_with_new_category(
+        self,
+        chunks: Sequence[Tuple[str, List[SequencedWorkItem]]],
+        start_idx: int,
+        seen: set[str],
+    ) -> Optional[int]:
+        for idx in range(start_idx, len(chunks)):
+            candidate_key, _ = chunks[idx]
+            if candidate_key not in seen:
+                return idx
+        return None
 
     def _priority_score(self, context: _CategoryContext) -> float:
         weight_component = context.weight * 1.25
@@ -716,65 +801,173 @@ class CurriculumSequencer:
         latest_ids: Dict[str, str] = {
             context.key: category_latest[context.key].item_id for context in prioritized_contexts
         }
-        offset_cursor = current_horizon - 1
+        offset_cursor = max(current_horizon - 1, max(latest_offsets.values()))
+        contexts_cycle = deque(prioritized_contexts)
         cycles = 0
+        consecutive_limit = MAX_CONSECUTIVE_CATEGORY_ITEMS
+        multi_category = len(prioritized_contexts) > 1
+
+        last_category, current_run = self._initial_run_state(scheduled)
+
+        def _append_refresh_block(context: _CategoryContext) -> None:
+            nonlocal offset_cursor, last_category, current_run
+            last_offset = latest_offsets[context.key]
+            offset_cursor = max(offset_cursor + refresh_gap, last_offset + refresh_gap)
+            prerequisite_id = latest_ids[context.key]
+            refresh_minutes = max(30, int(round(self._daily_capacity * 0.35)))
+            refresh_item = SequencedWorkItem(
+                item_id=f"refresh-{context.key}-{offset_cursor}",
+                category_key=context.key,
+                kind="lesson",
+                title=f"Spaced Refresh: {context.label}",
+                summary="Revisit core concepts through spaced repetition and low-pressure practice.",
+                objectives=[
+                    "Review the most challenging concept from previous modules.",
+                    "Document confidence shifts and blockers since the last session.",
+                ],
+                prerequisites=[prerequisite_id],
+                recommended_minutes=refresh_minutes,
+                recommended_day_offset=offset_cursor,
+                focus_reason=f"Extends {context.label.lower()} retention for the long-range roadmap.",
+                expected_outcome="Share a reflection covering wins, blockers, and next experiments.",
+                effort_level=self._effort_level(refresh_minutes),
+            )
+            refreshers.append(refresh_item)
+            latest_offsets[context.key] = refresh_item.recommended_day_offset
+            latest_ids[context.key] = refresh_item.item_id
+            last_category, current_run = self._advance_run_state(last_category, current_run, context.key)
+
+            offset_cursor = max(offset_cursor + checkpoint_gap, refresh_item.recommended_day_offset + checkpoint_gap)
+            checkpoint_minutes = max(25, int(round(refresh_minutes * 0.8)))
+            checkpoint_item = SequencedWorkItem(
+                item_id=f"checkpoint-{context.key}-{offset_cursor}",
+                category_key=context.key,
+                kind="quiz",
+                title=f"Checkpoint Quiz: {context.label}",
+                summary="Quick mastery check to confirm spaced-refresh retention.",
+                objectives=[
+                    "Demonstrate recall of key concepts without external notes.",
+                    "Capture follow-up actions for any concepts that slipped.",
+                ],
+                prerequisites=[refresh_item.item_id],
+                recommended_minutes=checkpoint_minutes,
+                recommended_day_offset=offset_cursor,
+                focus_reason="Validates long-range retention before scheduling the next block.",
+                expected_outcome="Score at least 70% and note any follow-up support needed.",
+                effort_level="light" if checkpoint_minutes <= 30 else "moderate",
+            )
+            refreshers.append(checkpoint_item)
+            latest_offsets[context.key] = checkpoint_item.recommended_day_offset
+            latest_ids[context.key] = checkpoint_item.item_id
+            last_category, current_run = self._advance_run_state(last_category, current_run, context.key)
 
         while max(latest_offsets.values()) < target_horizon and cycles < MAX_LONG_RANGE_REFRESH_CYCLES:
-            for context in prioritized_contexts:
-                last_offset = latest_offsets[context.key]
-                offset_cursor = max(offset_cursor + refresh_gap, last_offset + refresh_gap)
-                prerequisite_id = latest_ids[context.key]
-                refresh_minutes = max(30, int(round(self._daily_capacity * 0.35)))
-                refresh_item = SequencedWorkItem(
-                    item_id=f"refresh-{context.key}-{offset_cursor}",
-                    category_key=context.key,
-                    kind="lesson",
-                    title=f"Spaced Refresh: {context.label}",
-                    summary="Revisit core concepts through spaced repetition and low-pressure practice.",
-                    objectives=[
-                        "Review the most challenging concept from previous modules.",
-                        "Document confidence shifts and blockers since the last session.",
-                    ],
-                    prerequisites=[prerequisite_id],
-                    recommended_minutes=refresh_minutes,
-                    recommended_day_offset=offset_cursor,
-                    focus_reason=f"Extends {context.label.lower()} retention for the long-range roadmap.",
-                    expected_outcome="Share a reflection covering wins, blockers, and next experiments.",
-                    effort_level=self._effort_level(refresh_minutes),
-                )
-                refreshers.append(refresh_item)
-                latest_offsets[context.key] = refresh_item.recommended_day_offset
-                latest_ids[context.key] = refresh_item.item_id
+            progressed = False
+            for _ in range(len(contexts_cycle)):
+                context = contexts_cycle[0]
+                contexts_cycle.rotate(-1)
+                if multi_category and last_category == context.key and current_run >= consecutive_limit:
+                    continue
+                _append_refresh_block(context)
+                progressed = True
+                break
 
-                offset_cursor = offset_cursor + checkpoint_gap
-                checkpoint_minutes = max(25, int(round(refresh_minutes * 0.8)))
-                checkpoint_item = SequencedWorkItem(
-                    item_id=f"checkpoint-{context.key}-{offset_cursor}",
-                    category_key=context.key,
-                    kind="quiz",
-                    title=f"Checkpoint Quiz: {context.label}",
-                    summary="Quick mastery check to confirm spaced-refresh retention.",
-                    objectives=[
-                        "Demonstrate recall of key concepts without external notes.",
-                        "Capture follow-up actions for any concepts that slipped.",
-                    ],
-                    prerequisites=[refresh_item.item_id],
-                    recommended_minutes=checkpoint_minutes,
-                    recommended_day_offset=offset_cursor,
-                    focus_reason="Validates long-range retention before scheduling the next block.",
-                    expected_outcome="Score at least 70% and note any follow-up support needed.",
-                    effort_level="light" if checkpoint_minutes <= 30 else "moderate",
-                )
-                refreshers.append(checkpoint_item)
-                latest_offsets[context.key] = checkpoint_item.recommended_day_offset
-                latest_ids[context.key] = checkpoint_item.item_id
-                if max(latest_offsets.values()) >= target_horizon:
-                    break
+            if not progressed:
+                context = contexts_cycle[0]
+                contexts_cycle.rotate(-1)
+                _append_refresh_block(context)
+
+            if max(latest_offsets.values()) >= target_horizon:
+                break
             cycles += 1
 
         combined = scheduled + refreshers
         combined.sort(key=lambda item: (item.recommended_day_offset, item.item_id))
         return combined
+
+    def _initial_run_state(
+        self,
+        items: Sequence[SequencedWorkItem],
+    ) -> Tuple[Optional[str], int]:
+        if not items:
+            return None, 0
+        last_category = items[-1].category_key
+        run_length = 0
+        for item in reversed(items):
+            if item.category_key == last_category:
+                run_length += 1
+            else:
+                break
+        return last_category, run_length
+
+    def _advance_run_state(
+        self,
+        last_category: Optional[str],
+        run_length: int,
+        new_category: str,
+    ) -> Tuple[Optional[str], int]:
+        if last_category == new_category:
+            return new_category, run_length + 1
+        return new_category, 1
+
+    def _summarize_distribution(
+        self,
+        items: Sequence[SequencedWorkItem],
+        *,
+        horizon_days: int,
+        long_range_threshold: int = LONG_RANGE_THRESHOLD_DAYS,
+        smoothing_window_days: int = NEAR_TERM_SMOOTHING_WINDOW_DAYS,
+    ) -> Dict[str, Any]:
+        if not items:
+            return {
+                "category_counts": {},
+                "longest_streaks": {},
+                "long_range_counts": {},
+                "first_appearance_week": {},
+                "window_unique_categories": [],
+                "window_unique_count": 0,
+                "horizon_days": horizon_days,
+                "long_range_threshold": long_range_threshold,
+                "smoothing_window_days": smoothing_window_days,
+            }
+        counts: Dict[str, int] = defaultdict(int)
+        longest: Dict[str, int] = defaultdict(int)
+        long_range_counts: Dict[str, int] = defaultdict(int)
+        first_week: Dict[str, int] = {}
+        last_category: Optional[str] = None
+        run_length = 0
+
+        for item in items:
+            category = item.category_key
+            counts[category] += 1
+            if item.recommended_day_offset >= long_range_threshold:
+                long_range_counts[category] += 1
+            week_index = item.recommended_day_offset // 7
+            if category not in first_week:
+                first_week[category] = int(week_index)
+            if category == last_category:
+                run_length += 1
+            else:
+                last_category = category
+                run_length = 1
+            if run_length > longest[category]:
+                longest[category] = run_length
+
+        window_categories = sorted(
+            {item.category_key for item in items if item.recommended_day_offset < smoothing_window_days}
+        )
+
+        return {
+            "category_counts": dict(counts),
+            "longest_streaks": dict(longest),
+            "long_range_counts": dict(long_range_counts),
+            "first_appearance_week": first_week,
+            "window_unique_categories": window_categories,
+            "window_unique_count": len(window_categories),
+            "horizon_days": horizon_days,
+            "long_range_threshold": long_range_threshold,
+            "smoothing_window_days": smoothing_window_days,
+        }
 
     def _projected_weekly_minutes(self, total_minutes: int, horizon_days: int) -> int:
         if horizon_days <= 0:
@@ -894,6 +1087,15 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
         long_range_category_count=long_range_category_count,
         long_range_weeks=schedule.extended_weeks,
         user_adjusted_count=user_adjusted_count,
+    )
+    distribution_payload = sequencer._summarize_distribution(
+        schedule.items,
+        horizon_days=schedule.time_horizon_days,
+    )
+    emit_event(
+        "long_range_distribution",
+        username=username,
+        **distribution_payload,
     )
     if applied_deltas:
         emit_event(
