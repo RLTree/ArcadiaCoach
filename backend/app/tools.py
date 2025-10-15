@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from agents import function_tool
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -19,7 +19,9 @@ from .learner_profile import (
     FoundationTrack,
     LearnerProfile,
     profile_store,
+    slice_schedule,
 )
+from .telemetry import emit_event
 from .vector_memory import learner_memory
 from .agent_models import (
     AssessmentCategoryOutcomePayload,
@@ -401,11 +403,29 @@ def elo_update(
 
 
 @function_tool(strict_mode=False)
-def learner_profile_get(username: str) -> LearnerProfileGetResponse:
-    """Fetch the persisted learner profile for the given username."""
+def learner_profile_get(
+    username: str,
+    start_day: int | None = None,
+    day_span: int | None = None,
+    page_token: int | None = None,
+) -> LearnerProfileGetResponse:
+    """Fetch the persisted learner profile, optionally returning a schedule slice."""
     profile = profile_store.get(username)
     if profile is None:
         return LearnerProfileGetResponse(found=False, profile=None)
+
+    requested_start = page_token if page_token is not None else start_day
+    normalized_start = None if requested_start is None else max(int(requested_start), 0)
+    normalized_span = None if day_span is None else max(int(day_span), 1)
+
+    if profile.curriculum_schedule and (normalized_start is not None or normalized_span is not None):
+        sliced_schedule = slice_schedule(
+            profile.curriculum_schedule,
+            start_day=normalized_start,
+            day_span=normalized_span,
+        )
+        profile = profile.model_copy(update={"curriculum_schedule": sliced_schedule})
+
     payload = _profile_payload(profile)
     return LearnerProfileGetResponse(found=True, profile=payload)
 
@@ -465,22 +485,64 @@ def _normalise_category_key(key: str, label: str) -> str:
     return slug or "category-1"
 
 
-@function_tool(strict_mode=False)
-def learner_elo_category_plan_set(
+def _merge_focus_areas(existing: List[str], incoming: List[str]) -> List[str]:
+    merged = {item.strip(): None for item in existing if item.strip()}
+    for focus_area in incoming:
+        trimmed = focus_area.strip()
+        if trimmed:
+            merged.setdefault(trimmed, None)
+    return list(merged.keys())
+
+
+def _merge_rubric(
+    existing: List[EloRubricBand],
+    incoming: List[EloRubricBand],
+) -> List[EloRubricBand]:
+    bands: Dict[str, EloRubricBand] = {band.level.lower(): band for band in existing}
+    for band in incoming:
+        level_key = band.level.lower()
+        if level_key not in bands or not bands[level_key].descriptor:
+            bands[level_key] = band
+    return list(bands.values())
+
+
+def _merge_categories(
+    primary: EloCategoryDefinition,
+    secondary: EloCategoryDefinition,
+) -> EloCategoryDefinition:
+    label = primary.label
+    if (not label or label == primary.key.replace("-", " ").title()) and secondary.label:
+        label = secondary.label
+    description = primary.description or secondary.description
+    focus = _merge_focus_areas(primary.focus_areas, secondary.focus_areas)
+    rubric = _merge_rubric(primary.rubric, secondary.rubric)
+    weight = max(primary.weight, secondary.weight)
+    starting_rating = max(primary.starting_rating, secondary.starting_rating)
+    return primary.model_copy(
+        update={
+            "label": label,
+            "description": description,
+            "focus_areas": focus,
+            "rubric": rubric,
+            "weight": weight,
+            "starting_rating": starting_rating,
+        }
+    )
+
+
+def _apply_elo_category_plan(
     username: str,
     categories: List[EloCategoryDefinitionPayload],
     source_goal: str | None = None,
     strategy_notes: str | None = None,
 ) -> LearnerEloCategoryPlanResponse:
     """Persist the learner's skill category plan and return the updated snapshot."""
-    normalized_categories: List[EloCategoryDefinition] = []
-    seen_keys: Set[str] = set()
+    normalized_categories: Dict[str, EloCategoryDefinition] = {}
+    collisions: Dict[str, Dict[str, Any]] = {}
+    order: List[str] = []
 
     for entry in categories:
         key = _normalise_category_key(entry.key, entry.label)
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
         label = entry.label.strip() if isinstance(entry.label, str) else key.title()
         description = entry.description.strip() if isinstance(entry.description, str) else ""
         focus = [
@@ -493,28 +555,76 @@ def learner_elo_category_plan_set(
             for band in entry.rubric
             if isinstance(band.level, str) and band.level.strip()
         ]
-        normalized_categories.append(
-            EloCategoryDefinition(
-                key=key,
-                label=label,
-                description=description,
-                focus_areas=focus,
-                weight=max(entry.weight, 0.0),
-                rubric=rubric,
-                starting_rating=max(int(entry.starting_rating), 0),
-            )
+        definition = EloCategoryDefinition(
+            key=key,
+            label=label,
+            description=description,
+            focus_areas=focus,
+            weight=max(entry.weight, 0.0),
+            rubric=rubric,
+            starting_rating=max(int(entry.starting_rating), 0),
         )
+        if key not in normalized_categories:
+            normalized_categories[key] = definition
+            order.append(key)
+            continue
+        existing = normalized_categories[key]
+        merged = _merge_categories(existing, definition)
+        normalized_categories[key] = merged
+        meta = collisions.setdefault(
+            key,
+            {
+                "labels": set(),
+                "focus_area_count": len(merged.focus_areas),
+            },
+        )
+        for candidate in (existing.label, label, merged.label):
+            if candidate:
+                meta["labels"].add(candidate)
+        meta["focus_area_count"] = len(merged.focus_areas)
+
+    merged_categories = [normalized_categories[key] for key in order]
 
     plan = EloCategoryPlan(
         source_goal=source_goal.strip() if isinstance(source_goal, str) and source_goal else None,
         strategy_notes=strategy_notes.strip() if isinstance(strategy_notes, str) and strategy_notes else None,
-        categories=normalized_categories,
+        categories=merged_categories,
     )
     profile = profile_store.set_elo_category_plan(username, plan)
+    if collisions:
+        emit_event(
+            "elo_category_collision",
+            username=username,
+            collision_count=len(collisions),
+            categories=[
+                {
+                    "key": key,
+                    "labels": sorted(meta["labels"]),
+                    "focus_area_count": meta["focus_area_count"],
+                }
+                for key, meta in collisions.items()
+            ],
+        )
     payload = _profile_payload(profile)
     if payload.elo_category_plan is None:
         raise ValueError("Failed to persist learner ELO category plan.")
     return LearnerEloCategoryPlanResponse(username=profile.username, plan=payload.elo_category_plan)
+
+
+@function_tool(strict_mode=False)
+def learner_elo_category_plan_set(
+    username: str,
+    categories: List[EloCategoryDefinitionPayload],
+    source_goal: str | None = None,
+    strategy_notes: str | None = None,
+) -> LearnerEloCategoryPlanResponse:
+    """Persist the learner's skill category plan and return the updated snapshot."""
+    return _apply_elo_category_plan(
+        username=username,
+        categories=categories,
+        source_goal=source_goal,
+        strategy_notes=strategy_notes,
+    )
 
 
 @function_tool(strict_mode=False)

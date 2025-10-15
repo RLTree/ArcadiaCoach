@@ -272,18 +272,18 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added persistence-mode switching (`database` / `legacy` / `hybrid`) so phased rollouts can fail over safely.  
     - Delivered schedule pagination + caching for backend APIs, the macOS client, and agent tooling to reduce payload size.  
     - Updated Swift models and telemetry to handle slice-aware refresh flows with offline caches.  
-    - **Follow-ups:** finish ELO category deduplication and schedule slice adoption telemetry (tracked in Phase 22) and extend slice support to MCP widgets (Phase 24).
+    - **Follow-ups:** extend slice support to MCP widgets (Phase 24).
 
 21. **Phase 21 – Persistence Migration – Automation & Observability** ✅ *(completed October 15, 2025; see `docs/phase-21-persistence-automation.md`)*  
     - Wrapped backend boot in `start.sh` so `python -m scripts.run_migrations` blocks deployments on schema drift before Uvicorn starts.  
     - Added `/healthz/database`, pool instrumentation, and the `scripts.db_metrics` probe so ops can monitor connection health in staging/production.  
     - Authored the database recovery runbook covering backup validation, failover rotation, and rollback paths.  
     - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 37–38).
-22. **Phase 22 – ELO Integrity & Responsiveness**
-    - Enforce unique ELO category labels/keys by deduplicating goal-parser outputs, merging focus areas, and adding regression tests plus telemetry alerts for collisions.
-    - Complete schedule slice adoption across backend tools, macOS UI, and agent prompts; minimise payload size and surface latency dashboards.
-    - Optimise client-side caching/telemetry batching to reduce schedule refresh lag and capture responsiveness metrics for future tuning.
-    - Harden persistence fallbacks so hybrid mode auto-recovers from database outages without exposing stale or duplicate categories.
+22. **Phase 22 – ELO Integrity & Responsiveness** ✅ *(completed October 15, 2025; see `docs/phase-22-elo-integrity.md`)*
+    - Deduplicated overlapping ELO categories (tool + goal parser) and emit `elo_category_collision` telemetry when merges occur.
+    - Adopted schedule slicing across backend tools, agent prompts, and the macOS client, adding the `schedule_slice` telemetry event for latency monitoring.
+    - Upgraded client caching with per-slice persistence, "Load more" UX, and debounced telemetry to cut duplicate slice reports.
+    - Added automatic hybrid resync so legacy fallbacks replay into Postgres once database connectivity returns.
 23. **Phase 23 – Milestone Brief Foundations**
     - Generate detailed milestone briefs (objectives, deliverables, success parameters) that live entirely in-app.
     - Clarify which work must happen outside the app while capturing progress notes and artefacts back into Arcadia.

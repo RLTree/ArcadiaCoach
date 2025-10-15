@@ -33,6 +33,7 @@ from app.main import app
 def _setup_db(tmp_path: Path) -> None:
     db_path = tmp_path / "arcadia.db"
     os.environ["ARCADIA_DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["ARCADIA_PERSISTENCE_MODE"] = "database"
     get_settings.cache_clear()
     dispose_engine()
     engine = get_engine()

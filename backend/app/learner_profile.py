@@ -7,7 +7,7 @@ import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple
 
 from pydantic import BaseModel, Field
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -797,8 +797,12 @@ class LearnerProfileStore:
         self._mode = settings.arcadia_persistence_mode
         self._db_store = _DatabaseLearnerProfileStore()
         self._legacy_store = _LegacyLearnerProfileStore(path=legacy_path)
+        self._pending_resync: Set[str] = set()
 
     def _call(self, method: str, *args, **kwargs):
+        username = self._extract_username(args)
+        if self._mode == "hybrid" and username is not None:
+            self._try_resync(username)
         if self._mode == "legacy":
             store = self._legacy_store
             return getattr(store, method)(*args, **kwargs)
@@ -812,6 +816,7 @@ class LearnerProfileStore:
                     method,
                     exc,
                 )
+                self._mark_for_resync(username)
                 return getattr(self._legacy_store, method)(*args, **kwargs)
             raise
 
@@ -820,6 +825,62 @@ class LearnerProfileStore:
             schedule_cache.set(username, profile.curriculum_schedule)
         else:
             schedule_cache.invalidate(username)
+
+    def _extract_username(self, args: Tuple[Any, ...]) -> Optional[str]:
+        if not args:
+            return None
+        candidate = args[0]
+        if isinstance(candidate, LearnerProfile):
+            return candidate.username
+        if isinstance(candidate, str):
+            return candidate
+        return None
+
+    def _mark_for_resync(self, username: Optional[str]) -> None:
+        if username is None:
+            return
+        try:
+            normalized = _normalize_username(username)
+        except ValueError:
+            return
+        self._pending_resync.add(normalized)
+
+    def _try_resync(self, username: str) -> None:
+        try:
+            normalized = _normalize_username(username)
+        except ValueError:
+            return
+        if normalized not in self._pending_resync:
+            return
+        self._resync_from_legacy(username, normalized)
+
+    def _resync_from_legacy(self, username: str, normalized: str) -> None:
+        legacy_profile = self._legacy_store.get(username)
+        if legacy_profile is None:
+            try:
+                self._db_store.delete(username)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to remove database profile for %s during resync: %s", username, exc)
+                return
+            self._pending_resync.discard(normalized)
+            schedule_cache.invalidate(username)
+            return
+        try:
+            self._db_store.upsert(legacy_profile)
+            if legacy_profile.curriculum_schedule:
+                self._db_store.set_curriculum_schedule(
+                    username,
+                    legacy_profile.curriculum_schedule,
+                    adjustments=legacy_profile.schedule_adjustments,
+                )
+            if legacy_profile.elo_category_plan:
+                self._db_store.set_elo_category_plan(username, legacy_profile.elo_category_plan)
+            if legacy_profile.goal_inference:
+                self._db_store.set_goal_inference(username, legacy_profile.goal_inference)
+            self._pending_resync.discard(normalized)
+            self._sync_cache(username, legacy_profile)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to resync legacy profile for %s: %s", username, exc)
 
     def get(self, username: str) -> Optional[LearnerProfile]:
         profile = self._call("get", username)
@@ -905,6 +966,10 @@ class LearnerProfileStore:
         deleted = self._call("delete", username)
         if deleted:
             schedule_cache.invalidate(username)
+            try:
+                self._pending_resync.discard(_normalize_username(username))
+            except ValueError:
+                pass
         return deleted
 
     def _extract_timezone(self, username: str) -> Optional[str]:

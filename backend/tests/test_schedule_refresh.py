@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from typing import List
 
 import pytest
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("ARCADIA_DATABASE_URL", "sqlite:///tests.db")
+os.environ.setdefault("ARCADIA_PERSISTENCE_MODE", "legacy")
 
 from app.curriculum_sequencer import generate_schedule_for_user, sequencer
 from app.learner_profile import (
@@ -195,6 +199,7 @@ def test_schedule_slice_query_returns_window() -> None:
     profile_store.delete(username)
     profile_store.upsert(_profile(username))
     client = TestClient(app)
+    events = _collect_events()
 
     initial = client.get(f"/api/profile/{username}/schedule", params={"refresh": "true"})
     assert initial.status_code == 200, initial.text
@@ -225,7 +230,31 @@ def test_schedule_slice_query_returns_window() -> None:
         offset = item["recommended_day_offset"]
         assert start_day <= offset < start_day + day_span
 
+    slice_events = [event for event in events if event.name == "schedule_slice"]
+    assert slice_events, "Expected schedule_slice telemetry event."
+    slice_payload = slice_events[-1].payload
+    assert slice_payload["status"] == "success"
+    assert slice_payload["start_day"] == start_day
+    assert slice_payload["day_span"] == day_span
+    assert slice_payload["item_count"] == len(payload["items"])
+
+    if slice_meta.get("has_more"):
+        next_start = slice_meta.get("next_start_day")
+        assert next_start is not None
+        next_slice = client.get(
+            f"/api/profile/{username}/schedule",
+            params={"page_token": next_start, "day_span": day_span},
+        )
+        assert next_slice.status_code == 200, next_slice.text
+        next_payload = next_slice.json()
+        next_offsets = [item["recommended_day_offset"] for item in next_payload["items"]]
+        assert next_offsets, "Expected items in the next schedule slice."
+        assert min(next_offsets) >= next_start
+        subsequent_events = [event for event in events if event.name == "schedule_slice" and event.payload.get("page_token") == next_start]
+        assert subsequent_events, "Expected telemetry for the next slice request."
+
     profile_store.delete(username)
+    clear_listeners()
 
 
 def test_schedule_refresh_fallback_reuses_previous_schedule(monkeypatch: pytest.MonkeyPatch) -> None:

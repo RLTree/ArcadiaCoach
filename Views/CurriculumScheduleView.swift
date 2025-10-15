@@ -4,9 +4,11 @@ struct CurriculumScheduleView: View {
     let schedule: CurriculumSchedule
     let categoryLabels: [String:String]
     let isRefreshing: Bool
+    let isLoadingNextSlice: Bool
     let adjustingItemId: String?
     let refreshAction: () -> Void
     let adjustAction: (SequencedWorkItem, Int) -> Void
+    let loadMoreAction: () -> Void
 
     private var scheduleTimeZone: TimeZone? {
         guard let identifier = schedule.timezone else { return nil }
@@ -105,9 +107,43 @@ struct CurriculumScheduleView: View {
                     }
                 }
             }
+            if showLoadMoreButton {
+                loadMoreSection
+            }
         }
         .padding(20)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var showLoadMoreButton: Bool {
+        guard let slice = schedule.slice else { return false }
+        return slice.hasMore || isLoadingNextSlice
+    }
+
+    @ViewBuilder
+    private var loadMoreSection: some View {
+        VStack(spacing: 12) {
+            if isLoadingNextSlice {
+                ProgressView("Loading more sessions…")
+                    .progressViewStyle(.circular)
+            } else {
+                Button {
+                    loadMoreAction()
+                } label: {
+                    Label("Load more sessions", systemImage: "arrow.down.circle")
+                        .font(.callout.bold())
+                }
+                .buttonStyle(.bordered)
+                .disabled(isRefreshing)
+            }
+            if let nextStart = schedule.slice?.nextStartDay {
+                Text("Next block begins around day \(nextStart)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(12)
     }
 
     @ViewBuilder

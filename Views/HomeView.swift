@@ -348,9 +348,11 @@ struct HomeView: View {
                                 schedule: schedule,
                                 categoryLabels: categoryLabels,
                                 isRefreshing: appVM.scheduleRefreshing,
+                                isLoadingNextSlice: appVM.loadingScheduleSlice,
                                 adjustingItemId: appVM.adjustingScheduleItemId,
                                 refreshAction: refreshSchedule,
-                                adjustAction: deferSchedule
+                                adjustAction: deferSchedule,
+                                loadMoreAction: loadMoreSchedule
                             )
                             .transition(.opacity)
                         }
@@ -438,6 +440,17 @@ struct HomeView: View {
             await appVM.refreshCurriculumSchedule(
                 baseURL: settings.chatkitBackendURL,
                 username: settings.arcadiaUsername
+            )
+        }
+    }
+
+    private func loadMoreSchedule() {
+        Task {
+            let span = appVM.curriculumSchedule?.slice?.daySpan
+            await appVM.loadNextScheduleSlice(
+                baseURL: settings.chatkitBackendURL,
+                username: settings.arcadiaUsername,
+                daySpan: span
             )
         }
     }

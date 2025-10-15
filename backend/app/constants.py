@@ -17,7 +17,7 @@ INSTRUCTIONS = (
     "Summarise the findings and include Markdown hyperlinks (e.g. [Title](https://example.com)) pointing to each cited site. "
     "Use other tools (file search, web search) whenever they help prepare better widget content. "
     "Call the current_time tool whenever you need the precise current timestamp; pass the learner's timezone when you know it so responses are localised. "
-    "When learner_profile_get reveals a curriculum_schedule, use it to answer scheduling questions: sort items by recommended_day_offset, rely on each item's scheduled_for date (already localised to the learner's timezone) when describing timing, and clearly label each upcoming lesson, quiz, or milestone with its planned day and prerequisites. "
+    "When learner_profile_get reveals a curriculum_schedule, use it to answer scheduling questions: sort items by recommended_day_offset, rely on each item's scheduled_for date (already localised to the learner's timezone) when describing timing, and clearly label each upcoming lesson, quiz, or milestone with its planned day and prerequisites. If the schedule payload includes slice metadata with has_more=true, call learner_profile_get again with the provided page_token to gather the next window before finalising your answer. "
     "Always return concise, well-organised responses and clearly label actions the user needs to take. "
     "If you reference retrieved information, cite the source inline."
 )

@@ -27,14 +27,20 @@ final class ScheduleSliceCache {
         self.decoder = decoder
     }
 
-    private func fileURL(for username: String) -> URL {
+    private func safeUsername(_ username: String) -> String {
         let lowered = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let safe = lowered.replacingOccurrences(of: "[^a-z0-9_-]", with: "-", options: .regularExpression)
-        return directoryURL.appendingPathComponent("\(safe).json", isDirectory: false)
+        return lowered.replacingOccurrences(of: "[^a-z0-9_-]", with: "-", options: .regularExpression)
     }
 
-    func store(schedule: CurriculumSchedule, username: String) {
-        let url = fileURL(for: username)
+    private func fileURL(for username: String, startDay: Int) -> URL {
+        let safe = safeUsername(username)
+        let filename = startDay == 0 ? "\(safe).json" : "\(safe)-\(startDay).json"
+        return directoryURL.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    func store(schedule: CurriculumSchedule, username: String, startDay: Int? = nil) {
+        let start = startDay ?? schedule.slice?.startDay ?? 0
+        let url = fileURL(for: username, startDay: start)
         do {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             let data = try encoder.encode(schedule)
@@ -44,8 +50,9 @@ final class ScheduleSliceCache {
         }
     }
 
-    func load(username: String) -> CurriculumSchedule? {
-        let url = fileURL(for: username)
+    func load(username: String, startDay: Int? = nil) -> CurriculumSchedule? {
+        let start = startDay ?? 0
+        let url = fileURL(for: username, startDay: start)
         guard FileManager.default.fileExists(atPath: url.path) else {
             return nil
         }
@@ -59,10 +66,13 @@ final class ScheduleSliceCache {
     }
 
     func clear(username: String) {
-        let url = fileURL(for: username)
         do {
-            if FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
+            if FileManager.default.fileExists(atPath: directoryURL.path) {
+                let contents = try FileManager.default.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                let prefix = safeUsername(username)
+                for file in contents where file.lastPathComponent.hasPrefix(prefix) {
+                    try? FileManager.default.removeItem(at: file)
+                }
             }
         } catch {
             logger.notice("Failed to clear cached schedule for \(username, privacy: .public): \(error.localizedDescription, privacy: .public)")

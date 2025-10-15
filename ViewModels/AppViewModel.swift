@@ -59,6 +59,9 @@ final class AppViewModel: ObservableObject {
     @Published var goalInference: GoalInferenceModel?
     @Published var foundationTracks: [FoundationTrackModel] = []
 
+    private var lastScheduleEventSignature: String?
+    private var lastScheduleEventTimestamp: Date?
+
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
         alignEloSnapshotWithPlan()
@@ -185,7 +188,10 @@ final class AppViewModel: ObservableObject {
                 pageToken: pageToken,
                 usedCache: false
             )
-            TelemetryReporter.shared.record(
+            var aggregateCopy = merged
+            aggregateCopy.slice = nil
+            ScheduleSliceCache.shared.store(schedule: aggregateCopy, username: trimmedUsername, startDay: 0)
+            recordScheduleTelemetry(
                 event: refresh ? "schedule_refresh_completed" : "schedule_slice_completed",
                 metadata: metadata
             )
@@ -204,22 +210,40 @@ final class AppViewModel: ObservableObject {
                 event: refresh ? "schedule_refresh_failed" : "schedule_slice_failed",
                 metadata: metadata
             )
-            if !refresh, let cached = ScheduleSliceCache.shared.load(username: trimmedUsername) {
-                curriculumSchedule = cached
-                if let timezone = cached.timezone, !timezone.isEmpty {
+            var cachedSchedule: CurriculumSchedule?
+            var cacheStartDay: Int? = nil
+            if !refresh {
+                let requestedStart = pageToken ?? startDay
+                if let specificCache = ScheduleSliceCache.shared.load(username: trimmedUsername, startDay: requestedStart) {
+                    cachedSchedule = specificCache
+                    cacheStartDay = requestedStart
+                } else if let fallbackCache = ScheduleSliceCache.shared.load(username: trimmedUsername, startDay: 0) {
+                    cachedSchedule = fallbackCache
+                    cacheStartDay = 0
+                }
+            }
+            if let cached = cachedSchedule {
+                let mergedCache = mergeSchedules(
+                    current: curriculumSchedule,
+                    incoming: cached,
+                    merge: mergeSlices && curriculumSchedule != nil
+                )
+                curriculumSchedule = mergedCache
+                if let timezone = mergedCache.timezone, !timezone.isEmpty {
                     learnerTimezone = timezone
                 }
                 let cacheMetadata = scheduleTelemetryMetadata(
-                    schedule: cached,
+                    schedule: mergedCache,
                     username: trimmedUsername,
                     durationMs: durationMs,
                     refresh: refresh,
                     startDay: startDay,
                     daySpan: daySpan,
                     pageToken: pageToken,
-                    usedCache: true
+                    usedCache: true,
+                    cacheStartDay: cacheStartDay
                 )
-                TelemetryReporter.shared.record(
+                recordScheduleTelemetry(
                     event: "schedule_slice_cache_loaded",
                     metadata: cacheMetadata
                 )
@@ -240,22 +264,40 @@ final class AppViewModel: ObservableObject {
                 event: refresh ? "schedule_refresh_failed" : "schedule_slice_failed",
                 metadata: metadata
             )
-            if !refresh, let cached = ScheduleSliceCache.shared.load(username: trimmedUsername) {
-                curriculumSchedule = cached
-                if let timezone = cached.timezone, !timezone.isEmpty {
+            var cachedSchedule: CurriculumSchedule?
+            var cacheStartDay: Int? = nil
+            if !refresh {
+                let requestedStart = pageToken ?? startDay
+                if let specificCache = ScheduleSliceCache.shared.load(username: trimmedUsername, startDay: requestedStart) {
+                    cachedSchedule = specificCache
+                    cacheStartDay = requestedStart
+                } else if let fallbackCache = ScheduleSliceCache.shared.load(username: trimmedUsername, startDay: 0) {
+                    cachedSchedule = fallbackCache
+                    cacheStartDay = 0
+                }
+            }
+            if let cached = cachedSchedule {
+                let mergedCache = mergeSchedules(
+                    current: curriculumSchedule,
+                    incoming: cached,
+                    merge: mergeSlices && curriculumSchedule != nil
+                )
+                curriculumSchedule = mergedCache
+                if let timezone = mergedCache.timezone, !timezone.isEmpty {
                     learnerTimezone = timezone
                 }
                 let cacheMetadata = scheduleTelemetryMetadata(
-                    schedule: cached,
+                    schedule: mergedCache,
                     username: trimmedUsername,
                     durationMs: durationMs,
                     refresh: refresh,
                     startDay: startDay,
                     daySpan: daySpan,
                     pageToken: pageToken,
-                    usedCache: true
+                    usedCache: true,
+                    cacheStartDay: cacheStartDay
                 )
-                TelemetryReporter.shared.record(
+                recordScheduleTelemetry(
                     event: "schedule_slice_cache_loaded",
                     metadata: cacheMetadata
                 )
@@ -291,7 +333,8 @@ final class AppViewModel: ObservableObject {
         startDay: Int?,
         daySpan: Int?,
         pageToken: Int?,
-        usedCache: Bool
+        usedCache: Bool,
+        cacheStartDay: Int? = nil
     ) -> [String: String] {
         var metadata: [String: String] = [
             "username": username,
@@ -324,7 +367,28 @@ final class AppViewModel: ObservableObject {
         if let startDay { metadata["startDay"] = "\(startDay)" }
         if let daySpan { metadata["daySpan"] = "\(daySpan)" }
         if let pageToken { metadata["pageToken"] = "\(pageToken)" }
+        if let cacheStartDay { metadata["cacheStartDay"] = "\(cacheStartDay)" }
         return metadata
+    }
+
+    private func recordScheduleTelemetry(event: String, metadata: [String: String]) {
+        let signatureComponents = [
+            event,
+            metadata["username"] ?? "",
+            metadata["startDay"] ?? "",
+            metadata["pageToken"] ?? "",
+            metadata["usedCache"] ?? "",
+            metadata["itemCount"] ?? ""
+        ]
+        let signature = signatureComponents.joined(separator: "|")
+        if signature == lastScheduleEventSignature,
+           let last = lastScheduleEventTimestamp,
+           Date().timeIntervalSince(last) < 2 {
+            return
+        }
+        lastScheduleEventSignature = signature
+        lastScheduleEventTimestamp = Date()
+        TelemetryReporter.shared.record(event: event, metadata: metadata)
     }
 
     func deferScheduleItem(

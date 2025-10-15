@@ -244,7 +244,9 @@ async def parse_goal(
         )
         payload = _coerce_goal_parser_payload(result.final_output)
         tracks = [_convert_track(entry) for entry in payload.tracks]
-        if not tracks:
+        if tracks:
+            tracks = _merge_duplicate_tracks(tracks)
+        else:
             tracks = _fallback_tracks(goal)
         inference = GoalParserInference(
             summary=payload.summary,
@@ -259,7 +261,7 @@ async def parse_goal(
     except Exception as exc:  # noqa: BLE001
         logger.exception("Goal parser execution failed for %s", username, exc_info=exc)
 
-    fallback_tracks = [_sanitize_track(track) for track in _fallback_tracks(goal)]
+    fallback_tracks = _merge_duplicate_tracks(_fallback_tracks(goal))
     inference = GoalParserInference(
         summary="Fallback inference based on heuristic signals.",
         target_outcomes=[goal] if goal else [],
@@ -348,3 +350,92 @@ def _track_weeks_fallback(track: FoundationTrack, modules: Sequence[FoundationMo
     bonus = LONG_TRACK_BONUS_WEEKS if track.weight and track.weight >= LONG_TRACK_WEIGHT_THRESHOLD else 0
     baseline = DEFAULT_TRACK_SUGGESTED_WEEKS + bonus
     return max(baseline, module_total)
+
+
+def _merge_duplicate_tracks(tracks: Sequence[FoundationTrack]) -> List[FoundationTrack]:
+    priority_order = {"now": 3, "up_next": 2, "later": 1}
+    confidence_order = {"low": 1, "medium": 2, "high": 3}
+
+    merged: Dict[str, FoundationTrack] = {}
+    order: List[str] = []
+
+    for track in tracks:
+        key_source = track.track_id or track.label
+        if not key_source:
+            key_source = f"track-{len(order) + 1}"
+        normalized_key = key_source.strip().lower()
+        if normalized_key not in merged:
+            merged[normalized_key] = track
+            order.append(normalized_key)
+            continue
+
+        existing = merged[normalized_key]
+        priority = existing.priority
+        if priority_order.get(track.priority, 0) > priority_order.get(existing.priority, 0):
+            priority = track.priority
+        confidence = existing.confidence
+        if confidence_order.get(track.confidence, 0) > confidence_order.get(existing.confidence, 0):
+            confidence = track.confidence
+        weight = max(existing.weight, track.weight)
+        technologies = _merge_list(existing.technologies, track.technologies)
+        focus_areas = _merge_list(existing.focus_areas, track.focus_areas)
+        prerequisites = _merge_list(existing.prerequisites, track.prerequisites)
+        suggested_weeks = max(existing.suggested_weeks or 0, track.suggested_weeks or 0) or existing.suggested_weeks or track.suggested_weeks
+        if existing.notes and track.notes and existing.notes != track.notes:
+            notes = f"{existing.notes}\n{track.notes}"
+        else:
+            notes = existing.notes or track.notes
+        modules = _merge_modules(existing.recommended_modules, track.recommended_modules)
+        merged[normalized_key] = FoundationTrack(
+            track_id=existing.track_id or track.track_id or normalized_key,
+            label=existing.label or track.label,
+            priority=priority,  # type: ignore[arg-type]
+            confidence=confidence,  # type: ignore[arg-type]
+            weight=weight,
+            technologies=technologies,
+            focus_areas=focus_areas,
+            prerequisites=prerequisites,
+            recommended_modules=modules,
+            suggested_weeks=suggested_weeks,
+            notes=notes,
+        )
+
+    return [_sanitize_track(merged[key]) for key in order]
+
+
+def _merge_list(existing: Sequence[str], incoming: Sequence[str]) -> List[str]:
+    seen: Dict[str, None] = {}
+    for value in list(existing) + list(incoming):
+        trimmed = value.strip()
+        if trimmed and trimmed not in seen:
+            seen[trimmed] = None
+    return list(seen.keys())
+
+
+def _merge_modules(
+    existing: Sequence[FoundationModuleReference],
+    incoming: Sequence[FoundationModuleReference],
+) -> List[FoundationModuleReference]:
+    modules: Dict[tuple[str, str], FoundationModuleReference] = {}
+    for module in list(existing) + list(incoming):
+        key = (module.module_id, module.category_key)
+        if key not in modules:
+            modules[key] = module
+            continue
+        current = modules[key]
+        priority = _merge_module_priority(current.priority, module.priority)
+        suggested_weeks = max(current.suggested_weeks or 0, module.suggested_weeks or 0) or current.suggested_weeks or module.suggested_weeks
+        notes = current.notes or module.notes
+        modules[key] = FoundationModuleReference(
+            module_id=module.module_id,
+            category_key=module.category_key,
+            priority=priority,  # type: ignore[arg-type]
+            suggested_weeks=suggested_weeks,
+            notes=notes,
+        )
+    return [modules[key] for key in modules]
+
+
+def _merge_module_priority(current: str, incoming: str) -> str:
+    priority_rank = {"core": 3, "reinforcement": 2, "extension": 1}
+    return current if priority_rank.get(current, 0) >= priority_rank.get(incoming, 0) else incoming

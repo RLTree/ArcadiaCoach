@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -334,6 +335,7 @@ def get_curriculum_schedule(
         description="Resume token from a previous schedule slice (next_start_day).",
     ),
 ) -> CurriculumSchedulePayload:
+    started_at = perf_counter()
     requested_start = page_token if page_token is not None else start_day
     profile = profile_store.get(username)
     if profile is None:
@@ -412,6 +414,8 @@ def get_curriculum_schedule(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+    duration_ms = round((perf_counter() - started_at) * 1000.0, 2)
+
     if fallback_schedule is not None:
         schedule_payload.is_stale = True
     elif not refresh and profile.curriculum_schedule is not None:
@@ -421,6 +425,23 @@ def get_curriculum_schedule(
             status="skipped",
             regenerated=False,
             **_schedule_metrics(profile.curriculum_schedule),
+        )
+
+    if requested_start is not None or day_span is not None or page_token is not None:
+        slice_meta = schedule_payload.slice
+        emit_event(
+            "schedule_slice",
+            username=username,
+            status="fallback" if fallback_schedule is not None else "success",
+            start_day=requested_start if requested_start is not None else 0,
+            day_span=day_span,
+            page_token=page_token,
+            item_count=len(schedule_payload.items),
+            total_items=slice_meta.total_items if slice_meta is not None else len(schedule.items),
+            total_days=slice_meta.total_days if slice_meta is not None else schedule_payload.time_horizon_days,
+            has_more=slice_meta.has_more if slice_meta is not None else False,
+            next_start_day=slice_meta.next_start_day if slice_meta is not None else None,
+            duration_ms=duration_ms,
         )
     return schedule_payload
 
