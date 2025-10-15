@@ -886,6 +886,20 @@ def _dedupe_elo_plan(plan: EloCategoryPlan) -> Tuple[EloCategoryPlan, bool]:
     return plan.model_copy(update={"categories": merged}), True
 
 
+def _dedupe_foundation_tracks(tracks: List[FoundationTrack]) -> Tuple[List[FoundationTrack], bool]:
+    seen: Dict[str, FoundationTrack] = {}
+    order: List[str] = []
+    changed = False
+    for track in tracks:
+        key = track.label.strip().lower()
+        if key in seen:
+            changed = True
+            continue
+        seen[key] = track
+        order.append(key)
+    return [seen[key] for key in order], changed
+
+
 class LearnerProfileStore:
     """Facade that delegates to database or legacy persistence based on configuration."""
 
@@ -1073,14 +1087,29 @@ class LearnerProfileStore:
         return deleted
 
     def _sanitize_profile(self, username: str, profile: LearnerProfile) -> LearnerProfile:
+        sanitized = profile
         if profile.elo_category_plan and profile.elo_category_plan.categories:
             normalized_plan, changed = _dedupe_elo_plan(profile.elo_category_plan)
             if changed:
                 try:
-                    return self._call("set_elo_category_plan", username, normalized_plan)
+                    sanitized = self._call("set_elo_category_plan", username, normalized_plan)
+                    profile = sanitized
                 except Exception:  # noqa: BLE001
                     logger.exception("Failed to persist sanitized ELO plan for %s", username)
-        return profile
+        tracks = getattr(profile, "foundation_tracks", []) or []
+        if tracks:
+            deduped_tracks, changed = _dedupe_foundation_tracks(tracks)
+            if changed:
+                if profile.goal_inference:
+                    inference = profile.goal_inference.model_copy(update={"tracks": deduped_tracks})
+                    try:
+                        sanitized = self._call("set_goal_inference", username, inference)
+                        profile = sanitized
+                    except Exception:  # noqa: BLE001
+                        logger.exception("Failed to persist sanitized goal inference for %s", username)
+                else:
+                    sanitized = profile.model_copy(update={"foundation_tracks": deduped_tracks})
+        return sanitized
 
     def _extract_timezone(self, username: str) -> Optional[str]:
         if self._mode == "legacy":

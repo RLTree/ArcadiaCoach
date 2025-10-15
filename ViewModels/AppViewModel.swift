@@ -396,6 +396,30 @@ final class AppViewModel: ObservableObject {
         TelemetryReporter.shared.record(event: event, metadata: metadata)
     }
 
+    private func dedupeCategoriesByLabel(_ categories: [EloCategoryDefinition]) -> [EloCategoryDefinition] {
+        var seen: Set<String> = []
+        var result: [EloCategoryDefinition] = []
+        for category in categories {
+            let key = category.label.lowercased()
+            if seen.insert(key).inserted {
+                result.append(category)
+            }
+        }
+        return result
+    }
+
+    private func dedupeTracksByLabel(_ tracks: [FoundationTrackModel]) -> [FoundationTrackModel] {
+        var seen: Set<String> = []
+        var result: [FoundationTrackModel] = []
+        for track in tracks {
+            let key = track.label.lowercased()
+            if seen.insert(key).inserted {
+                result.append(track)
+            }
+        }
+        return result
+    }
+
     func deferScheduleItem(
         baseURL: String,
         username: String,
@@ -836,7 +860,12 @@ final class AppViewModel: ObservableObject {
     private func syncProfile(with snapshot: LearnerProfileSnapshot) {
         learnerTimezone = snapshot.timezone ?? snapshot.curriculumSchedule?.timezone
         game.elo = Dictionary(uniqueKeysWithValues: snapshot.skillRatings.map { ($0.category, $0.rating) })
-        eloPlan = snapshot.eloCategoryPlan
+        if var plan = snapshot.eloCategoryPlan {
+            plan.categories = dedupeCategoriesByLabel(plan.categories)
+            eloPlan = plan
+        } else {
+            eloPlan = nil
+        }
         curriculumPlan = snapshot.curriculumPlan
         curriculumSchedule = snapshot.curriculumSchedule
         if let schedule = snapshot.curriculumSchedule {
@@ -847,7 +876,7 @@ final class AppViewModel: ObservableObject {
         assessmentResult = snapshot.onboardingAssessmentResult
         assessmentHistory = snapshot.assessmentSubmissions.sorted { $0.submittedAt > $1.submittedAt }
         goalInference = snapshot.goalInference
-        foundationTracks = snapshot.foundationTracks ?? []
+        foundationTracks = dedupeTracksByLabel(snapshot.foundationTracks ?? [])
         if let currentFocusId = focusedSubmission?.submissionId {
             focusedSubmission = assessmentHistory.first { $0.submissionId == currentFocusId }
         }
