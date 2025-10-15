@@ -61,6 +61,7 @@ final class AppViewModel: ObservableObject {
 
     private var lastScheduleEventSignature: String?
     private var lastScheduleEventTimestamp: Date?
+    private let defaultScheduleSliceSpan = 7
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated
@@ -102,8 +103,8 @@ final class AppViewModel: ObservableObject {
             baseURL: baseURL,
             username: username,
             refresh: true,
-            startDay: nil,
-            daySpan: nil,
+            startDay: 0,
+            daySpan: defaultScheduleSliceSpan,
             pageToken: nil
         )
     }
@@ -115,7 +116,7 @@ final class AppViewModel: ObservableObject {
             username: username,
             refresh: false,
             startDay: nil,
-            daySpan: daySpan,
+            daySpan: daySpan ?? curriculumSchedule?.slice?.daySpan ?? defaultScheduleSliceSpan,
             pageToken: nextStart
         )
     }

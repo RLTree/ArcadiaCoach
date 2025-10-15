@@ -789,6 +789,103 @@ class _LegacyLearnerProfileStore:
         return True
 
 
+def _normalise_category_key_local(key: str, label: str) -> str:
+    candidate = key.strip() if isinstance(key, str) else ""
+    if not candidate and isinstance(label, str):
+        candidate = label
+    slug_chars: List[str] = []
+    for char in candidate:
+        if char.isalnum():
+            slug_chars.append(char.lower())
+        elif char in {" ", "-", "_", "/"}:
+            slug_chars.append("-")
+    slug = "".join(slug_chars).strip("-")
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug or "category-1"
+
+
+def _merge_focus_areas(existing: List[str], incoming: List[str]) -> List[str]:
+    merged: Dict[str, None] = {}
+    for value in existing + incoming:
+        trimmed = value.strip()
+        if trimmed and trimmed not in merged:
+            merged[trimmed] = None
+    return list(merged.keys())
+
+
+def _merge_rubric(existing: List[EloRubricBand], incoming: List[EloRubricBand]) -> List[EloRubricBand]:
+    merged: Dict[str, EloRubricBand] = {entry.level.lower(): entry for entry in existing}
+    for entry in incoming:
+        key = entry.level.lower()
+        if key not in merged or not merged[key].descriptor:
+            merged[key] = entry
+    return list(merged.values())
+
+
+def _merge_category_definitions(
+    primary: EloCategoryDefinition,
+    secondary: EloCategoryDefinition,
+) -> EloCategoryDefinition:
+    label = primary.label or secondary.label
+    description = primary.description or secondary.description
+    focus = _merge_focus_areas(primary.focus_areas, secondary.focus_areas)
+    rubric = _merge_rubric(primary.rubric, secondary.rubric)
+    weight = max(primary.weight, secondary.weight, 0.0)
+    starting_rating = max(primary.starting_rating, secondary.starting_rating, 0)
+    return primary.model_copy(
+        update={
+            "label": label or primary.key.replace("-", " ").title(),
+            "description": description,
+            "focus_areas": focus,
+            "rubric": rubric,
+            "weight": weight,
+            "starting_rating": starting_rating,
+        }
+    )
+
+
+def _sanitize_category_definition(entry: EloCategoryDefinition) -> EloCategoryDefinition:
+    return entry.model_copy(
+        update={
+            "key": _normalise_category_key_local(entry.key, entry.label),
+            "label": entry.label.strip() if isinstance(entry.label, str) else entry.key.replace("-", " ").title(),
+            "description": entry.description.strip() if isinstance(entry.description, str) else "",
+            "focus_areas": [focus.strip() for focus in entry.focus_areas if focus.strip()],
+            "weight": max(entry.weight, 0.0),
+            "rubric": [
+                EloRubricBand(level=band.level.strip(), descriptor=band.descriptor.strip())
+                for band in entry.rubric
+                if isinstance(band.level, str) and band.level.strip()
+            ],
+            "starting_rating": max(int(entry.starting_rating), 0),
+        }
+    )
+
+
+def _dedupe_elo_plan(plan: EloCategoryPlan) -> Tuple[EloCategoryPlan, bool]:
+    mutated = False
+    categories: Dict[str, EloCategoryDefinition] = {}
+    order: List[str] = []
+    for entry in plan.categories:
+        sanitized = _sanitize_category_definition(entry)
+        key = sanitized.key
+        if sanitized != entry:
+            mutated = True
+        if key in categories:
+            categories[key] = _merge_category_definitions(categories[key], sanitized)
+            mutated = True
+        else:
+            categories[key] = sanitized
+            order.append(key)
+    merged = [categories[key] for key in order]
+    if len(merged) != len(plan.categories):
+        mutated = True
+    if not mutated:
+        return plan, False
+    return plan.model_copy(update={"categories": merged}), True
+
+
 class LearnerProfileStore:
     """Facade that delegates to database or legacy persistence based on configuration."""
 
@@ -884,6 +981,8 @@ class LearnerProfileStore:
 
     def get(self, username: str) -> Optional[LearnerProfile]:
         profile = self._call("get", username)
+        if profile is not None:
+            profile = self._sanitize_profile(profile)
         self._sync_cache(username, profile)
         return profile
 
@@ -971,6 +1070,20 @@ class LearnerProfileStore:
             except ValueError:
                 pass
         return deleted
+
+    def _sanitize_profile(self, profile: LearnerProfile) -> LearnerProfile:
+        updates: Dict[str, Any] = {}
+        if profile.elo_category_plan and profile.elo_category_plan.categories:
+            normalized_plan, changed = _dedupe_elo_plan(profile.elo_category_plan)
+            if changed:
+                updates["elo_category_plan"] = normalized_plan
+                snapshot = dict(profile.elo_snapshot)
+                for category in normalized_plan.categories:
+                    snapshot.setdefault(category.key, int(category.starting_rating))
+                updates["elo_snapshot"] = snapshot
+        if updates:
+            return profile.model_copy(update=updates)
+        return profile
 
     def _extract_timezone(self, username: str) -> Optional[str]:
         if self._mode == "legacy":
