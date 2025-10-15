@@ -535,13 +535,11 @@ struct HomeView: View {
                 appVM.error = BackendServiceError.invalidURL.localizedDescription
                 return
             }
-            let action = sessionAction(for: item.kind)
-            session.activeAction = action
-            session.lastError = nil
-            do {
-                let response = try await appVM.launchScheduleItem(
-                    baseURL: base,
-                    username: username,
+        session.lastError = nil
+        do {
+            let response = try await appVM.launchScheduleItem(
+                baseURL: base,
+                username: username,
                     item: item,
                     sessionId: session.sessionId,
                     force: force
@@ -556,7 +554,6 @@ struct HomeView: View {
                 let nsError = error as NSError
                 appVM.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
             }
-            session.activeAction = nil
         }
     }
 
@@ -586,17 +583,6 @@ struct HomeView: View {
                 let nsError = error as NSError
                 appVM.error = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
             }
-        }
-    }
-
-    private func sessionAction(for kind: SequencedWorkItem.Kind) -> SessionAction {
-        switch kind {
-        case .lesson:
-            return .lesson
-        case .quiz:
-            return .quiz
-        case .milestone:
-            return .milestone
         }
     }
 

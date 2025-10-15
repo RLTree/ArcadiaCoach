@@ -162,11 +162,26 @@ final class AppViewModel: ObservableObject {
             sessionId: sessionId,
             force: force
         )
-        curriculumSchedule = response.schedule
-        if let timezone = response.schedule.timezone, !timezone.isEmpty {
+        let previousSlice = curriculumSchedule?.slice
+        let merged = mergeSchedules(
+            current: curriculumSchedule,
+            incoming: response.schedule,
+            merge: curriculumSchedule != nil
+        )
+        let finalSchedule: CurriculumSchedule
+        if let slice = previousSlice {
+            finalSchedule = applySlice(merged, slice: slice)
+        } else {
+            finalSchedule = merged
+        }
+        curriculumSchedule = finalSchedule
+        if let timezone = finalSchedule.timezone, !timezone.isEmpty {
             learnerTimezone = timezone
         }
         error = nil
+        var aggregateCopy = merged
+        aggregateCopy.slice = nil
+        ScheduleSliceCache.shared.store(schedule: aggregateCopy, username: username, startDay: 0)
 
         if let lesson = response.content.lesson {
             recordLesson(lesson)
@@ -197,11 +212,22 @@ final class AppViewModel: ObservableObject {
             itemId: item.itemId,
             sessionId: sessionId
         )
-        curriculumSchedule = schedule
-        if let timezone = schedule.timezone, !timezone.isEmpty {
+        let previousSlice = curriculumSchedule?.slice
+        let merged = mergeSchedules(current: curriculumSchedule, incoming: schedule, merge: curriculumSchedule != nil)
+        let finalSchedule: CurriculumSchedule
+        if let slice = previousSlice {
+            finalSchedule = applySlice(merged, slice: slice)
+        } else {
+            finalSchedule = merged
+        }
+        curriculumSchedule = finalSchedule
+        if let timezone = finalSchedule.timezone, !timezone.isEmpty {
             learnerTimezone = timezone
         }
         error = nil
+        var aggregateCopy = merged
+        aggregateCopy.slice = nil
+        ScheduleSliceCache.shared.store(schedule: aggregateCopy, username: username, startDay: 0)
     }
 
     private func requestSchedule(
@@ -407,6 +433,29 @@ final class AppViewModel: ObservableObject {
         }
         merged.isStale = incoming.isStale || current.isStale
         return merged
+    }
+
+    private func applySlice(_ schedule: CurriculumSchedule, slice: CurriculumSchedule.Slice) -> CurriculumSchedule {
+        var filtered = schedule
+        let start = slice.startDay
+        let span = max(slice.daySpan, 1)
+        let limit = start + span
+        filtered.items = schedule.items.filter { item in
+            item.recommendedDayOffset >= start && item.recommendedDayOffset < limit
+        }
+        let endDay = filtered.items.map(\.recommendedDayOffset).max() ?? slice.endDay
+        let hasMore = schedule.items.contains { $0.recommendedDayOffset >= limit }
+        let nextStart = hasMore ? limit : nil
+        filtered.slice = CurriculumSchedule.Slice(
+            startDay: start,
+            endDay: endDay,
+            daySpan: span,
+            totalItems: schedule.items.count,
+            totalDays: schedule.timeHorizonDays,
+            hasMore: hasMore,
+            nextStartDay: nextStart
+        )
+        return filtered
     }
 
     private func scheduleTelemetryMetadata(
