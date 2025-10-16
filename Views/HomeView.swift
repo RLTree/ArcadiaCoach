@@ -1128,7 +1128,7 @@ struct MilestoneCompletionSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section("Reflection") {
                     ZStack(alignment: .topLeading) {
