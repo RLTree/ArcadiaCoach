@@ -24,7 +24,11 @@ final class BackendServiceTests: XCTestCase {
                 "elo_focus": ["Backend Systems"],
                 "recommended_day_offset": 14,
                 "session_id": "session-789",
-                "recorded_at": "2025-10-13T18:00:00Z"
+                "recorded_at": "2025-10-13T18:00:00Z",
+                "project_status": "completed",
+                "evaluation_outcome": "passed",
+                "evaluation_notes": "Provided observability walkthrough.",
+                "elo_delta": 24
             }
         ],
         "is_stale": false,
@@ -191,6 +195,9 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.longRangeCategoryKeys, ["backend", "frontend"])
         XCTAssertEqual(schedule.milestoneCompletions.count, 1)
         XCTAssertEqual(schedule.milestoneCompletions.first?.title, "Milestone: Apply Backend Systems")
+        XCTAssertEqual(schedule.milestoneCompletions.first?.projectStatus, "completed")
+        XCTAssertEqual(schedule.milestoneCompletions.first?.evaluationOutcome, "passed")
+        XCTAssertEqual(schedule.milestoneCompletions.first?.eloDelta, 24)
         XCTAssertEqual(schedule.slice?.startDay, 0)
         XCTAssertEqual(schedule.slice?.daySpan, 7)
         XCTAssertEqual(schedule.slice?.hasMore, true)
@@ -242,13 +249,37 @@ final class BackendServiceTests: XCTestCase {
                 "elo_focus": ["Backend Systems"],
                 "resources": ["Backend playbook"],
                 "kickoff_steps": ["Block 90 minutes of focus time."],
-                "coaching_prompts": ["Share blockers with Arcadia Coach early."]
+                "coaching_prompts": ["Share blockers with Arcadia Coach early."],
+                "project": {
+                    "project_id": "backend-service-slice",
+                    "title": "Ship a Production-Ready Service Slice",
+                    "goal_alignment": "Show how this service slice advances your target outcome.",
+                    "summary": "Develop a service endpoint or workflow that demonstrates reliability.",
+                    "deliverables": ["Service repository", "API contract"],
+                    "evidence_checklist": ["CI run", "Observability snapshot"],
+                    "recommended_tools": ["FastAPI", "pytest"],
+                    "evaluation_focus": ["Code quality", "Operational readiness"],
+                    "evaluation_steps": ["Run load tests", "Document release plan"]
+                }
             },
             "milestone_progress": {
                 "recorded_at": "2025-10-21T18:05:00Z",
                 "notes": "Shipped API refactor.",
                 "external_links": ["https://example.com/demo"],
-                "attachment_ids": ["attach-1"]
+                "attachment_ids": ["attach-1"],
+                "project_status": "building",
+                "next_steps": ["Capture CI results"]
+            },
+            "milestone_project": {
+                "project_id": "backend-service-slice",
+                "title": "Ship a Production-Ready Service Slice",
+                "goal_alignment": "Show how this service slice advances your target outcome.",
+                "summary": "Develop a service endpoint or workflow that demonstrates reliability.",
+                "deliverables": ["Service repository", "API contract"],
+                "evidence_checklist": ["CI run", "Observability snapshot"],
+                "recommended_tools": ["FastAPI", "pytest"],
+                "evaluation_focus": ["Code quality", "Operational readiness"],
+                "evaluation_steps": ["Run load tests", "Document release plan"]
             },
             "milestone_guidance": {
                 "state": "in_progress",
@@ -270,8 +301,12 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(item.milestoneBrief?.prerequisites.count, 2)
         XCTAssertEqual(item.milestoneBrief?.eloFocus, ["Backend Systems"])
         XCTAssertEqual(item.milestoneBrief?.kickoffSteps.first, "Block 90 minutes of focus time.")
+        XCTAssertEqual(item.milestoneBrief?.project?.projectId, "backend-service-slice")
         XCTAssertEqual(item.milestoneProgress?.externalLinks, ["https://example.com/demo"])
         XCTAssertEqual(item.milestoneProgress?.attachmentIds, ["attach-1"])
+        XCTAssertEqual(item.milestoneProgress?.projectStatus, "building")
+        XCTAssertEqual(item.milestoneProgress?.nextSteps, ["Capture CI results"])
+        XCTAssertEqual(item.milestoneProject?.title, "Ship a Production-Ready Service Slice")
         XCTAssertEqual(item.milestoneGuidance?.state, "in_progress")
         XCTAssertEqual(item.milestoneGuidance?.nextActions.first, "Log quick notes or links to capture progress.")
     }
@@ -329,7 +364,11 @@ final class BackendServiceTests: XCTestCase {
                     "elo_focus": ["Backend Systems"],
                     "recommended_day_offset": 7,
                     "session_id": "session-123",
-                    "recorded_at": "2025-10-14T12:00:00Z"
+                    "recorded_at": "2025-10-14T12:00:00Z",
+                    "project_status": "ready_for_review",
+                    "evaluation_outcome": "needs_revision",
+                    "evaluation_notes": "Add load test summary.",
+                    "elo_delta": 10
                 }
             ],
             "foundation_tracks": [
@@ -366,6 +405,10 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.goalInference?.targetOutcomes.count, 2)
         XCTAssertEqual(snapshot.foundationTracks.first?.priority, "now")
         XCTAssertEqual(snapshot.milestoneCompletions.first?.notes, "Documented tracing rollout.")
+        XCTAssertEqual(snapshot.milestoneCompletions.first?.projectStatus, "ready_for_review")
+        XCTAssertEqual(snapshot.milestoneCompletions.first?.evaluationOutcome, "needs_revision")
+        XCTAssertEqual(snapshot.milestoneCompletions.first?.evaluationNotes, "Add load test summary.")
+        XCTAssertEqual(snapshot.milestoneCompletions.first?.eloDelta, 10)
     }
 
     func testTelemetryResponseDecodes() throws {

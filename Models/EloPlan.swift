@@ -398,6 +398,18 @@ struct MilestonePrerequisite: Codable, Hashable, Identifiable {
     var id: String { itemId }
 }
 
+struct MilestoneProject: Codable, Hashable {
+    var projectId: String
+    var title: String
+    var goalAlignment: String
+    var summary: String?
+    var deliverables: [String]
+    var evidenceChecklist: [String]
+    var recommendedTools: [String]
+    var evaluationFocus: [String]
+    var evaluationSteps: [String]
+}
+
 struct MilestoneBrief: Codable, Hashable {
     var headline: String
     var summary: String?
@@ -411,6 +423,7 @@ struct MilestoneBrief: Codable, Hashable {
     var resources: [String]
     var kickoffSteps: [String] = []
     var coachingPrompts: [String] = []
+    var project: MilestoneProject?
 }
 
 struct MilestoneProgress: Codable, Hashable {
@@ -418,6 +431,8 @@ struct MilestoneProgress: Codable, Hashable {
     var notes: String?
     var externalLinks: [String]
     var attachmentIds: [String]
+    var projectStatus: String = "not_started"
+    var nextSteps: [String] = []
 }
 
 struct MilestoneGuidance: Codable, Hashable {
@@ -443,6 +458,10 @@ struct MilestoneCompletion: Codable, Hashable, Identifiable {
     var recommendedDayOffset: Int?
     var sessionId: String?
     var recordedAt: Date
+    var projectStatus: String = "completed"
+    var evaluationOutcome: String?
+    var evaluationNotes: String?
+    var eloDelta: Int = 12
 
     var id: String { completionId }
 }
@@ -531,6 +550,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var launchLockedReason: String?
     var milestoneBrief: MilestoneBrief?
     var milestoneProgress: MilestoneProgress?
+    var milestoneProject: MilestoneProject?
     var milestoneGuidance: MilestoneGuidance?
 
     var id: String { itemId }

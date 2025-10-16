@@ -91,6 +91,10 @@ final class BackendService {
         var notes: String?
         var externalLinks: [String]?
         var attachmentIds: [String]?
+        var projectStatus: String?
+        var evaluationOutcome: String?
+        var evaluationNotes: String?
+        var nextSteps: [String]?
     }
 
     private struct DeveloperAutoCompletePayload: Encodable {
@@ -454,7 +458,11 @@ final class BackendService {
         sessionId: String?,
         notes: String?,
         externalLinks: [String],
-        attachmentIds: [String]
+        attachmentIds: [String],
+        projectStatus: String?,
+        evaluationOutcome: String?,
+        evaluationNotes: String?,
+        nextSteps: [String]
     ) async throws -> CurriculumSchedule {
         guard let trimmedBase = trimmed(url: baseURL) else {
             throw BackendServiceError.missingBackend
@@ -470,6 +478,12 @@ final class BackendService {
         let sanitizedAttachments = attachmentIds
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        let sanitizedNextSteps = nextSteps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let trimmedStatus = projectStatus?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOutcome = evaluationOutcome?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEvaluationNotes = evaluationNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = ScheduleCompletePayload(
             username: trimmedUsername,
@@ -477,7 +491,11 @@ final class BackendService {
             sessionId: normalizedIdentifier(sessionId),
             notes: trimmedNotes?.isEmpty == false ? trimmedNotes : nil,
             externalLinks: sanitizedLinks.isEmpty ? nil : sanitizedLinks,
-            attachmentIds: sanitizedAttachments.isEmpty ? nil : sanitizedAttachments
+            attachmentIds: sanitizedAttachments.isEmpty ? nil : sanitizedAttachments,
+            projectStatus: trimmedStatus?.isEmpty == false ? trimmedStatus : nil,
+            evaluationOutcome: trimmedOutcome?.isEmpty == false ? trimmedOutcome : nil,
+            evaluationNotes: trimmedEvaluationNotes?.isEmpty == false ? trimmedEvaluationNotes : nil,
+            nextSteps: sanitizedNextSteps.isEmpty ? nil : sanitizedNextSteps
         )
         let schedule = try await post(
             baseURL: trimmedBase,

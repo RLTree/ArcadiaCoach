@@ -139,6 +139,20 @@ class MilestonePrerequisite(BaseModel):
     recommended_day_offset: Optional[int] = None
 
 
+class MilestoneProject(BaseModel):
+    """Goal-aligned milestone project definition (Phase 30)."""
+
+    project_id: str
+    title: str
+    goal_alignment: str
+    summary: Optional[str] = None
+    deliverables: List[str] = Field(default_factory=list)
+    evidence_checklist: List[str] = Field(default_factory=list)
+    recommended_tools: List[str] = Field(default_factory=list)
+    evaluation_focus: List[str] = Field(default_factory=list)
+    evaluation_steps: List[str] = Field(default_factory=list)
+
+
 class MilestoneBrief(BaseModel):
     """Structured milestone brief rendered in-app (Phase 27)."""
 
@@ -154,6 +168,7 @@ class MilestoneBrief(BaseModel):
     resources: List[str] = Field(default_factory=list)
     kickoff_steps: List[str] = Field(default_factory=list)
     coaching_prompts: List[str] = Field(default_factory=list)
+    project: Optional[MilestoneProject] = None
 
 
 class MilestoneProgress(BaseModel):
@@ -163,6 +178,8 @@ class MilestoneProgress(BaseModel):
     notes: Optional[str] = None
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+    project_status: Literal["not_started", "building", "ready_for_review", "blocked", "completed"] = "not_started"
+    next_steps: List[str] = Field(default_factory=list)
 
 
 class MilestoneGuidance(BaseModel):
@@ -192,6 +209,10 @@ class MilestoneCompletion(BaseModel):
     recommended_day_offset: Optional[int] = None
     session_id: Optional[str] = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    project_status: Literal["not_started", "building", "ready_for_review", "blocked", "completed"] = "completed"
+    evaluation_outcome: Optional[Literal["passed", "needs_revision", "failed"]] = None
+    evaluation_notes: Optional[str] = None
+    elo_delta: int = 12
 
 
 class SequencedWorkItem(BaseModel):
@@ -216,6 +237,7 @@ class SequencedWorkItem(BaseModel):
     active_session_id: Optional[str] = None
     milestone_brief: Optional[MilestoneBrief] = None
     milestone_progress: Optional[MilestoneProgress] = None
+    milestone_project: Optional[MilestoneProject] = None
 
 
 class ScheduleWarning(BaseModel):
@@ -779,9 +801,10 @@ class _LegacyLearnerProfileStore:
             profile.milestone_completions = history[:MAX_MILESTONE_COMPLETIONS]
             snapshot = dict(profile.elo_snapshot or {})
             focus = list(clone.elo_focus or []) or [clone.category_key]
+            elo_delta = int(getattr(clone, "elo_delta", 12))
             for key in focus:
                 if isinstance(key, str) and key:
-                    snapshot[key] = max(int(snapshot.get(key, 1100)) + 12, 0)
+                    snapshot[key] = max(int(snapshot.get(key, 1100)) + elo_delta, 0)
             profile.elo_snapshot = snapshot
             self._touch(profile)
             self._write_unlocked(profiles)
@@ -1374,7 +1397,11 @@ __all__ = [
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
+    "MilestonePrerequisite",
+    "MilestoneProject",
     "MilestoneGuidance",
+    "MilestoneBrief",
+    "MilestoneProgress",
     "MilestoneCompletion",
     "LearnerProfile",
     "LearnerProfileStore",

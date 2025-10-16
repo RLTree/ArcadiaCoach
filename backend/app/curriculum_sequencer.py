@@ -24,6 +24,7 @@ from .learner_profile import (
     MilestonePrerequisite,
     profile_store,
 )
+from .milestone_projects import select_milestone_project
 from .telemetry import emit_event
 
 logger = logging.getLogger(__name__)
@@ -172,6 +173,8 @@ class CurriculumSequencer:
                     lesson_tail_id,
                     quiz_tail_id,
                 )
+                if milestone_item.milestone_brief and milestone_item.milestone_brief.project:
+                    milestone_item.milestone_project = milestone_item.milestone_brief.project
                 milestone_parts = self._split_work_item(milestone_item)
                 chunk.extend(milestone_parts)
                 milestone_attached = True
@@ -477,6 +480,9 @@ class CurriculumSequencer:
             cloned.milestone_progress = (
                 item.milestone_progress.model_copy(deep=True) if item.milestone_progress else None
             )
+            cloned.milestone_project = (
+                item.milestone_project.model_copy(deep=True) if item.milestone_project else None
+            )
             return [cloned]
 
         parts = math.ceil(minutes / MAX_SESSION_MINUTES)
@@ -503,6 +509,9 @@ class CurriculumSequencer:
             part.milestone_brief = item.milestone_brief.model_copy(deep=True) if item.milestone_brief else None
             part.milestone_progress = (
                 item.milestone_progress.model_copy(deep=True) if item.milestone_progress else None
+            )
+            part.milestone_project = (
+                item.milestone_project.model_copy(deep=True) if item.milestone_project else None
             )
             results.append(part)
 
@@ -576,7 +585,12 @@ class CurriculumSequencer:
             "Share blockers or missing context as soon as you hit friction.",
             "Capture artefacts (links, screenshots, repos) so the agent can grade effectively.",
         ]
-        return MilestoneBrief(
+        project = select_milestone_project(
+            profile,
+            module.category_key,
+            goal_inference=getattr(profile, "goal_inference", None),
+        )
+        brief = MilestoneBrief(
             headline=f"Ship {module.title}",
             summary=summary,
             objectives=objectives,
@@ -590,6 +604,9 @@ class CurriculumSequencer:
             kickoff_steps=kickoff_steps,
             coaching_prompts=coaching_prompts,
         )
+        if project:
+            brief.project = project
+        return brief
 
     def _balance_module_chunks(
         self,
@@ -877,6 +894,15 @@ class CurriculumSequencer:
             latest_completion = profile.milestone_completions[0]
             summary_parts.append(
                 f"Latest milestone: {latest_completion.title} completed on {latest_completion.recorded_at.date().isoformat()}."
+            )
+        milestone_with_project = next(
+            (item for item in scheduled_items if item.kind == "milestone" and getattr(item, "milestone_project", None)),
+            None,
+        )
+        if milestone_with_project and milestone_with_project.milestone_project:
+            project = milestone_with_project.milestone_project
+            summary_parts.append(
+                f"Next project: {project.title} — {project.goal_alignment}"
             )
         new_entry = ScheduleRationaleEntry(
             headline=headline,
@@ -1337,6 +1363,8 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
             prior_progress = getattr(prior, "milestone_progress", None)
             if prior_progress is not None:
                 item.milestone_progress = prior_progress.model_copy(deep=True)
+            if getattr(prior, "milestone_project", None) is not None and item.milestone_project is None:
+                item.milestone_project = prior.milestone_project.model_copy(deep=True)
     applied_deltas: Dict[str, Tuple[int, int]] = {}
     if adjustments:
         adjusted_items, applied_deltas = sequencer._apply_adjustments(schedule.items, adjustments)

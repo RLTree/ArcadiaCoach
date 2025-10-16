@@ -53,6 +53,7 @@ from .agent_models import (
     ScheduleSlicePayload,
     MilestoneBriefPayload,
     MilestoneCompletionPayload,
+    MilestoneProjectPayload,
     MilestonePrerequisitePayload,
     MilestoneProgressPayload,
     MilestoneGuidancePayload,
@@ -162,17 +163,40 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 max(last_update_at, completion.recorded_at) if last_update_at else completion.recorded_at
             )
 
+        progress_status = getattr(progress, "project_status", None)
+        progress_next_steps = list(getattr(progress, "next_steps", []) or [])
+
         if getattr(item, "launch_status", "pending") == "completed":
             if completion:
                 state = "completed"
-                summary = "Milestone completed. Review feedback and celebrate the win."
-                badges.extend(["Completed"])
+                outcome = getattr(completion, "evaluation_outcome", None)
+                if outcome == "passed":
+                    summary = "Milestone completed and passed. Celebrate the win and review follow-up actions."
+                    badges.extend(["Completed", "Passed"])
+                elif outcome == "needs_revision":
+                    summary = "Milestone submitted. Address revision notes to fully unlock the milestone."
+                    badges.extend(["Completed", "Needs revision"])
+                    warnings_local.append("Revisit the evaluation notes to close remaining gaps.")
+                    if getattr(completion, "evaluation_notes", None):
+                        next_actions.append("Review evaluator notes and capture your remediation plan.")
+                elif outcome == "failed":
+                    summary = "Milestone submission needs major changes before it counts toward progression."
+                    badges.extend(["Completed", "Requires redo"])
+                    warnings_local.append("Rebuild the milestone deliverable using the evaluation checklist.")
+                    next_actions.append("Schedule time to rebuild the deliverable and resubmit.")
+                else:
+                    summary = "Milestone completed. Review feedback and celebrate the win."
+                    badges.extend(["Completed"])
                 if not completion.notes:
                     next_actions.append("Add a short reflection so refreshers stay grounded.")
                 has_artifacts = bool(completion.attachment_ids or completion.external_links)
                 if (brief and (brief.deliverables or brief.external_work)) and not has_artifacts:
                     warnings_local.append("No artefacts attached. Add links or uploads for grading context.")
                     next_actions.append("Upload at least one artefact (link or attachment).")
+                if getattr(completion, "project_status", None) == "blocked":
+                    warnings_local.append("Milestone flagged as blocked during completion. Document blockers.")
+                if getattr(completion, "evaluation_notes", None):
+                    next_actions.append("Summarise how you'll address the evaluation feedback.")
             else:
                 state = "awaiting_submission"
                 summary = "Marked complete, but no submission details yet."
@@ -193,6 +217,16 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 badges.append("Progress logged")
             else:
                 next_actions.append("Log quick notes or links to capture progress.")
+            if progress_status == "blocked":
+                warnings_local.append("Marked as blocked — capture blockers and reach out for support.")
+                next_actions.append("Ask Arcadia Coach for help resolving the blocker.")
+            elif progress_status == "ready_for_review":
+                badges.append("Ready for review")
+                next_actions.append("Share artefacts and submit for evaluation.")
+            elif progress_status == "building":
+                next_actions.append("Continue building and update progress notes after each session.")
+            if progress_next_steps:
+                next_actions.extend(progress_next_steps[:2])
             if brief and brief.coaching_prompts:
                 next_actions.extend(list(brief.coaching_prompts)[:2])
         else:
@@ -217,6 +251,8 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                     next_actions.append("Block 60–90 minutes for focused work.")
                 if brief and brief.coaching_prompts:
                     next_actions.append(brief.coaching_prompts[0])
+                if brief and brief.project and brief.project.evidence_checklist:
+                    next_actions.append(f"Prep evidence: {brief.project.evidence_checklist[0]}")
 
         badges = _deduplicate_strings(badges)
         next_actions = _deduplicate_strings(next_actions)[:5]
@@ -284,6 +320,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         progress_payload: MilestoneProgressPayload | None = None
         milestone_brief = getattr(item, "milestone_brief", None)
         milestone_progress = getattr(item, "milestone_progress", None)
+        project_payload: MilestoneProjectPayload | None = None
         if milestone_brief:
             brief_payload = MilestoneBriefPayload(
                 headline=milestone_brief.headline,
@@ -299,6 +336,20 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 kickoff_steps=list(milestone_brief.kickoff_steps),
                 coaching_prompts=list(milestone_brief.coaching_prompts),
             )
+            project = getattr(milestone_brief, "project", None)
+            if project:
+                project_payload = MilestoneProjectPayload(
+                    project_id=project.project_id,
+                    title=project.title,
+                    goal_alignment=project.goal_alignment,
+                    summary=project.summary,
+                    deliverables=list(project.deliverables),
+                    evidence_checklist=list(project.evidence_checklist),
+                    recommended_tools=list(project.recommended_tools),
+                    evaluation_focus=list(project.evaluation_focus),
+                    evaluation_steps=list(project.evaluation_steps),
+                )
+                brief_payload.project = project_payload
         elif getattr(item, "prerequisites", None):
             brief_payload = MilestoneBriefPayload(
                 headline=item.title,
@@ -311,7 +362,23 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 notes=milestone_progress.notes,
                 external_links=list(milestone_progress.external_links),
                 attachment_ids=list(milestone_progress.attachment_ids),
+                project_status=getattr(milestone_progress, "project_status", "not_started"),
+                next_steps=list(getattr(milestone_progress, "next_steps", []) or []),
             )
+        if project_payload is None:
+            milestone_project = getattr(item, "milestone_project", None)
+            if milestone_project:
+                project_payload = MilestoneProjectPayload(
+                    project_id=milestone_project.project_id,
+                    title=milestone_project.title,
+                    goal_alignment=milestone_project.goal_alignment,
+                    summary=milestone_project.summary,
+                    deliverables=list(milestone_project.deliverables),
+                    evidence_checklist=list(milestone_project.evidence_checklist),
+                    recommended_tools=list(milestone_project.recommended_tools),
+                    evaluation_focus=list(milestone_project.evaluation_focus),
+                    evaluation_steps=list(milestone_project.evaluation_steps),
+                )
         guidance_payload = _milestone_guidance_payload(
             item,
             milestone_brief,
@@ -352,6 +419,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 milestone_brief=brief_payload,
                 milestone_progress=progress_payload,
                 milestone_guidance=guidance_payload,
+                milestone_project=project_payload,
             )
         )
     if dynamic_warning_entries:
@@ -597,6 +665,10 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
             recommended_day_offset=entry.recommended_day_offset,
             session_id=entry.session_id,
             recorded_at=entry.recorded_at,
+            project_status=getattr(entry, "project_status", "completed"),
+            evaluation_outcome=getattr(entry, "evaluation_outcome", None),
+            evaluation_notes=getattr(entry, "evaluation_notes", None),
+            elo_delta=getattr(entry, "elo_delta", 12),
         )
         for entry in getattr(profile, "milestone_completions", []) or []
     ]

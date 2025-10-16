@@ -150,6 +150,7 @@ def test_milestone_brief_attached_to_schedule() -> None:
     assert milestone.milestone_brief is not None
     assert milestone.milestone_brief.prerequisites, "Milestone brief should list prerequisites."
     assert milestone.milestone_brief.elo_focus, "Milestone brief should surface ELO focus categories."
+    assert milestone.milestone_project is not None, "Milestone brief should surface a project blueprint."
 
     profile_store.delete(username)
 
@@ -174,6 +175,10 @@ def test_schedule_completion_records_milestone_progress() -> None:
             "notes": "Shipped the backend prototype.",
             "external_links": ["https://example.com/repo"],
             "attachment_ids": ["attach-123"],
+            "project_status": "ready_for_review",
+            "evaluation_outcome": "needs_revision",
+            "evaluation_notes": "Document deployment checklist gaps.",
+            "next_steps": ["Add tracing docs", "Record demo video"],
         },
     )
     assert complete.status_code == 200, complete.text
@@ -184,6 +189,9 @@ def test_schedule_completion_records_milestone_progress() -> None:
     assert milestone_payload["milestone_progress"]["notes"] == "Shipped the backend prototype."
     assert milestone_payload["milestone_progress"]["external_links"] == ["https://example.com/repo"]
     assert milestone_payload["milestone_progress"]["attachment_ids"] == ["attach-123"]
+    assert milestone_payload["milestone_progress"]["project_status"] == "ready_for_review"
+    assert milestone_payload["milestone_progress"]["next_steps"] == ["Add tracing docs", "Record demo video"]
+    assert milestone_payload["milestone_project"]["title"]
 
     progress_events = [
         event
@@ -192,10 +200,14 @@ def test_schedule_completion_records_milestone_progress() -> None:
     ]
     assert progress_events, "Expected schedule completion telemetry event."
     assert progress_events[-1].payload.get("progress_recorded") is True
+    assert progress_events[-1].payload.get("evaluation_outcome") == "needs_revision"
+    assert progress_events[-1].payload.get("project_status") == "ready_for_review"
 
     completion_events = [event for event in events if event.name == "milestone_completion_recorded"]
     assert completion_events, "Expected milestone completion telemetry event."
     assert completion_events[-1].payload.get("item_id") == milestone["item_id"]
+    assert completion_events[-1].payload.get("evaluation_outcome") == "needs_revision"
+    assert completion_events[-1].payload.get("project_status") == "ready_for_review"
 
     stored_profile = profile_store.get(username)
     assert stored_profile is not None
@@ -204,6 +216,10 @@ def test_schedule_completion_records_milestone_progress() -> None:
     assert recorded.item_id == milestone["item_id"]
     assert recorded.notes == "Shipped the backend prototype."
     assert recorded.external_links == ["https://example.com/repo"]
+    assert recorded.project_status == "ready_for_review"
+    assert recorded.evaluation_outcome == "needs_revision"
+    assert recorded.evaluation_notes == "Document deployment checklist gaps."
+    assert recorded.elo_delta == 10
 
     clear_listeners()
     profile_store.delete(username)

@@ -149,6 +149,25 @@ def schedule_summary_from_profile(profile: Mapping[str, Any] | None, *, max_item
     if remaining > 0:
         lines.append(f"- …plus {remaining} more scheduled items.")
 
+    milestone_with_project = next(
+        (
+            entry
+            for entry in items
+            if isinstance(entry, Mapping)
+            and str(entry.get("kind", "")).lower() == "milestone"
+            and isinstance(entry.get("milestone_project"), Mapping)
+        ),
+        None,
+    )
+    if milestone_with_project:
+        project = milestone_with_project["milestone_project"]
+        title = str(project.get("title") or "Goal-aligned project")
+        goal_alignment = str(project.get("goal_alignment") or "").strip()
+        if goal_alignment:
+            lines.append(f"- Milestone project: {title} — {goal_alignment}")
+        else:
+            lines.append(f"- Milestone project: {title}")
+
     return "\n".join(lines)
 
 

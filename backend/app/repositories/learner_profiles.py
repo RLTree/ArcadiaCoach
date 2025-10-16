@@ -357,6 +357,10 @@ class LearnerProfileRepository:
                 recommended_day_offset=completion.recommended_day_offset,
                 session_id=completion.session_id,
                 recorded_at=completion.recorded_at,
+                project_status=completion.project_status,
+                evaluation_outcome=completion.evaluation_outcome,
+                evaluation_notes=completion.evaluation_notes,
+                elo_delta=completion.elo_delta,
             )
             session.add(record)
         else:
@@ -371,14 +375,19 @@ class LearnerProfileRepository:
             record.recommended_day_offset = completion.recommended_day_offset
             record.session_id = completion.session_id
             record.recorded_at = completion.recorded_at
+            record.project_status = completion.project_status
+            record.evaluation_outcome = completion.evaluation_outcome
+            record.evaluation_notes = completion.evaluation_notes
+            record.elo_delta = completion.elo_delta
 
         snapshot = dict(model.elo_snapshot or {})
         focus_categories = list(completion.elo_focus or []) or [completion.category_key]
+        elo_delta = int(getattr(completion, "elo_delta", 12))
         for key in focus_categories:
             if not isinstance(key, str) or not key:
                 continue
             rating = int(snapshot.get(key, 1100))
-            snapshot[key] = max(rating + 12, 0)
+            snapshot[key] = max(rating + elo_delta, 0)
         model.elo_snapshot = snapshot
 
         model.last_updated = datetime.now(timezone.utc)
@@ -710,6 +719,7 @@ class LearnerProfileRepository:
                     "active_session_id": item.active_session_id,
                     "milestone_brief": item.milestone_brief,
                     "milestone_progress": item.milestone_progress,
+                    "milestone_project": item.milestone_project,
                 }
                 for item in items
             ],
@@ -768,6 +778,11 @@ class LearnerProfileRepository:
                     milestone_progress=(
                         work_item.milestone_progress.model_dump(mode="json")
                         if work_item.milestone_progress
+                        else None
+                    ),
+                    milestone_project=(
+                        work_item.milestone_project.model_dump(mode="json")
+                        if work_item.milestone_project
                         else None
                     ),
                 )

@@ -67,6 +67,16 @@ ATTACHMENT_POLICY: Dict[str, str] = {
 }
 
 
+def _elo_delta_for_evaluation(outcome: Optional[str]) -> int:
+    if outcome == "passed":
+        return 24
+    if outcome == "needs_revision":
+        return 10
+    if outcome == "failed":
+        return 0
+    return 12
+
+
 @dataclass
 class SessionState:
     store: MemoryStore
@@ -116,6 +126,10 @@ def _milestone_completion_payloads(profile: LearnerProfile) -> List[MilestoneCom
             recommended_day_offset=entry.recommended_day_offset,
             session_id=entry.session_id,
             recorded_at=entry.recorded_at,
+            project_status=getattr(entry, "project_status", "completed"),
+            evaluation_outcome=getattr(entry, "evaluation_outcome", None),
+            evaluation_notes=getattr(entry, "evaluation_notes", None),
+            elo_delta=getattr(entry, "elo_delta", 12),
         )
         for entry in completions
     ]
@@ -551,6 +565,10 @@ class ScheduleCompleteRequest(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=4000)
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+    project_status: Optional[Literal["not_started", "building", "ready_for_review", "blocked", "completed"]] = None
+    evaluation_outcome: Optional[Literal["passed", "needs_revision", "failed"]] = None
+    evaluation_notes: Optional[str] = Field(default=None, max_length=4000)
+    next_steps: List[str] = Field(default_factory=list)
 
 
 class ResetRequest(BaseModel):
@@ -851,17 +869,39 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
     notes = payload.notes.strip() if isinstance(payload.notes, str) and payload.notes.strip() else None
     links = [link.strip() for link in payload.external_links if isinstance(link, str) and link.strip()]
     attachment_ids = [att.strip() for att in payload.attachment_ids if isinstance(att, str) and att.strip()]
+    next_steps = [step.strip() for step in payload.next_steps if isinstance(step, str) and step.strip()]
+    project_status = payload.project_status
+    evaluation_outcome = payload.evaluation_outcome
+    evaluation_notes = (
+        payload.evaluation_notes.strip() if isinstance(payload.evaluation_notes, str) and payload.evaluation_notes.strip() else None
+    )
     progress_entry: Optional[MilestoneProgress] = None
-    if (notes or links or attachment_ids) and item.kind != "milestone":
+    completion_project_status: Optional[str] = None
+    completion_evaluation_outcome: Optional[str] = None
+    completion_elo_delta: Optional[int] = None
+    if (
+        (notes or links or attachment_ids or project_status or evaluation_outcome or evaluation_notes or next_steps)
+        and item.kind != "milestone"
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Only milestone items accept progress notes or attachments.",
+            detail="Only milestone items accept project metadata, evaluation, or artefacts.",
         )
-    if item.kind == "milestone" and (notes or links or attachment_ids):
+    if item.kind == "milestone" and (notes or links or attachment_ids or project_status or next_steps):
+        inferred_status = project_status
+        if inferred_status is None:
+            if evaluation_outcome == "failed":
+                inferred_status = "blocked"
+            elif evaluation_outcome == "needs_revision":
+                inferred_status = "ready_for_review"
+            else:
+                inferred_status = "completed"
         progress_entry = MilestoneProgress(
             notes=notes,
             external_links=links,
             attachment_ids=attachment_ids,
+            project_status=inferred_status,
+            next_steps=next_steps,
         )
     try:
         profile = profile_store.update_schedule_item(
@@ -879,6 +919,7 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
         ) from exc
     if item.kind == "milestone":
         brief = getattr(item, "milestone_brief", None)
+        elo_delta = _elo_delta_for_evaluation(evaluation_outcome)
         completion = MilestoneCompletion(
             item_id=item.item_id,
             category_key=item.category_key,
@@ -892,8 +933,15 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             recommended_day_offset=item.recommended_day_offset,
             session_id=payload.session_id or item.active_session_id,
             recorded_at=progress_entry.recorded_at if progress_entry is not None else now,
+            project_status=progress_entry.project_status if progress_entry else "completed",
+            evaluation_outcome=evaluation_outcome,
+            evaluation_notes=evaluation_notes,
+            elo_delta=elo_delta,
         )
         profile = profile_store.record_milestone_completion(username, completion)
+        completion_project_status = completion.project_status
+        completion_evaluation_outcome = completion.evaluation_outcome
+        completion_elo_delta = completion.elo_delta
         emit_event(
             "milestone_completion_recorded",
             username=username,
@@ -903,6 +951,9 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             has_notes=bool(completion.notes),
             link_count=len(completion.external_links),
             attachment_count=len(completion.attachment_ids),
+            project_status=completion.project_status,
+            evaluation_outcome=completion.evaluation_outcome or "",
+            elo_delta=completion.elo_delta,
         )
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
     if schedule_payload is None:
@@ -924,6 +975,9 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
         duration_ms=duration_ms,
         previous_status=previous_status,
         progress_recorded=bool(progress_entry),
+        project_status=completion_project_status or "",
+        evaluation_outcome=completion_evaluation_outcome or "",
+        elo_delta=completion_elo_delta if completion_elo_delta is not None else "",
     )
     return schedule_payload
 

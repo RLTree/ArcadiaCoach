@@ -143,6 +143,7 @@ class CurriculumScheduleItemModel(Base):
     active_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     milestone_brief: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     milestone_progress: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    milestone_project: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 
@@ -172,6 +173,10 @@ class MilestoneCompletionModel(TimestampMixin, Base):
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    project_status: Mapped[str] = mapped_column(String(32), default="completed", nullable=False)
+    evaluation_outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evaluation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    elo_delta: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
 
     learner: Mapped[LearnerProfileModel] = relationship(back_populates="milestone_completions")
 

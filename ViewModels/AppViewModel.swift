@@ -36,8 +36,20 @@ struct ScheduleCompletionSubmission {
     var notes: String?
     var externalLinks: [String]
     var attachmentIds: [String]
+    var projectStatus: String?
+    var evaluationOutcome: String?
+    var evaluationNotes: String?
+    var nextSteps: [String]
 
-    static let empty = ScheduleCompletionSubmission(notes: nil, externalLinks: [], attachmentIds: [])
+    static let empty = ScheduleCompletionSubmission(
+        notes: nil,
+        externalLinks: [],
+        attachmentIds: [],
+        projectStatus: nil,
+        evaluationOutcome: nil,
+        evaluationNotes: nil,
+        nextSteps: []
+    )
 }
 
 @MainActor
@@ -252,15 +264,19 @@ final class AppViewModel: ObservableObject {
     ) async throws {
         completingScheduleItemId = item.itemId
         defer { completingScheduleItemId = nil }
-        let schedule = try await BackendService.completeScheduleItem(
-            baseURL: baseURL,
-            username: username,
-            itemId: item.itemId,
-            sessionId: sessionId,
-            notes: completion.notes,
-            externalLinks: completion.externalLinks,
-            attachmentIds: completion.attachmentIds
-        )
+            let schedule = try await BackendService.completeScheduleItem(
+                baseURL: baseURL,
+                username: username,
+                itemId: item.itemId,
+                sessionId: sessionId,
+                notes: completion.notes,
+                externalLinks: completion.externalLinks,
+                attachmentIds: completion.attachmentIds,
+                projectStatus: completion.projectStatus,
+                evaluationOutcome: completion.evaluationOutcome,
+                evaluationNotes: completion.evaluationNotes,
+                nextSteps: completion.nextSteps
+            )
         let previousSlice = curriculumSchedule?.slice
         let merged = mergeSchedules(current: curriculumSchedule, incoming: schedule, merge: curriculumSchedule != nil)
         let finalSchedule: CurriculumSchedule

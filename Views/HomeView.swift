@@ -21,6 +21,10 @@ struct HomeView: View {
     @State private var completionNotes: String = ""
     @State private var completionLinksText: String = ""
     @State private var selectedAttachmentIds: Set<String> = []
+    @State private var completionProjectStatus: String = "completed"
+    @State private var completionEvaluationOutcome: String = ""
+    @State private var completionEvaluationNotes: String = ""
+    @State private var completionNextStepsText: String = ""
 
     private var assessmentTabBadge: String? {
         appVM.requiresAssessment ? "!" : nil
@@ -116,6 +120,10 @@ struct HomeView: View {
         .sheet(isPresented: $showCompletionSheet, onDismiss: {
             pendingCompletionItem = nil
             selectedAttachmentIds.removeAll()
+            completionProjectStatus = "completed"
+            completionEvaluationOutcome = ""
+            completionEvaluationNotes = ""
+            completionNextStepsText = ""
         }) {
             MilestoneCompletionSheet(
                 item: pendingCompletionItem,
@@ -123,12 +131,20 @@ struct HomeView: View {
                 linksText: $completionLinksText,
                 attachments: appVM.pendingAssessmentAttachments,
                 selectedAttachmentIds: $selectedAttachmentIds,
+                projectStatus: $completionProjectStatus,
+                evaluationOutcome: $completionEvaluationOutcome,
+                evaluationNotes: $completionEvaluationNotes,
+                nextStepsText: $completionNextStepsText,
                 onCancel: {
                     showCompletionSheet = false
                     pendingCompletionItem = nil
                     completionNotes = ""
                     completionLinksText = ""
                     selectedAttachmentIds.removeAll()
+                    completionProjectStatus = "completed"
+                    completionEvaluationOutcome = ""
+                    completionEvaluationNotes = ""
+                    completionNextStepsText = ""
                 },
                 onSubmit: {
                     guard let item = pendingCompletionItem else {
@@ -141,6 +157,10 @@ struct HomeView: View {
                     completionNotes = ""
                     completionLinksText = ""
                     selectedAttachmentIds.removeAll()
+                    completionProjectStatus = "completed"
+                    completionEvaluationOutcome = ""
+                    completionEvaluationNotes = ""
+                    completionNextStepsText = ""
                     submitScheduleCompletion(item: item, completion: submission)
                 }
             )
@@ -609,6 +629,10 @@ struct HomeView: View {
             completionNotes = ""
             completionLinksText = ""
             selectedAttachmentIds = []
+            completionProjectStatus = "completed"
+            completionEvaluationOutcome = ""
+            completionEvaluationNotes = ""
+            completionNextStepsText = ""
             showCompletionSheet = true
             Task { @MainActor in
                 await preloadCompletionAttachments()
@@ -633,7 +657,22 @@ struct HomeView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         let attachmentIds = Array(selectedAttachmentIds)
-        return ScheduleCompletionSubmission(notes: notesValue, externalLinks: links, attachmentIds: attachmentIds)
+        let statusValue = completionProjectStatus.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outcomeValue = completionEvaluationOutcome.trimmingCharacters(in: .whitespacesAndNewlines)
+        let evaluationNotes = completionEvaluationNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextSteps = completionNextStepsText
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return ScheduleCompletionSubmission(
+            notes: notesValue,
+            externalLinks: links,
+            attachmentIds: attachmentIds,
+            projectStatus: statusValue.isEmpty ? nil : statusValue,
+            evaluationOutcome: outcomeValue.isEmpty ? nil : outcomeValue,
+            evaluationNotes: evaluationNotes.isEmpty ? nil : evaluationNotes,
+            nextSteps: nextSteps
+        )
     }
 
     private func submitScheduleCompletion(item: SequencedWorkItem, completion: ScheduleCompletionSubmission) {
@@ -1117,6 +1156,10 @@ struct MilestoneCompletionSheet: View {
     @Binding var linksText: String
     let attachments: [AssessmentSubmissionRecord.Attachment]
     @Binding var selectedAttachmentIds: Set<String>
+    @Binding var projectStatus: String
+    @Binding var evaluationOutcome: String
+    @Binding var evaluationNotes: String
+    @Binding var nextStepsText: String
     let onCancel: () -> Void
     let onSubmit: () -> Void
 
@@ -1134,9 +1177,52 @@ struct MilestoneCompletionSheet: View {
         }
     }
 
+    private let statusOptions: [(label: String, value: String)] = [
+        ("Completed", "completed"),
+        ("Ready for review", "ready_for_review"),
+        ("Building", "building"),
+        ("Blocked", "blocked"),
+    ]
+
+    private let evaluationOptions: [(label: String, value: String)] = [
+        ("Not set", ""),
+        ("Passed", "passed"),
+        ("Needs revision", "needs_revision"),
+        ("Failed", "failed"),
+    ]
+
     var body: some View {
         NavigationStack {
             Form {
+                Section("Project Status") {
+                    Picker("Status", selection: $projectStatus) {
+                        ForEach(statusOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Evaluation") {
+                    Picker("Outcome", selection: $evaluationOutcome) {
+                        ForEach(evaluationOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    ZStack(alignment: .topLeading) {
+                        if evaluationNotes.isEmpty {
+                            Text("Capture reviewer feedback or follow-up notes.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                        }
+                        TextEditor(text: $evaluationNotes)
+                            .frame(minHeight: 100)
+                    }
+                }
+
                 Section("Reflection") {
                     ZStack(alignment: .topLeading) {
                         if notes.isEmpty {
@@ -1154,6 +1240,14 @@ struct MilestoneCompletionSheet: View {
                     TextEditor(text: $linksText)
                         .frame(minHeight: 80)
                     Text("Enter one link per line (e.g. repository, demo, documentation).")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Next Steps") {
+                    TextEditor(text: $nextStepsText)
+                        .frame(minHeight: 80)
+                    Text("Optional: enter one next step per line to prompt future refreshers.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

@@ -323,11 +323,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Persisted schedule launch/completion telemetry with the `/api/profile/{username}/telemetry` endpoint and new dashboard alert panels that highlight stalled or attachment-free milestones.  
     - Hardened milestone surfaces across Swift + MCP, adding tests for telemetry persistence/decoding and refreshing the dashboard layout to include the Sessions tab.  
     - **Follow-ups:** expand telemetry coverage (e.g., refresh failures), add UI snapshot tests for the alert states, and stream the new metrics into hosted dashboards.  
-30. **Phase 30 – High-Utility Milestone Projects**  
-    - Teach the milestone planner to assign a concrete project brief aligned with the learner’s post-course goals (e.g., portfolio app, automation workflow, research pipeline).  
-    - Generate scoped deliverables, success criteria, and evidence checklist that connect milestone work to both current curriculum skills and the learner’s stated use-cases.  
-    - Update agent prompts, MCP milestone content, and backend persistence so milestones include project metadata, submission artefacts, and evaluation hooks.  
-    - Wire schedule launch/completion flows to capture project status, attach progress artefacts, and feed goal-aligned ELO adjustments or pass/fail gating.  
+30. **Phase 30 – High-Utility Milestone Projects** ✅ *(completed October 16, 2025; see `docs/phase-30-high-utility-milestone-projects.md`)*  
+    - Added a goal-aware milestone project catalog that injects project metadata into sequenced items, briefs, and rationale history so learners see concrete deliverables tied to their goals.  
+    - Persisted project status, evaluation outcome/notes, next steps, and calibrated ELO deltas across schedule payloads, telemetry, and completion history.  
+    - Refreshed schedule completion APIs, MCP widgets, and the macOS milestone sheet to collect and display the richer project/evaluation context end-to-end.  
+    - **Follow-ups:** Build blueprint authoring tooling, stream new telemetry into dashboards, and add project-aware nudges when milestones remain blocked or need revision.
 31. **Phase 31 – Lesson Deck Foundations**  
     - Render lessons as presentation-style decks with narrative slides, inline code/examples, and citations to supporting papers/docs.  
     - Establish shared deck components and export formats so both chat and dashboard views reuse the same content.  

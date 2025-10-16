@@ -109,6 +109,18 @@ class MilestonePrerequisitePayload(BaseModel):
     recommended_day_offset: Optional[int] = None
 
 
+class MilestoneProjectPayload(BaseModel):
+    project_id: str
+    title: str
+    goal_alignment: str
+    summary: Optional[str] = None
+    deliverables: List[str] = Field(default_factory=list)
+    evidence_checklist: List[str] = Field(default_factory=list)
+    recommended_tools: List[str] = Field(default_factory=list)
+    evaluation_focus: List[str] = Field(default_factory=list)
+    evaluation_steps: List[str] = Field(default_factory=list)
+
+
 class MilestoneBriefPayload(BaseModel):
     headline: str
     summary: Optional[str] = None
@@ -122,6 +134,7 @@ class MilestoneBriefPayload(BaseModel):
     resources: List[str] = Field(default_factory=list)
     kickoff_steps: List[str] = Field(default_factory=list)
     coaching_prompts: List[str] = Field(default_factory=list)
+    project: Optional[MilestoneProjectPayload] = None
 
 
 class MilestoneProgressPayload(BaseModel):
@@ -129,6 +142,8 @@ class MilestoneProgressPayload(BaseModel):
     notes: Optional[str] = None
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+    project_status: Literal["not_started", "building", "ready_for_review", "blocked", "completed"] = "not_started"
+    next_steps: List[str] = Field(default_factory=list)
 
 
 class MilestoneGuidancePayload(BaseModel):
@@ -163,6 +178,7 @@ class SequencedWorkItemPayload(BaseModel):
     milestone_brief: Optional[MilestoneBriefPayload] = None
     milestone_progress: Optional[MilestoneProgressPayload] = None
     milestone_guidance: Optional[MilestoneGuidancePayload] = None
+    milestone_project: Optional[MilestoneProjectPayload] = None
 
 
 class MilestoneCompletionPayload(BaseModel):
@@ -179,6 +195,10 @@ class MilestoneCompletionPayload(BaseModel):
     recommended_day_offset: Optional[int] = None
     session_id: Optional[str] = None
     recorded_at: datetime
+    project_status: Literal["not_started", "building", "ready_for_review", "blocked", "completed"] = "completed"
+    evaluation_outcome: Optional[Literal["passed", "needs_revision", "failed"]] = None
+    evaluation_notes: Optional[str] = None
+    elo_delta: int = 12
 
 
 class ScheduleWarningPayload(BaseModel):

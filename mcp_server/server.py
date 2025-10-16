@@ -637,8 +637,19 @@ def milestone_update(
         capture = brief.get("capture_prompts") or []
         elo_focus = brief.get("elo_focus") or []
         resources = brief.get("resources") or []
+        project = brief.get("project") or {}
 
         overview_sections = []
+        project_summary_items: List[str] = []
+        if project.get("goal_alignment"):
+            project_summary_items.append(project["goal_alignment"])
+        if project.get("summary"):
+            project_summary_items.append(project["summary"])
+        elif brief.get("summary"):
+            project_summary_items.append(brief["summary"])
+        if project_summary_items:
+            overview_sections.append(WidgetCardSection(heading="Project overview", items=project_summary_items))
+
         if objectives:
             overview_sections.append(WidgetCardSection(heading="Objectives", items=list(objectives)))
         if deliverables:
@@ -669,6 +680,12 @@ def milestone_update(
             rows.extend(WidgetListRow(label=prompt, meta="Capture prompt") for prompt in capture)
         if resources:
             rows.extend(WidgetListRow(label=resource, meta="Reference") for resource in resources)
+        evidence = project.get("evidence_checklist") or []
+        if evidence:
+            rows.extend(WidgetListRow(label=item, meta="Evidence") for item in evidence)
+        recommended_tools = project.get("recommended_tools") or []
+        if recommended_tools:
+            rows.extend(WidgetListRow(label=tool, meta="Recommended tool") for tool in recommended_tools)
         coaching = brief.get("coaching_prompts") or []
         if coaching:
             rows.extend(WidgetListRow(label=prompt, meta="Coaching prompt") for prompt in coaching)
@@ -692,13 +709,37 @@ def milestone_update(
                 ),
             )
 
+        evaluation_widget = None
+        evaluation_focus = project.get("evaluation_focus") or []
+        evaluation_steps = project.get("evaluation_steps") or []
+        evaluation_sections: List[WidgetCardSection] = []
+        if evaluation_focus:
+            evaluation_sections.append(WidgetCardSection(heading="Focus areas", items=list(evaluation_focus)))
+        if evaluation_steps:
+            evaluation_sections.append(WidgetCardSection(heading="Evaluation steps", items=list(evaluation_steps)))
+        if evaluation_sections:
+            evaluation_widget = Widget(
+                type=WidgetType.CARD,
+                propsCard=WidgetCardProps(
+                    title="Evaluation checklist",
+                    sections=evaluation_sections,
+                ),
+            )
+
         widgets = [overview_card]
         if checklist_widget:
             widgets.append(checklist_widget)
         if stats_widget:
             widgets.append(stats_widget)
+        if evaluation_widget:
+            widgets.append(evaluation_widget)
 
-        display_text = summary or brief.get("summary") or "Celebrate the milestone and capture what you accomplished."
+        display_text = (
+            summary
+            or project.get("summary")
+            or brief.get("summary")
+            or "Celebrate the milestone and capture what you accomplished."
+        )
         return WidgetEnvelope(
             intent="Milestone",
             display=display_text,

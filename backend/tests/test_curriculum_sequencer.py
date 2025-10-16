@@ -289,6 +289,8 @@ def test_curriculum_sequencer_prioritises_low_scores() -> None:
     assert quiz.prerequisites == ["lesson-backend-foundations"]
     milestone = next(item for item in schedule.items if item.kind == "milestone")
     assert set(milestone.prerequisites) == {"lesson-backend-foundations", "quiz-backend-foundations"}
+    assert milestone.milestone_project is not None, "Milestone should include a goal-aligned project definition."
+    assert profile.goal.lower() in milestone.milestone_project.goal_alignment.lower()
     assert schedule.time_horizon_days >= 150
     assert "Backend architecture" in (schedule.cadence_notes or "")
     assert all(
