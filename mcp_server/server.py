@@ -357,11 +357,11 @@ def _extract_output_text(response: Any) -> str:
     return ""
 
 
-def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
+async def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
     agent = _get_milestone_author_agent()
     prompt = _author_prompt(payload)
     start = time.perf_counter()
-    result = Runner.run_sync(
+    result = await Runner.run(
         agent,
         prompt,
         context=None,
@@ -787,7 +787,7 @@ async def scoped_health_route(_request):
 async def author_milestone_route(request: Request):
     payload = await request.json()
     brief_request = MilestoneAuthorRequest.model_validate(payload)
-    envelope = milestone_project_author(brief_request)
+    envelope = await milestone_project_author(brief_request)
     return JSONResponse(envelope.model_dump(mode="json"))
 
 
@@ -865,13 +865,12 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
 
 
 @mcp.tool()
-def milestone_project_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
+async def milestone_project_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
     """Generate an agent-authored milestone brief tailored to the learner context."""
-
     if not _OPENAI_API_KEY:
         raise RuntimeError("Milestone authoring requires OPENAI_API_KEY to be set.")
     try:
-        envelope = _call_milestone_author(payload)
+        envelope = await _call_milestone_author(payload)
         logger.info(
             "Milestone author generated brief",
             extra={
@@ -1276,7 +1275,7 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
                 status_code=400,
             )
         try:
-            envelope = milestone_project_author(brief_request)
+            envelope = await milestone_project_author(brief_request)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Milestone author proxy failed")
             return JSONResponse(
