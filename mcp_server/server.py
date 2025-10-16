@@ -350,29 +350,61 @@ def _extract_output_text(response: Any) -> str:
 def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
     client = _get_openai_client()
     schema = MilestoneAuthorBrief.model_json_schema()
-    request_payload = {
+    request_payload: Dict[str, Any] = {
         "model": _MILESTONE_AUTHOR_MODEL,
-        "reasoning": {"effort": _MILESTONE_AUTHOR_REASONING},
-        "temperature": _MILESTONE_AUTHOR_TEMPERATURE,
-        "input": [
+        "messages": [
             {"role": "system", "content": _AUTHOR_INSTRUCTIONS},
             {"role": "user", "content": _author_prompt(payload)},
         ],
+        "temperature": _MILESTONE_AUTHOR_TEMPERATURE,
         "response_format": {
             "type": "json_schema",
-            "json_schema": {"name": "MilestoneAuthorBrief", "schema": schema},
+            "json_schema": {
+                "name": "MilestoneAuthorBrief",
+                "schema": schema,
+                "strict": True,
+            },
         },
     }
+    if _MILESTONE_AUTHOR_REASONING:
+        request_payload.setdefault("extra_body", {})["reasoning"] = {
+            "effort": _MILESTONE_AUTHOR_REASONING
+        }
     start = time.perf_counter()
     try:
-        response = client.responses.with_options(timeout=_MILESTONE_AUTHOR_TIMEOUT).create(**request_payload)
-    except AttributeError:
-        # Older client versions may not support with_options; fall back to direct call.
-        response = client.responses.create(**request_payload)
+        response = client.chat.completions.create(**request_payload)
+    except TypeError:
+        # Older SDKs may not support extra_body; retry without reasoning hint.
+        request_payload.pop("extra_body", None)
+        response = client.chat.completions.create(**request_payload)
     latency_ms = int((time.perf_counter() - start) * 1000)
-    content = _extract_output_text(response)
+
+    content: str = ""
+    try:
+        choice = response.choices[0]
+        message = getattr(choice, "message", None)
+        if message is None:
+            message = getattr(choice, "delta", None)
+        data = getattr(message, "content", "") if message is not None else ""
+        if isinstance(data, list):
+            fragments = []
+            for block in data:
+                text = getattr(block, "text", None)
+                if text:
+                    fragments.append(text)
+            content = "".join(fragments)
+        elif isinstance(data, str):
+            content = data
+    except (IndexError, AttributeError):
+        content = ""
+
+    if not content:
+        # Fallback to generic extractor for parity with Responses API.
+        content = _extract_output_text(response)
+
     if not content:
         raise RuntimeError("Milestone author agent returned empty content.")
+
     brief = MilestoneAuthorBrief.model_validate_json(content)
     brief.model = _MILESTONE_AUTHOR_MODEL or brief.model
     brief.reasoning_effort = _MILESTONE_AUTHOR_REASONING or brief.reasoning_effort
