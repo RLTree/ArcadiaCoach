@@ -67,6 +67,18 @@ class ScheduleAdjustmentRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=160)
 
 
+class LearnerTelemetryEventPayload(BaseModel):
+    event_id: str
+    event_type: str
+    created_at: datetime
+    actor: Optional[str] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class LearnerTelemetryResponse(BaseModel):
+    events: List[LearnerTelemetryEventPayload] = Field(default_factory=list)
+
+
 def _ensure_assessment_task_coverage(profile: LearnerProfile) -> OnboardingAssessment | None:
     assessment = profile.onboarding_assessment
     if assessment is None:
@@ -613,6 +625,60 @@ def adjust_curriculum_schedule(username: str, payload: ScheduleAdjustmentRequest
             detail="Schedule regeneration did not return a schedule.",
         )
     return schedule_payload
+
+
+@router.get(
+    "/{username}/telemetry",
+    response_model=LearnerTelemetryResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_profile_telemetry(
+    username: str,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> LearnerTelemetryResponse:
+    events = profile_store.recent_telemetry_events(username, limit=limit)
+    payloads: List[LearnerTelemetryEventPayload] = []
+    def _coerce_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                return datetime.now(timezone.utc)
+        return datetime.now(timezone.utc)
+    for entry in events:
+        if isinstance(entry, dict):
+            event_type = entry.get("event_type") or entry.get("event")
+            event_id = str(entry.get("id") or event_type or "")
+            created_at = _coerce_datetime(entry.get("created_at"))
+            payloads.append(
+                LearnerTelemetryEventPayload(
+                    event_id=event_id,
+                    event_type=event_type or "unknown",
+                    actor=entry.get("actor"),
+                    created_at=created_at,
+                    payload=dict(entry.get("payload") or {}),
+                )
+            )
+            continue
+        event_type = getattr(entry, "event_type", "unknown")
+        event_id = str(getattr(entry, "id", event_type))
+        created_at = _coerce_datetime(getattr(entry, "created_at", datetime.now(timezone.utc)))
+        payload = getattr(entry, "payload", {}) or {}
+        actor = getattr(entry, "actor", None)
+        if not isinstance(payload, dict):
+            payload = {"value": payload}
+        payloads.append(
+            LearnerTelemetryEventPayload(
+                event_id=event_id,
+                event_type=event_type,
+                actor=actor,
+                created_at=created_at,
+                payload=dict(payload),
+            )
+        )
+    return LearnerTelemetryResponse(events=payloads)
 
 
 def _schedule_with_warning(schedule: CurriculumSchedule, error: Exception) -> CurriculumSchedule:

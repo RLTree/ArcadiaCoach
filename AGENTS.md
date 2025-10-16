@@ -63,6 +63,8 @@ The agent is configured with:
 
 Hosted MCP calls are proxied through the backend (see `backend/app/arcadia_agent.py` and `backend/app/tools.py`).
 
+> **Milestone guidance:** Curriculum schedule payloads now include `milestone_guidance` alongside enriched briefs (kickoff steps, coaching prompts). The macOS client and agent should surface these badges, next actions, and warnings when coaching learners. Telemetry for `schedule_launch_*` and `milestone_completion_recorded` is persisted and available via `GET /api/profile/{username}/telemetry`.
+
 MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 
 - `lesson_catalog`

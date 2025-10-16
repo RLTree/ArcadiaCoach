@@ -240,13 +240,23 @@ final class BackendServiceTests: XCTestCase {
                     {"item_id": "quiz-backend", "title": "Skill Check • Backend Foundations", "kind": "quiz", "status": "in_progress", "required": true}
                 ],
                 "elo_focus": ["Backend Systems"],
-                "resources": ["Backend playbook"]
+                "resources": ["Backend playbook"],
+                "kickoff_steps": ["Block 90 minutes of focus time."],
+                "coaching_prompts": ["Share blockers with Arcadia Coach early."]
             },
             "milestone_progress": {
                 "recorded_at": "2025-10-21T18:05:00Z",
                 "notes": "Shipped API refactor.",
                 "external_links": ["https://example.com/demo"],
                 "attachment_ids": ["attach-1"]
+            },
+            "milestone_guidance": {
+                "state": "in_progress",
+                "summary": "Milestone in progress. Capture blockers and progress snapshots.",
+                "badges": ["In progress"],
+                "next_actions": ["Log quick notes or links to capture progress."],
+                "warnings": [],
+                "last_update_at": "2025-10-21T18:05:00Z"
             }
         }
         """
@@ -259,8 +269,11 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(item.milestoneBrief?.headline, "Ship Backend Foundations")
         XCTAssertEqual(item.milestoneBrief?.prerequisites.count, 2)
         XCTAssertEqual(item.milestoneBrief?.eloFocus, ["Backend Systems"])
+        XCTAssertEqual(item.milestoneBrief?.kickoffSteps.first, "Block 90 minutes of focus time.")
         XCTAssertEqual(item.milestoneProgress?.externalLinks, ["https://example.com/demo"])
         XCTAssertEqual(item.milestoneProgress?.attachmentIds, ["attach-1"])
+        XCTAssertEqual(item.milestoneGuidance?.state, "in_progress")
+        XCTAssertEqual(item.milestoneGuidance?.nextActions.first, "Log quick notes or links to capture progress.")
     }
 
     func testLearnerProfileSnapshotDecodesGoalInference() throws {
@@ -353,6 +366,34 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.goalInference?.targetOutcomes.count, 2)
         XCTAssertEqual(snapshot.foundationTracks.first?.priority, "now")
         XCTAssertEqual(snapshot.milestoneCompletions.first?.notes, "Documented tracing rollout.")
+    }
+
+    func testTelemetryResponseDecodes() throws {
+        let json = """
+        {
+            "events": [
+                {
+                    "event_id": "evt-1",
+                    "event_type": "schedule_launch_completed",
+                    "created_at": "2025-10-16T12:00:00Z",
+                    "actor": "telemetry",
+                    "payload": {
+                        "item_id": "milestone-backend",
+                        "kind": "milestone",
+                        "progress_recorded": "false"
+                    }
+                }
+            ]
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode(LearnerTelemetryResponse.self, from: Data(json.utf8))
+
+        XCTAssertEqual(response.events.count, 1)
+        XCTAssertEqual(response.events.first?.eventType, "schedule_launch_completed")
+        XCTAssertEqual(response.events.first?.payload["progress_recorded"], "false")
     }
 
     @MainActor

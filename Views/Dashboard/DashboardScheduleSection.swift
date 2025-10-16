@@ -4,6 +4,7 @@ struct DashboardScheduleSection: View {
     let schedule: CurriculumSchedule?
     let categoryLabels: [String:String]
     let milestoneCompletions: [MilestoneCompletion]
+    let telemetryEvents: [LearnerTelemetryEvent]
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
@@ -24,6 +25,7 @@ struct DashboardScheduleSection: View {
                     schedule: schedule,
                     categoryLabels: categoryLabels,
                     milestoneCompletions: milestoneCompletions,
+                    telemetryEvents: telemetryEvents,
                     isRefreshing: isRefreshing,
                     isLoadingNextSlice: isLoadingNextSlice,
                     adjustingItemId: adjustingItemId,

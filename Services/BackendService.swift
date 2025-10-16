@@ -93,6 +93,12 @@ final class BackendService {
         var attachmentIds: [String]?
     }
 
+    private struct DeveloperAutoCompletePayload: Encodable {
+        var username: String
+        var includeLessons: Bool
+        var includeQuizzes: Bool
+    }
+
     private struct AssessmentAttachmentLinkPayload: Encodable {
         var name: String?
         var url: String
@@ -253,6 +259,94 @@ final class BackendService {
 
         do {
             return try decodeProfileSnapshot(from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func autoCompleteSchedule(
+        baseURL: String,
+        username: String,
+        includeLessons: Bool = true,
+        includeQuizzes: Bool = true
+    ) async throws -> CurriculumSchedule {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/developer/auto-complete") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = DeveloperAutoCompletePayload(
+            username: trimmedUsername,
+            includeLessons: includeLessons,
+            includeQuizzes: includeQuizzes
+        )
+        request.httpBody = try encoder.encode(payload)
+
+        logger.debug("POST \(url.absoluteString, privacy: .public) -> auto-complete schedule")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode(CurriculumSchedule.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func fetchTelemetry(baseURL: String, username: String, limit: Int = 50) async throws -> [LearnerTelemetryEvent] {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? trimmedUsername
+        let boundedLimit = max(1, min(limit, 200))
+        let query = [URLQueryItem(name: "limit", value: "\(boundedLimit)")]
+        guard let url = endpoint(
+            baseURL: trimmedBase,
+            path: "api/profile/\(encodedUsername)/telemetry",
+            queryItems: query
+        ) else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = requestTimeout
+
+        logger.debug("GET \(url.absoluteString, privacy: .public)")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            let response = try decoder.decode(LearnerTelemetryResponse.self, from: data)
+            return response.events
         } catch {
             throw BackendServiceError.decodingFailure(error.localizedDescription)
         }
@@ -1090,6 +1184,15 @@ final class BackendService {
     static func endpoint(baseURL: String, path: String) -> URL? {
         guard let base = URL(string: baseURL) else { return nil }
         return base.appendingPathComponent(path, isDirectory: false)
+    }
+
+    static func endpoint(baseURL: String, path: String, queryItems: [URLQueryItem]) -> URL? {
+        guard let base = URL(string: baseURL) else { return nil }
+        var components = URLComponents(url: base.appendingPathComponent(path, isDirectory: false), resolvingAgainstBaseURL: false)
+        if !queryItems.isEmpty {
+            components?.queryItems = queryItems
+        }
+        return components?.url
     }
 
     static func trimmed(url: String) -> String? {

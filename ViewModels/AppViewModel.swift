@@ -74,6 +74,7 @@ final class AppViewModel: ObservableObject {
     @Published var foundationTracks: [FoundationTrackModel] = []
     @Published var hasUnseenAssessmentResults: Bool = false
     @Published var milestoneCompletions: [MilestoneCompletion] = []
+    @Published var telemetryEvents: [LearnerTelemetryEvent] = []
 
     private var lastScheduleEventSignature: String?
     private var lastScheduleEventTimestamp: Date?
@@ -113,6 +114,7 @@ final class AppViewModel: ObservableObject {
             let snapshot = try await BackendService.fetchProfile(baseURL: trimmedBase, username: trimmedUsername)
             syncProfile(with: snapshot)
             error = nil
+            await refreshTelemetry(baseURL: trimmedBase, username: trimmedUsername)
         } catch let serviceError as BackendServiceError {
             if case let .transportFailure(status, _) = serviceError, status == 404 {
                 eloPlan = nil
@@ -141,6 +143,7 @@ final class AppViewModel: ObservableObject {
             daySpan: defaultScheduleSliceSpan,
             pageToken: nil
         )
+        await refreshTelemetry()
     }
 
     func loadNextScheduleSlice(baseURL: String, username: String, daySpan: Int? = nil) async {
@@ -153,6 +156,37 @@ final class AppViewModel: ObservableObject {
             daySpan: daySpan ?? curriculumSchedule?.slice?.daySpan ?? defaultScheduleSliceSpan,
             pageToken: nextStart
         )
+    }
+
+    func refreshTelemetry(baseURL: String? = nil, username: String? = nil) async {
+        let resolvedBase = baseURL ?? lastBackendBaseURL
+        let resolvedUsername = username ?? lastLearnerUsername
+        guard let resolvedBase, let resolvedUsername else { return }
+        do {
+            telemetryEvents = try await BackendService.fetchTelemetry(baseURL: resolvedBase, username: resolvedUsername)
+        } catch {
+            let nsError = error as NSError
+            TelemetryReporter.shared.record(
+                event: "telemetry_fetch_failed",
+                metadata: [
+                    "username": resolvedUsername,
+                    "error": nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription,
+                ]
+            )
+        }
+    }
+
+    func applyDeveloperScheduleOverride(_ schedule: CurriculumSchedule) {
+        curriculumSchedule = schedule
+        milestoneCompletions = schedule.milestoneCompletions
+        if let timezone = schedule.timezone, !timezone.isEmpty {
+            learnerTimezone = timezone
+        }
+        var aggregate = schedule
+        aggregate.slice = nil
+        if let username = lastLearnerUsername {
+            ScheduleSliceCache.shared.store(schedule: aggregate, username: username, startDay: 0)
+        }
     }
 
     func launchScheduleItem(
@@ -205,6 +239,7 @@ final class AppViewModel: ObservableObject {
             recordMilestone(milestone)
         }
 
+        await refreshTelemetry(baseURL: baseURL, username: username)
         return response
     }
 
@@ -243,6 +278,7 @@ final class AppViewModel: ObservableObject {
         var aggregateCopy = merged
         aggregateCopy.slice = nil
         ScheduleSliceCache.shared.store(schedule: aggregateCopy, username: username, startDay: 0)
+        await refreshTelemetry(baseURL: baseURL, username: username)
     }
 
     private func requestSchedule(

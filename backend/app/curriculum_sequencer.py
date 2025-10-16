@@ -566,6 +566,16 @@ class CurriculumSequencer:
         resources: List[str] = []
         if module.summary:
             resources.append(module.summary)
+        kickoff_steps = [
+            "Block 60–90 minutes of focused time on your calendar.",
+            f"Review your lesson and quiz notes for {module.title}.",
+            "Outline the deliverable and list any dependencies before you start building.",
+        ]
+        coaching_prompts = [
+            "Ask Arcadia Coach to sanity-check your milestone plan before diving in.",
+            "Share blockers or missing context as soon as you hit friction.",
+            "Capture artefacts (links, screenshots, repos) so the agent can grade effectively.",
+        ]
         return MilestoneBrief(
             headline=f"Ship {module.title}",
             summary=summary,
@@ -577,6 +587,8 @@ class CurriculumSequencer:
             prerequisites=prerequisites,
             elo_focus=[context.label] if context.label else [],
             resources=resources,
+            kickoff_steps=kickoff_steps,
+            coaching_prompts=coaching_prompts,
         )
 
     def _balance_module_chunks(

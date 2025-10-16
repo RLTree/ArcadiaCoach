@@ -406,6 +406,7 @@ struct HomeView: View {
                 schedule: appVM.curriculumSchedule,
                 categoryLabels: categoryLabels,
                 milestoneCompletions: appVM.milestoneCompletions,
+                telemetryEvents: appVM.telemetryEvents,
                 isRefreshing: appVM.scheduleRefreshing,
                 isLoadingNextSlice: appVM.loadingScheduleSlice,
                 adjustingItemId: appVM.adjustingScheduleItemId,

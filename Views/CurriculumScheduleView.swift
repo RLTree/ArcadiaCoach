@@ -4,6 +4,7 @@ struct CurriculumScheduleView: View {
     let schedule: CurriculumSchedule
     let categoryLabels: [String:String]
     let milestoneCompletions: [MilestoneCompletion]
+    let telemetryEvents: [LearnerTelemetryEvent]
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
@@ -50,6 +51,24 @@ struct CurriculumScheduleView: View {
         Array(milestoneCompletions.prefix(3))
     }
 
+    private var milestoneAlerts: [LearnerTelemetryEvent] {
+        telemetryEvents.filter { event in
+            switch event.eventType {
+            case "schedule_launch_completed":
+                guard payloadValue(event.payload, keys: ["kind"])?.lowercased() == "milestone" else { return false }
+                return payloadValue(event.payload, keys: ["progress_recorded", "progressRecorded"])?.lowercased() == "false"
+            case "milestone_completion_recorded":
+                let attachments = Int(payloadValue(event.payload, keys: ["attachment_count", "attachmentCount"]) ?? "0") ?? 0
+                let links = Int(payloadValue(event.payload, keys: ["link_count", "linkCount"]) ?? "0") ?? 0
+                let hasNotes = payloadValue(event.payload, keys: ["has_notes", "hasNotes"])?.lowercased() == "true"
+                return attachments == 0 || links == 0 || !hasNotes
+            default:
+                return false
+            }
+        }
+        .sorted { $0.createdAt > $1.createdAt }
+    }
+
     private var longRangeDescription: String? {
         guard schedule.sessionsPerWeek > 0 || schedule.projectedWeeklyMinutes > 0 || schedule.longRangeItemCount > 0 else {
             return nil
@@ -88,6 +107,9 @@ struct CurriculumScheduleView: View {
             header
             if schedule.isStale || !schedule.warnings.isEmpty {
                 warningsSection
+            }
+            if !milestoneAlerts.isEmpty {
+                milestoneAlertsSection
             }
             if let pacing = schedule.pacingOverview, !pacing.isEmpty {
                 Text(pacing)
@@ -133,11 +155,11 @@ struct CurriculumScheduleView: View {
         return slice.hasMore || isLoadingNextSlice
     }
 
-    @ViewBuilder
-    private var loadMoreSection: some View {
-        VStack(spacing: 12) {
-            if isLoadingNextSlice {
-                ProgressView("Loading more sessions…")
+@ViewBuilder
+private var loadMoreSection: some View {
+    VStack(spacing: 12) {
+        if isLoadingNextSlice {
+            ProgressView("Loading more sessions…")
                     .progressViewStyle(.circular)
             } else {
                 Button {
@@ -154,9 +176,32 @@ struct CurriculumScheduleView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+    }
+    .frame(maxWidth: .infinity)
+    .padding(12)
+}
+
+    @ViewBuilder
+    private var milestoneAlertsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Milestone alerts", systemImage: "exclamationmark.triangle")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.red)
+            ForEach(milestoneAlerts.prefix(3)) { event in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(alertMessage(for: event))
+                        .font(.caption)
+                    Text(event.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
         }
-        .frame(maxWidth: .infinity)
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
     }
 
     @ViewBuilder
@@ -580,6 +625,38 @@ struct CurriculumScheduleView: View {
                     }
                 }
             }
+            if let guidance = item.milestoneGuidance {
+                if !guidance.badges.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(guidance.badges, id: \.self) { badge in
+                            Text(badge)
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.orange.opacity(0.15), in: Capsule())
+                        }
+                    }
+                }
+                Text(guidance.summary)
+                    .font(.caption)
+                if !guidance.nextActions.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(guidance.nextActions, id: \.self) { action in
+                            Text("• \(action)")
+                                .font(.caption)
+                        }
+                    }
+                }
+                if !guidance.warnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(guidance.warnings, id: \.self) { warning in
+                            Text(warning)
+                                .font(.caption)
+                                .foregroundStyle(Color.red)
+                        }
+                    }
+                }
+            }
             HStack(alignment: .center, spacing: 12) {
                 statusBadge(for: item)
                 Spacer()
@@ -754,6 +831,28 @@ struct CurriculumScheduleView: View {
         }
     }
 
+    private func alertMessage(for event: LearnerTelemetryEvent) -> String {
+        let title = payloadValue(event.payload, keys: ["title", "item_id", "itemId"]) ?? "Milestone"
+        switch event.eventType {
+        case "schedule_launch_completed":
+            return "\(title): completion recorded without notes or artefacts."
+        case "milestone_completion_recorded":
+            let attachments = Int(payloadValue(event.payload, keys: ["attachment_count", "attachmentCount"]) ?? "0") ?? 0
+            let links = Int(payloadValue(event.payload, keys: ["link_count", "linkCount"]) ?? "0") ?? 0
+            let hasNotes = payloadValue(event.payload, keys: ["has_notes", "hasNotes"])?.lowercased() == "true"
+            var components: [String] = []
+            if !hasNotes { components.append("add notes") }
+            if attachments == 0 { components.append("upload attachments") }
+            if links == 0 { components.append("link artefacts") }
+            if components.isEmpty {
+                return "\(title): milestone ready for review."
+            }
+            return "\(title): " + components.joined(separator: ", ")
+        default:
+            return title
+        }
+    }
+
     private func effortColor(for level: SequencedWorkItem.EffortLevel) -> Color {
         switch level {
         case .light:
@@ -763,6 +862,15 @@ struct CurriculumScheduleView: View {
         case .focus:
             return .orange
         }
+    }
+
+    private func payloadValue(_ payload: [String: String], keys: [String]) -> String? {
+        for key in keys {
+            if let value = payload[key] {
+                return value
+            }
+        }
+        return nil
     }
 
     private func categoryName(for key: String) -> String {

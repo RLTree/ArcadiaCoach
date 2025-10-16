@@ -143,6 +143,121 @@ struct LearnerProfileSnapshot: Codable {
     var foundationTracks: [FoundationTrackModel] = []
 }
 
+struct LearnerTelemetryResponse: Codable {
+    var events: [LearnerTelemetryEvent]
+}
+
+struct LearnerTelemetryEvent: Codable, Hashable, Identifiable {
+    var eventId: String
+    var eventType: String
+    var createdAt: Date
+    var actor: String?
+    var payload: [String: String]
+
+    var id: String { eventId }
+
+    private enum CodingKeys: String, CodingKey {
+        case eventId
+        case eventType
+        case createdAt
+        case actor
+        case payload
+    }
+
+    init(eventId: String, eventType: String, createdAt: Date, actor: String?, payload: [String: String]) {
+        self.eventId = eventId
+        self.eventType = eventType
+        self.createdAt = createdAt
+        self.actor = actor
+        self.payload = payload
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        eventId = try container.decode(String.self, forKey: .eventId)
+        eventType = try container.decode(String.self, forKey: .eventType)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        actor = try container.decodeIfPresent(String.self, forKey: .actor)
+        if let raw = try? container.decode([String: String].self, forKey: .payload) {
+            payload = raw
+        } else {
+            let dynamic = try? container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .payload)
+            var converted: [String: String] = [:]
+            if let dynamic {
+                for key in dynamic.allKeys {
+                    if let stringValue = try? dynamic.decode(String.self, forKey: key) {
+                        converted[key.stringValue] = stringValue
+                    } else if let intValue = try? dynamic.decode(Int.self, forKey: key) {
+                        converted[key.stringValue] = String(intValue)
+                    } else if let doubleValue = try? dynamic.decode(Double.self, forKey: key) {
+                        converted[key.stringValue] = String(doubleValue)
+                    } else if let boolValue = try? dynamic.decode(Bool.self, forKey: key) {
+                        converted[key.stringValue] = boolValue ? "true" : "false"
+                    }
+                }
+            }
+            payload = converted
+        }
+        payload = normalizedPayload(payload)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(eventId, forKey: .eventId)
+        try container.encode(eventType, forKey: .eventType)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(actor, forKey: .actor)
+        try container.encode(payload, forKey: .payload)
+    }
+
+    private func normalizedPayload(_ raw: [String: String]) -> [String: String] {
+        var output: [String: String] = [:]
+        for (key, value) in raw {
+            output[key] = value
+            let snake = key.snakeCased()
+            if output[snake] == nil {
+                output[snake] = value
+            }
+        }
+        return output
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = "\(intValue)"
+        self.intValue = intValue
+    }
+}
+
+private extension String {
+    func snakeCased() -> String {
+        guard !isEmpty else { return self }
+        var scalars = [Character]()
+        for character in self {
+            if character.isUppercase {
+                if !scalars.isEmpty {
+                    scalars.append(Character("_"))
+                }
+                if let lower = character.lowercased().first {
+                    scalars.append(lower)
+                }
+            } else {
+                scalars.append(character)
+            }
+        }
+        return String(scalars)
+    }
+}
+
 struct ScheduleWarning: Codable, Hashable, Identifiable {
     var code: String
     var message: String
@@ -294,6 +409,8 @@ struct MilestoneBrief: Codable, Hashable {
     var prerequisites: [MilestonePrerequisite]
     var eloFocus: [String]
     var resources: [String]
+    var kickoffSteps: [String] = []
+    var coachingPrompts: [String] = []
 }
 
 struct MilestoneProgress: Codable, Hashable {
@@ -301,6 +418,15 @@ struct MilestoneProgress: Codable, Hashable {
     var notes: String?
     var externalLinks: [String]
     var attachmentIds: [String]
+}
+
+struct MilestoneGuidance: Codable, Hashable {
+    var state: String
+    var summary: String
+    var badges: [String]
+    var nextActions: [String]
+    var warnings: [String]
+    var lastUpdateAt: Date?
 }
 
 struct MilestoneCompletion: Codable, Hashable, Identifiable {
@@ -405,6 +531,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var launchLockedReason: String?
     var milestoneBrief: MilestoneBrief?
     var milestoneProgress: MilestoneProgress?
+    var milestoneGuidance: MilestoneGuidance?
 
     var id: String { itemId }
 

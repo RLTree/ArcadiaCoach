@@ -152,6 +152,8 @@ class MilestoneBrief(BaseModel):
     prerequisites: List[MilestonePrerequisite] = Field(default_factory=list)
     elo_focus: List[str] = Field(default_factory=list)
     resources: List[str] = Field(default_factory=list)
+    kickoff_steps: List[str] = Field(default_factory=list)
+    coaching_prompts: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgress(BaseModel):
@@ -161,6 +163,17 @@ class MilestoneProgress(BaseModel):
     notes: Optional[str] = None
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+
+
+class MilestoneGuidance(BaseModel):
+    """Dynamic milestone guidance generated for UI surfaces (Phase 29)."""
+
+    state: Literal["locked", "ready", "in_progress", "awaiting_submission", "completed"] = "locked"
+    summary: str
+    badges: List[str] = Field(default_factory=list)
+    next_actions: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    last_update_at: Optional[datetime] = None
 
 
 class MilestoneCompletion(BaseModel):
@@ -520,6 +533,10 @@ class _DatabaseLearnerProfileStore:
             stored = _repo().update_schedule_adjustments(session, username, adjustments)
             return self._clone(stored)
 
+    def recent_telemetry_events(self, username: str, limit: int = 50):
+        with session_scope(commit=False) as session:
+            return _repo().recent_telemetry_events(session, username, limit=limit)
+
     def apply_assessment_result(
         self,
         username: str,
@@ -867,6 +884,9 @@ class _LegacyLearnerProfileStore:
             self._touch(profile)
             self._write_unlocked(profiles)
             return self._clone(profile)
+
+    def recent_telemetry_events(self, username: str, limit: int = 50):
+        return []
 
     def apply_assessment_result(
         self,
@@ -1275,6 +1295,9 @@ class LearnerProfileStore:
         self._sync_cache(username, stored)
         return stored
 
+    def recent_telemetry_events(self, username: str, limit: int = 50):
+        return self._call("recent_telemetry_events", username, limit=limit)
+
     def apply_assessment_result(
         self,
         username: str,
@@ -1351,6 +1374,7 @@ __all__ = [
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
+    "MilestoneGuidance",
     "MilestoneCompletion",
     "LearnerProfile",
     "LearnerProfileStore",

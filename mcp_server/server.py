@@ -645,6 +645,9 @@ def milestone_update(
             overview_sections.append(WidgetCardSection(heading="Deliverables", items=list(deliverables)))
         if success:
             overview_sections.append(WidgetCardSection(heading="Success criteria", items=list(success)))
+        kickoff = brief.get("kickoff_steps") or []
+        if kickoff:
+            overview_sections.append(WidgetCardSection(heading="Kickoff steps", items=list(kickoff)))
 
         overview_card = Widget(
             type=WidgetType.CARD,
@@ -666,6 +669,9 @@ def milestone_update(
             rows.extend(WidgetListRow(label=prompt, meta="Capture prompt") for prompt in capture)
         if resources:
             rows.extend(WidgetListRow(label=resource, meta="Reference") for resource in resources)
+        coaching = brief.get("coaching_prompts") or []
+        if coaching:
+            rows.extend(WidgetListRow(label=prompt, meta="Coaching prompt") for prompt in coaching)
 
         checklist_widget = None
         if rows:

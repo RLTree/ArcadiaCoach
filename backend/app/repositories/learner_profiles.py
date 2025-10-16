@@ -35,6 +35,7 @@ from ..learner_profile import (
 )
 
 MAX_MEMORY_RECORDS = 150
+MAX_TELEMETRY_EVENTS = 250
 
 
 def _normalize_username(username: str) -> str:
@@ -777,14 +778,87 @@ class LearnerProfileRepository:
         if schedule_model:
             session.delete(schedule_model)
 
-    def _record_audit(self, session: Session, learner_id, event_type: str, payload: Dict[str, Any]) -> None:
+    def _record_audit(
+        self,
+        session: Session,
+        learner_id,
+        event_type: str,
+        payload: Dict[str, Any],
+        *,
+        actor: str = "system",
+    ) -> None:
         event = PersistenceAuditEventModel(
             learner_id=learner_id,
             event_type=event_type,
             payload=payload,
-            actor="system",
+            actor=actor,
         )
         session.add(event)
+        if learner_id is not None:
+            self._trim_audit_events(session, learner_id)
+
+    def _trim_audit_events(self, session: Session, learner_id: str, limit: int = MAX_TELEMETRY_EVENTS) -> None:
+        stmt = (
+            select(PersistenceAuditEventModel.id)
+            .where(PersistenceAuditEventModel.learner_id == learner_id)
+            .order_by(
+                PersistenceAuditEventModel.created_at.desc(),
+                PersistenceAuditEventModel.id.desc(),
+            )
+            .offset(limit)
+        )
+        stale_ids = session.execute(stmt).scalars().all()
+        if stale_ids:
+            session.execute(
+                delete(PersistenceAuditEventModel).where(PersistenceAuditEventModel.id.in_(stale_ids))
+            )
+
+    def record_telemetry_event(
+        self,
+        session: Session,
+        username: str,
+        event_type: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        try:
+            normalized = _normalize_username(username)
+        except ValueError:
+            return
+        stmt = select(LearnerProfileModel).where(LearnerProfileModel.username == normalized)
+        model = session.execute(stmt).scalar_one_or_none()
+        learner_id = model.id if model else None
+        event = PersistenceAuditEventModel(
+            learner_id=learner_id,
+            event_type=event_type,
+            payload=payload,
+            actor="telemetry",
+        )
+        session.add(event)
+        session.flush()
+        if learner_id is not None:
+            self._trim_audit_events(session, learner_id)
+
+    def recent_telemetry_events(
+        self,
+        session: Session,
+        username: str,
+        *,
+        limit: int = 50,
+    ) -> List[PersistenceAuditEventModel]:
+        try:
+            model = self._require_model(session, username)
+        except LookupError:
+            return []
+        stmt = (
+            select(PersistenceAuditEventModel)
+            .where(PersistenceAuditEventModel.learner_id == model.id)
+            .order_by(
+                PersistenceAuditEventModel.created_at.desc(),
+                PersistenceAuditEventModel.id.desc(),
+            )
+            .limit(max(limit, 1))
+        )
+        return list(session.execute(stmt).scalars().all())
 
 
 learner_profiles = LearnerProfileRepository()

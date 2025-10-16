@@ -152,6 +152,34 @@ struct SettingsView: View {
                         }
 
                         Button {
+                            Task {
+                                await developerTools.autoCompleteSchedule(
+                                    baseURL: settings.chatkitBackendURL,
+                                    settings: settings,
+                                    appVM: appVM
+                                )
+                            }
+                        } label: {
+                            if developerTools.autoCompleteInFlight {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Auto-complete Lessons & Quizzes", systemImage: "checkmark.circle")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(developerTools.autoCompleteInFlight)
+                        if let message = developerTools.autoCompleteMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Marks all pending lessons/quizzes as completed to fast-forward schedule testing (milestones stay locked).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
                             showDeveloperResetConfirmation = true
                         } label: {
                             if developerTools.resetInFlight {

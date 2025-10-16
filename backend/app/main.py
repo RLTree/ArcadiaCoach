@@ -8,7 +8,8 @@ from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 from sqlalchemy import text
 
-from . import developer_routes, onboarding_routes, profile_routes, session_routes
+from . import developer_routes, onboarding_routes, profile_routes, session_routes  # noqa: F401
+from . import telemetry_pipeline  # noqa: F401
 from .chat_server import ArcadiaChatServer, create_chat_server
 from .config import Settings, get_settings
 from .db.monitoring import get_pool_snapshot

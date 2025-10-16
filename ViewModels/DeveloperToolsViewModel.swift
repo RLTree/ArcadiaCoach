@@ -11,6 +11,8 @@ final class DeveloperToolsViewModel: ObservableObject {
     @Published var normalizeInFlight = false
     @Published var planError: String?
     @Published var lastNormalizedAt: Date?
+    @Published var autoCompleteInFlight = false
+    @Published var autoCompleteMessage: String?
 
     func refreshSubmissions(baseURL: String, username: String?) async {
         guard !isLoadingSubmissions else { return }
@@ -92,6 +94,40 @@ final class DeveloperToolsViewModel: ObservableObject {
         } catch {
             let nsError = error as NSError
             planError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+        }
+    }
+
+    func autoCompleteSchedule(
+        baseURL: String,
+        settings: AppSettings,
+        appVM: AppViewModel
+    ) async {
+        guard !autoCompleteInFlight else { return }
+        let trimmedBase = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBase.isEmpty else {
+            lastError = "Set the ChatKit backend URL before auto-completing work."
+            return
+        }
+        let trimmedUsername = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            lastError = "Add a learner username in Settings before auto-completing work."
+            return
+        }
+        autoCompleteInFlight = true
+        defer { autoCompleteInFlight = false }
+        do {
+            let schedule = try await BackendService.autoCompleteSchedule(
+                baseURL: trimmedBase,
+                username: trimmedUsername
+            )
+            await appVM.applyDeveloperScheduleOverride(schedule)
+            await appVM.refreshTelemetry(baseURL: trimmedBase, username: trimmedUsername)
+            autoCompleteMessage = "Completed lessons/quizzes on \(Date().formatted(date: .numeric, time: .standard))."
+            lastError = nil
+        } catch {
+            let nsError = error as NSError
+            lastError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            autoCompleteMessage = nil
         }
     }
 }

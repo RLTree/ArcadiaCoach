@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from agents import function_tool
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -55,6 +55,7 @@ from .agent_models import (
     MilestoneCompletionPayload,
     MilestonePrerequisitePayload,
     MilestoneProgressPayload,
+    MilestoneGuidancePayload,
     SequencedWorkItemPayload,
     SkillRatingPayload,
 )
@@ -110,6 +111,9 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
     ]
     items: List[SequencedWorkItemPayload] = []
 
+    def _deduplicate_strings(values: Iterable[str]) -> List[str]:
+        return list(dict.fromkeys([value.strip() for value in values if isinstance(value, str) and value.strip()]))
+
     def _locked_reason(target: Any, all_items: List[Any]) -> Optional[str]:
         kind = getattr(target, "kind", None)
         status = getattr(target, "launch_status", "pending")
@@ -130,6 +134,102 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         return None
 
     item_lookup = {entry.item_id: entry for entry in schedule.items}
+    completions_lookup = {
+        entry.item_id: entry for entry in getattr(schedule, "milestone_completions", []) or []
+    }
+
+    def _milestone_guidance_payload(
+        item: Any,
+        brief: MilestoneBrief | None,
+        progress: Any,
+        locked_reason: Optional[str],
+    ) -> Optional[MilestoneGuidancePayload]:
+        if getattr(item, "kind", None) != "milestone":
+            return None
+        now = datetime.now(tz)
+        badges: List[str] = []
+        next_actions: List[str] = []
+        warnings_local: List[str] = []
+        state: Literal["locked", "ready", "in_progress", "awaiting_submission", "completed"]
+        summary: str
+        last_update_at: Optional[datetime] = None
+
+        completion = completions_lookup.get(getattr(item, "item_id", ""))
+        if progress and getattr(progress, "recorded_at", None):
+            last_update_at = progress.recorded_at
+        if completion and completion.recorded_at:
+            last_update_at = (
+                max(last_update_at, completion.recorded_at) if last_update_at else completion.recorded_at
+            )
+
+        if getattr(item, "launch_status", "pending") == "completed":
+            if completion:
+                state = "completed"
+                summary = "Milestone completed. Review feedback and celebrate the win."
+                badges.extend(["Completed"])
+                if not completion.notes:
+                    next_actions.append("Add a short reflection so refreshers stay grounded.")
+                has_artifacts = bool(completion.attachment_ids or completion.external_links)
+                if (brief and (brief.deliverables or brief.external_work)) and not has_artifacts:
+                    warnings_local.append("No artefacts attached. Add links or uploads for grading context.")
+                    next_actions.append("Upload at least one artefact (link or attachment).")
+            else:
+                state = "awaiting_submission"
+                summary = "Marked complete, but no submission details yet."
+                badges.extend(["Completed"])
+                warnings_local.append("Provide notes or artefacts so Arcadia Coach can confirm completion.")
+                next_actions.append("Add notes, links, or attachments for this milestone.")
+        elif getattr(item, "launch_status", "pending") == "in_progress":
+            state = "in_progress"
+            summary = "Milestone in progress. Capture blockers and artefacts as you go."
+            badges.append("In progress")
+            launch_time = getattr(item, "last_launched_at", None)
+            if launch_time:
+                last_update_at = max(last_update_at, launch_time) if last_update_at else launch_time
+                if now - launch_time >= timedelta(hours=48):
+                    warnings_local.append("Milestone has been active for over 48 hours.")
+                    next_actions.append("Log progress or request support from Arcadia Coach.")
+            if progress and (progress.notes or progress.external_links or progress.attachment_ids):
+                badges.append("Progress logged")
+            else:
+                next_actions.append("Log quick notes or links to capture progress.")
+            if brief and brief.coaching_prompts:
+                next_actions.extend(list(brief.coaching_prompts)[:2])
+        else:
+            if locked_reason:
+                state = "locked"
+                summary = "Finish prerequisite lessons/quizzes before starting."
+                badges.append("Locked")
+                incomplete = [
+                    prereq.title
+                    for prereq in (brief.prerequisites if brief and brief.prerequisites else _prerequisites_for_brief(brief, item))
+                    if (prereq.status if hasattr(prereq, "status") else "pending") != "completed"
+                ]
+                if incomplete:
+                    next_actions.append(f"Complete: {', '.join(incomplete[:3])}")
+            else:
+                state = "ready"
+                summary = "Milestone ready to launch when you have focus time."
+                badges.append("Ready")
+                if brief and brief.kickoff_steps:
+                    next_actions.extend(list(brief.kickoff_steps)[:3])
+                else:
+                    next_actions.append("Block 60–90 minutes for focused work.")
+                if brief and brief.coaching_prompts:
+                    next_actions.append(brief.coaching_prompts[0])
+
+        badges = _deduplicate_strings(badges)
+        next_actions = _deduplicate_strings(next_actions)[:5]
+        warnings_local = _deduplicate_strings(warnings_local)[:3]
+
+        return MilestoneGuidancePayload(
+            state=state,
+            summary=summary,
+            badges=badges,
+            next_actions=next_actions,
+            warnings=warnings_local,
+            last_update_at=last_update_at,
+        )
 
     def _prerequisites_for_brief(
         brief: MilestoneBrief | None,
@@ -174,6 +274,8 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             )
         return payload
 
+    dynamic_warning_entries: List[ScheduleWarningPayload] = []
+
     for item in schedule.items:
         local_date = anchor_date + timedelta(days=item.recommended_day_offset)
         scheduled_for = datetime.combine(local_date, time.min, tzinfo=tz)
@@ -194,6 +296,8 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 prerequisites=_prerequisites_for_brief(milestone_brief, item),
                 elo_focus=list(milestone_brief.elo_focus),
                 resources=list(milestone_brief.resources),
+                kickoff_steps=list(milestone_brief.kickoff_steps),
+                coaching_prompts=list(milestone_brief.coaching_prompts),
             )
         elif getattr(item, "prerequisites", None):
             brief_payload = MilestoneBriefPayload(
@@ -208,6 +312,22 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 external_links=list(milestone_progress.external_links),
                 attachment_ids=list(milestone_progress.attachment_ids),
             )
+        guidance_payload = _milestone_guidance_payload(
+            item,
+            milestone_brief,
+            milestone_progress,
+            locked_reason,
+        )
+        if guidance_payload and guidance_payload.warnings:
+            for message in guidance_payload.warnings:
+                dynamic_warning_entries.append(
+                    ScheduleWarningPayload(
+                        code="milestone_attention",
+                        message=f"{item.title}: {message}",
+                        detail=None,
+                        generated_at=schedule.generated_at,
+                    )
+                )
         items.append(
             SequencedWorkItemPayload(
                 item_id=item.item_id,
@@ -231,8 +351,15 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 launch_locked_reason=locked_reason,
                 milestone_brief=brief_payload,
                 milestone_progress=progress_payload,
+                milestone_guidance=guidance_payload,
             )
         )
+    if dynamic_warning_entries:
+        existing_messages = {warning.message for warning in warnings}
+        for entry in dynamic_warning_entries:
+            if entry.message not in existing_messages:
+                warnings.append(entry)
+                existing_messages.add(entry.message)
     allocations = [
         CategoryPacingPayload(
             category_key=entry.category_key,

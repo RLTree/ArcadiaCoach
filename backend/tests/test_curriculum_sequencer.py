@@ -405,11 +405,18 @@ def test_schedule_payload_marks_milestone_locked() -> None:
     payload = _schedule_payload(schedule)
     assert payload is not None
     assert payload.items[1].launch_locked_reason is not None
+    guidance = payload.items[1].milestone_guidance
+    assert guidance is not None
+    assert guidance.state == "locked"
+    assert "Locked" in guidance.badges
 
     schedule.items[0].launch_status = "completed"
     payload_after = _schedule_payload(schedule)
     assert payload_after is not None
     assert payload_after.items[1].launch_locked_reason is None
+    guidance_after = payload_after.items[1].milestone_guidance
+    assert guidance_after is not None
+    assert guidance_after.state == "ready"
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:

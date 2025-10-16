@@ -120,6 +120,8 @@ class MilestoneBriefPayload(BaseModel):
     prerequisites: List[MilestonePrerequisitePayload] = Field(default_factory=list)
     elo_focus: List[str] = Field(default_factory=list)
     resources: List[str] = Field(default_factory=list)
+    kickoff_steps: List[str] = Field(default_factory=list)
+    coaching_prompts: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgressPayload(BaseModel):
@@ -127,6 +129,15 @@ class MilestoneProgressPayload(BaseModel):
     notes: Optional[str] = None
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+
+
+class MilestoneGuidancePayload(BaseModel):
+    state: Literal["locked", "ready", "in_progress", "awaiting_submission", "completed"]
+    summary: str
+    badges: List[str] = Field(default_factory=list)
+    next_actions: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    last_update_at: Optional[datetime] = None
 
 
 class SequencedWorkItemPayload(BaseModel):
@@ -151,6 +162,7 @@ class SequencedWorkItemPayload(BaseModel):
     launch_locked_reason: Optional[str] = None
     milestone_brief: Optional[MilestoneBriefPayload] = None
     milestone_progress: Optional[MilestoneProgressPayload] = None
+    milestone_guidance: Optional[MilestoneGuidancePayload] = None
 
 
 class MilestoneCompletionPayload(BaseModel):

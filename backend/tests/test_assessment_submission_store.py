@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,8 @@ from app.learner_profile import (
     LearnerProfile,
     LearnerProfileStore,
     OnboardingAssessment,
+    CurriculumSchedule,
+    SequencedWorkItem,
 )
 from app.main import app
 
@@ -362,3 +365,73 @@ def test_submission_endpoints_and_developer_reset(tmp_path: Path, monkeypatch: p
     assert reset.status_code == 204
     assert profile_store.get("tester") is None
     assert submission_store.list_user("tester") == []
+
+
+def test_developer_auto_complete_schedule(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _setup_db(tmp_path)
+
+    profile_store = LearnerProfileStore()
+    monkeypatch.setattr(developer_routes, "profile_store", profile_store, raising=False)
+
+    profile_store.upsert(LearnerProfile(username="developer"))
+
+    schedule = CurriculumSchedule(
+        generated_at=datetime.now(timezone.utc),
+        time_horizon_days=14,
+        timezone="UTC",
+        items=[
+            SequencedWorkItem(
+                item_id="lesson-1",
+                category_key="backend",
+                kind="lesson",
+                title="Backend Lesson",
+                summary="Learn retry strategies.",
+                objectives=["Understand retry policies"],
+                prerequisites=[],
+                recommended_minutes=45,
+                recommended_day_offset=0,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="moderate",
+            ),
+            SequencedWorkItem(
+                item_id="quiz-1",
+                category_key="backend",
+                kind="quiz",
+                title="Backend Quiz",
+                summary="Check retry mastery.",
+                objectives=[],
+                prerequisites=["lesson-1"],
+                recommended_minutes=20,
+                recommended_day_offset=1,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="light",
+                launch_status="in_progress",
+            ),
+            SequencedWorkItem(
+                item_id="milestone-1",
+                category_key="backend",
+                kind="milestone",
+                title="Backend Milestone",
+                summary="Apply retries in a project.",
+                objectives=[],
+                prerequisites=["lesson-1", "quiz-1"],
+                recommended_minutes=90,
+                recommended_day_offset=2,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="focus",
+            ),
+        ],
+    )
+    profile_store.set_curriculum_schedule("developer", schedule)
+
+    client = TestClient(app)
+    response = client.post("/api/developer/auto-complete", json={"username": "developer"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    statuses = {item["item_id"]: item["launch_status"] for item in body["items"]}
+    assert statuses["lesson-1"] == "completed"
+    assert statuses["quiz-1"] == "completed"
+    assert statuses["milestone-1"] == "pending"
