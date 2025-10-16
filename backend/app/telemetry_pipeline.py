@@ -15,6 +15,9 @@ _MONITORED_EVENTS: Set[str] = {
     "schedule_launch_initiated",
     "schedule_launch_completed",
     "milestone_completion_recorded",
+    "milestone_author_invoked",
+    "milestone_author_fallback",
+    "milestone_author_latency",
 }
 
 

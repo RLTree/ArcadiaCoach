@@ -135,6 +135,12 @@ class MilestoneBriefPayload(BaseModel):
     kickoff_steps: List[str] = Field(default_factory=list)
     coaching_prompts: List[str] = Field(default_factory=list)
     project: Optional[MilestoneProjectPayload] = None
+    rationale: Optional[str] = None
+    authored_at: Optional[datetime] = None
+    authored_by_model: Optional[str] = None
+    reasoning_effort: Optional[str] = None
+    source: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgressPayload(BaseModel):

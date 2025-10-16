@@ -424,6 +424,12 @@ struct MilestoneBrief: Codable, Hashable {
     var kickoffSteps: [String] = []
     var coachingPrompts: [String] = []
     var project: MilestoneProject?
+    var rationale: String?
+    var authoredAt: Date?
+    var authoredByModel: String?
+    var reasoningEffort: String?
+    var source: String = "template"
+    var warnings: [String] = []
 }
 
 struct MilestoneProgress: Codable, Hashable {

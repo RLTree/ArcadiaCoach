@@ -92,6 +92,8 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_MCP_URL` | MCP server URL (local dev defaults to `http://127.0.0.1:8001/mcp`) |
 | `ARCADIA_MCP_LABEL` | Label shown in the tool config (default `Arcadia_Coach_Widgets`) |
 | `ARCADIA_MCP_REQUIRE_APPROVAL` | MCP approval strategy (default `never`) |
+| `ARCADIA_MILESTONE_AUTHOR_MODE` | Controls agent usage: `off`, `fallback` (default), or `primary`. |
+| `ARCADIA_MILESTONE_AUTHOR_TIMEOUT_MS` | HTTP timeout (ms) for milestone author MCP calls (default `12000`). |
 | `ARCADIA_DEBUG_ENDPOINTS` | `true` to expose debugging routes in non-production builds |
 
 ## Local Debugging Checklist
@@ -328,11 +330,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Persisted project status, evaluation outcome/notes, next steps, and calibrated ELO deltas across schedule payloads, telemetry, and completion history.  
     - Refreshed schedule completion APIs, MCP widgets, and the macOS milestone sheet to collect and display the richer project/evaluation context end-to-end.  
     - **Follow-ups:** Launch Phase 31 to replace templates with agent-authored briefs, stream the new telemetry into dashboards, and add project-aware nudges when milestones remain blocked or need revision.  
-31. **Phase 31 – Agent-Authored Milestone Projects**  
-    - Stand up a Milestone Brief Author agent (via the existing MCP server) that ingests goal parser output, schedule context, and recent progress to craft bespoke milestone briefs with rationale, deliverables, and evidence prompts.  
-    - Add an MCP endpoint (e.g., `milestone_project_author`) plus backend orchestration so sequencing calls the agent by default, with deterministic template fallbacks and rollout toggles.  
-    - Persist authored briefs and telemetry, update the macOS client + MCP widgets to render agent copy, and add regression tests/dashboards covering agent latency, fallback rate, and content quality.  
-    - **Follow-ups:** Explore a reviewer agent for milestone grading once authoring is stable, and add automated prompt-health monitoring.  
+31. **Phase 31 – Agent-Authored Milestone Projects** ✅ *(completed October 16, 2025; see `docs/phase-31-agent-authored-milestone-projects.md`)*  
+    - Delivered the `milestone_project_author` MCP tool backed by GPT‑5 Responses, including strict JSON schemas, configurable model settings, and a REST shortcut used by the sequencer.  
+    - Orchestrated backend calls during schedule generation with resilient fallbacks, telemetry (`milestone_author_invoked`, `milestone_author_latency`, `milestone_author_fallback`), and merged agent copy with template prerequisites.  
+    - Surfaced agent metadata (rationale, authored timestamps, model, warnings) across persistence, APIs, and the macOS schedule view with VoiceOver-friendly affordances and regression coverage.  
+    - **Follow-ups:** Explore reviewer agent capabilities for milestone grading and build automated prompt-health monitoring dashboards.  
 32. **Phase 32 – Lesson Deck Foundations**  
     - Stand up a Lesson Deck Author agent (MCP endpoint) that converts curriculum modules into slide-style decks with citations, accessibility notes, and optional deep-dive links.  
     - Establish shared deck components and export formats so both chat and dashboard views reuse the agent-authored content pipeline.  

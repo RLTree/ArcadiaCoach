@@ -11,7 +11,9 @@ from app.curriculum_sequencer import (
     LONG_RANGE_THRESHOLD_DAYS,
     NEAR_TERM_SMOOTHING_WINDOW_DAYS,
     MAX_CONSECUTIVE_CATEGORY_ITEMS,
+    _CategoryContext,
 )
+from app.config import get_settings
 from app.learner_profile import (
     CategoryPacing,
     CurriculumModule,
@@ -26,9 +28,12 @@ from app.learner_profile import (
     FoundationModuleReference,
     FoundationTrack,
     MilestoneCompletion,
+    MilestoneBrief,
+    MilestoneProject,
 )
 from app.profile_routes import _serialize_profile
 from app.tools import _schedule_payload
+from app.milestone_author import MilestoneAuthorError, MilestoneAuthorResult
 
 
 def _category(key: str, label: str, weight: float) -> EloCategoryDefinition:
@@ -653,3 +658,143 @@ def test_long_range_refreshers_limit_consecutive_runs() -> None:
             ), f"Detected {consecutive} consecutive items for {later.category_key}"
         else:
             consecutive = 1
+
+
+def test_milestone_brief_uses_agent_when_enabled(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("ARCADIA_MILESTONE_AUTHOR_MODE", "primary")
+
+    sequencer = CurriculumSequencer()
+    module = CurriculumModule(
+        module_id="backend-foundations",
+        category_key="backend",
+        title="Backend Foundations",
+        summary="Strengthen async patterns.",
+        objectives=["Refine async services"],
+        deliverables=["Ship production-ready endpoints"],
+        estimated_minutes=90,
+    )
+    context = _CategoryContext(
+        key="backend",
+        label="Backend Systems",
+        weight=1.0,
+        rating=1080,
+        average_score=0.72,
+        rating_delta=12,
+        modules=[module],
+        track_weight=1.0,
+        last_completion_at=None,
+        completion_count=0,
+    )
+    profile = LearnerProfile(
+        username="engineer",
+        goal="Ship resilient backend systems.",
+        use_case="Automate grading workflows.",
+        strengths="Strong SwiftUI delivery.",
+        elo_snapshot={"backend": 1080},
+    )
+
+    def _fake_author(settings, payload):
+        brief = MilestoneBrief(
+            headline="Agent-authored Backend Milestone",
+            summary="Build a resilient slice with observability.",
+            objectives=["Demonstrate backend resilience"],
+            deliverables=["Repository link"],
+            success_criteria=["Observable happy path"],
+            external_work=["Pair with a peer for code review"],
+            capture_prompts=["What observability signals confirmed success?"],
+            prerequisites=[],
+            elo_focus=["Backend Systems"],
+            resources=["Backend playbook"],
+            kickoff_steps=["Schedule a 90 minute build sprint."],
+            coaching_prompts=["Ask for review feedback before merging."],
+            project=MilestoneProject(
+                project_id="agent-project",
+                title="Agent Project",
+                goal_alignment="Aligns with backend goal.",
+                summary="Ship a service slice.",
+                deliverables=["Repo"],
+                evidence_checklist=["CI run"],
+                recommended_tools=["FastAPI"],
+                evaluation_focus=["Reliability"],
+                evaluation_steps=["Run load tests"],
+            ),
+            rationale="Grounded in recent assessment gaps.",
+            source="agent",
+            warnings=["Remember to capture metrics."],
+        )
+        return MilestoneAuthorResult(brief=brief, project=brief.project, latency_ms=950, warnings=["lag"])
+
+    monkeypatch.setattr("app.curriculum_sequencer.author_milestone_brief", _fake_author)
+
+    brief = sequencer._build_milestone_brief(
+        module,
+        context,
+        profile,
+        lesson_tail_id="lesson-backend-foundations",
+        quiz_tail_id="quiz-backend-foundations",
+    )
+
+    assert brief.source == "agent"
+    assert brief.project is not None
+    assert brief.project.project_id == "agent-project"
+    assert brief.rationale == "Grounded in recent assessment gaps."
+    assert "lag" in brief.warnings
+    assert brief.prerequisites[0].item_id == "lesson-backend-foundations"
+
+    monkeypatch.delenv("ARCADIA_MILESTONE_AUTHOR_MODE", raising=False)
+    get_settings.cache_clear()
+
+
+def test_milestone_brief_falls_back_on_author_error(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("ARCADIA_MILESTONE_AUTHOR_MODE", "primary")
+
+    sequencer = CurriculumSequencer()
+    module = CurriculumModule(
+        module_id="frontend-foundations",
+        category_key="frontend",
+        title="Frontend Foundations",
+        summary="Polish UI flow.",
+        objectives=["Improve accessibility"],
+        deliverables=["Updated UI prototype"],
+        estimated_minutes=60,
+    )
+    context = _CategoryContext(
+        key="frontend",
+        label="Frontend Experience",
+        weight=0.9,
+        rating=1200,
+        average_score=0.81,
+        rating_delta=6,
+        modules=[module],
+        track_weight=0.9,
+        last_completion_at=None,
+        completion_count=0,
+    )
+    profile = LearnerProfile(
+        username="designer",
+        goal="Build accessible UI systems.",
+        use_case="Deliver production-ready UI.",
+        strengths="Strong design intuition.",
+        elo_snapshot={"frontend": 1200},
+    )
+
+    def _failing_author(settings, payload):
+        raise MilestoneAuthorError("timeout")
+
+    monkeypatch.setattr("app.curriculum_sequencer.author_milestone_brief", _failing_author)
+
+    brief = sequencer._build_milestone_brief(
+        module,
+        context,
+        profile,
+        lesson_tail_id="lesson-frontend-foundations",
+        quiz_tail_id="quiz-frontend-foundations",
+    )
+
+    assert brief.source == "template"
+    assert any("Agent brief" in warning for warning in brief.warnings)
+
+    monkeypatch.delenv("ARCADIA_MILESTONE_AUTHOR_MODE", raising=False)
+    get_settings.cache_clear()

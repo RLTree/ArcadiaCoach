@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     database_pool_size: int = Field(10, alias="ARCADIA_DATABASE_POOL_SIZE")
     database_max_overflow: int = Field(10, alias="ARCADIA_DATABASE_MAX_OVERFLOW")
     database_echo: bool = Field(False, alias="ARCADIA_DATABASE_ECHO")
+    arcadia_milestone_author_mode: Literal["off", "fallback", "primary"] = Field(
+        "fallback",
+        alias="ARCADIA_MILESTONE_AUTHOR_MODE",
+    )
+    arcadia_milestone_author_timeout_ms: int = Field(
+        12000,
+        alias="ARCADIA_MILESTONE_AUTHOR_TIMEOUT_MS",
+    )
     arcadia_persistence_mode: Literal["database", "legacy", "hybrid"] = Field(
         "database",
         alias="ARCADIA_PERSISTENCE_MODE",

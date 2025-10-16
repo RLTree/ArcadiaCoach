@@ -26,6 +26,14 @@ from .learner_profile import (
     profile_store,
 )
 from .milestone_projects import select_milestone_project
+from .milestone_author import (
+    MilestoneAuthorError,
+    MilestoneAuthorRequestPayload,
+    author_milestone_brief,
+    resolve_mode,
+    should_author,
+)
+from .config import get_settings
 from .telemetry import emit_event
 
 logger = logging.getLogger(__name__)
@@ -537,6 +545,98 @@ class CurriculumSequencer:
         lesson_tail_id: str,
         quiz_tail_id: str,
     ) -> MilestoneBrief:
+        fallback_brief = self._fallback_milestone_brief(
+            module,
+            context,
+            profile,
+            lesson_tail_id,
+            quiz_tail_id,
+        )
+        settings = get_settings()
+        if not should_author(settings):
+            return fallback_brief
+
+        mode = resolve_mode(settings)
+        payload = self._author_payload(module, context, profile, fallback_brief)
+        emit_event(
+            "milestone_author_invoked",
+            username=profile.username,
+            module_id=module.module_id,
+            category_key=module.category_key,
+            mode=mode,
+        )
+        try:
+            result = author_milestone_brief(settings, payload)
+        except MilestoneAuthorError as exc:
+            emit_event(
+                "milestone_author_fallback",
+                username=profile.username,
+                module_id=module.module_id,
+                category_key=module.category_key,
+                mode=mode,
+                reason=str(exc),
+            )
+            fallback_brief.warnings.append("Agent brief unavailable; using template guidance.")
+            return fallback_brief
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Milestone author failed for module=%s", module.module_id)
+            emit_event(
+                "milestone_author_fallback",
+                username=profile.username,
+                module_id=module.module_id,
+                category_key=module.category_key,
+                mode=mode,
+                reason="exception",
+            )
+            fallback_brief.warnings.append("Agent brief failed; using template guidance.")
+            return fallback_brief
+
+        brief = result.brief
+        brief.prerequisites = fallback_brief.prerequisites
+        if not brief.elo_focus and fallback_brief.elo_focus:
+            brief.elo_focus = fallback_brief.elo_focus
+        if not brief.external_work and fallback_brief.external_work:
+            brief.external_work = fallback_brief.external_work
+        if not brief.capture_prompts and fallback_brief.capture_prompts:
+            brief.capture_prompts = fallback_brief.capture_prompts
+        if not brief.kickoff_steps and fallback_brief.kickoff_steps:
+            brief.kickoff_steps = fallback_brief.kickoff_steps
+        if not brief.coaching_prompts and fallback_brief.coaching_prompts:
+            brief.coaching_prompts = fallback_brief.coaching_prompts
+        if not brief.success_criteria and fallback_brief.success_criteria:
+            brief.success_criteria = fallback_brief.success_criteria
+        if not brief.objectives and fallback_brief.objectives:
+            brief.objectives = fallback_brief.objectives
+        if not brief.deliverables and fallback_brief.deliverables:
+            brief.deliverables = fallback_brief.deliverables
+        if not brief.resources and fallback_brief.resources:
+            brief.resources = fallback_brief.resources
+        if brief.project is None and fallback_brief.project is not None:
+            brief.project = fallback_brief.project
+        brief.source = "agent"
+        combined_warnings = list(
+            dict.fromkeys(fallback_brief.warnings + brief.warnings + result.warnings)
+        )
+        brief.warnings = combined_warnings
+        emit_event(
+            "milestone_author_latency",
+            username=profile.username,
+            module_id=module.module_id,
+            category_key=module.category_key,
+            latency_ms=result.latency_ms,
+            warnings=len(result.warnings),
+            mode=mode,
+        )
+        return brief
+
+    def _fallback_milestone_brief(
+        self,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        profile: LearnerProfile,
+        lesson_tail_id: str,
+        quiz_tail_id: str,
+    ) -> MilestoneBrief:
         summary = module.summary or f"Apply {context.label} in a realistic deliverable."
         objectives = list(module.objectives) or [
             f"Demonstrate core {context.label.lower()} fluency.",
@@ -586,11 +686,22 @@ class CurriculumSequencer:
             "Share blockers or missing context as soon as you hit friction.",
             "Capture artefacts (links, screenshots, repos) so the agent can grade effectively.",
         ]
+        format_context = {
+            "goal": profile.goal or "",
+            "target_outcome": profile.goal or profile.use_case or "",
+            "module_title": module.title,
+            "track_label": context.label or module.category_key,
+            "primary_focus": context.label or module.category_key,
+            "primary_technology": module.category_key,
+            "track_focus": context.label or module.category_key,
+            "use_case": profile.use_case or "",
+        }
         project = select_milestone_project(
             profile,
             module.category_key,
             category_label=context.label,
             goal_inference=getattr(profile, "goal_inference", None),
+            format_context=format_context,
         )
         brief = MilestoneBrief(
             headline=f"Ship {module.title}",
@@ -609,6 +720,65 @@ class CurriculumSequencer:
         if project:
             brief.project = project
         return brief
+
+    def _author_payload(
+        self,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        profile: LearnerProfile,
+        fallback_brief: MilestoneBrief,
+    ) -> MilestoneAuthorRequestPayload:
+        goal_tracks: List[Dict[str, Any]] = []
+        inference = getattr(profile, "goal_inference", None)
+        if inference and getattr(inference, "tracks", None):
+            goal_tracks = [
+                track.model_dump(mode="json")
+                for track in inference.tracks[:6]
+            ]
+        history = [
+            completion.model_dump(mode="json")
+            for completion in getattr(profile, "milestone_completions", [])[:5]
+        ]
+        return MilestoneAuthorRequestPayload(
+            username=getattr(profile, "username", None),
+            goal=getattr(profile, "goal", None),
+            use_case=getattr(profile, "use_case", None),
+            strengths=getattr(profile, "strengths", None),
+            category_key=module.category_key,
+            category_label=context.label,
+            module_title=module.title,
+            module_summary=module.summary,
+            module_objectives=list(module.objectives),
+            module_deliverables=list(module.deliverables),
+            goal_tracks=goal_tracks,
+            milestone_history=history,
+            milestone_progress=None,
+            schedule_notes=self._author_schedule_notes(context, profile),
+            timezone=getattr(profile, "timezone", None),
+            previous_brief=fallback_brief.model_dump(mode="json"),
+        )
+
+    def _author_schedule_notes(
+        self,
+        context: _CategoryContext,
+        profile: LearnerProfile,
+    ) -> Optional[str]:
+        details: List[str] = []
+        if context.weight:
+            details.append(f"Category weight {context.weight:.2f}")
+        if context.track_weight:
+            details.append(f"Track weight {context.track_weight:.2f}")
+        if context.rating:
+            details.append(f"Current rating {context.rating}")
+        if context.rating_delta:
+            details.append(f"Recent rating delta {context.rating_delta}")
+        if context.average_score is not None:
+            details.append(f"Assessment average {context.average_score:.2f}")
+        curriculum = getattr(profile, "curriculum_plan", None)
+        overview = getattr(curriculum, "overview", None) if curriculum else None
+        if overview:
+            details.append(f"Curriculum focus: {overview[:180]}")
+        return "; ".join(details) if details else None
 
     def _match_track(
         self,

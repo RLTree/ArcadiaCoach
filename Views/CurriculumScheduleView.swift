@@ -558,6 +558,51 @@ private var loadMoreSection: some View {
             }
 
             if let brief = item.milestoneBrief {
+                if let rationale = brief.rationale, !rationale.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Why this milestone")
+                            .font(.caption.bold())
+                        Text(rationale)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if brief.source == "agent" || brief.authoredByModel != nil || brief.authoredAt != nil {
+                    HStack(spacing: 8) {
+                        if brief.source == "agent" {
+                            Label("Agent-authored", systemImage: "sparkles")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let model = brief.authoredByModel, !model.isEmpty {
+                            Text(model)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let effort = brief.reasoningEffort, !effort.isEmpty {
+                            Text(effort.capitalized)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let authoredAt = brief.authoredAt {
+                            Text(authoredAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                if !brief.warnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Notes")
+                            .font(.caption.bold())
+                        ForEach(brief.warnings, id: \.self) { note in
+                            Text("• \(note)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
                 if !brief.prerequisites.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Prerequisites")

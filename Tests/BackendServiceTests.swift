@@ -250,6 +250,12 @@ final class BackendServiceTests: XCTestCase {
                 "resources": ["Backend playbook"],
                 "kickoff_steps": ["Block 90 minutes of focus time."],
                 "coaching_prompts": ["Share blockers with Arcadia Coach early."],
+                "rationale": "Agent emphasised backend scaling backlog.",
+                "authored_at": "2025-10-20T12:00:00Z",
+                "authored_by_model": "gpt-5",
+                "reasoning_effort": "medium",
+                "source": "agent",
+                "warnings": ["Remember to capture metrics."],
                 "project": {
                     "project_id": "backend-service-slice",
                     "title": "Ship a Production-Ready Service Slice",
@@ -302,6 +308,10 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(item.milestoneBrief?.eloFocus, ["Backend Systems"])
         XCTAssertEqual(item.milestoneBrief?.kickoffSteps.first, "Block 90 minutes of focus time.")
         XCTAssertEqual(item.milestoneBrief?.project?.projectId, "backend-service-slice")
+        XCTAssertEqual(item.milestoneBrief?.source, "agent")
+        XCTAssertEqual(item.milestoneBrief?.authoredByModel, "gpt-5")
+        XCTAssertEqual(item.milestoneBrief?.reasoningEffort, "medium")
+        XCTAssertEqual(item.milestoneBrief?.warnings, ["Remember to capture metrics."])
         XCTAssertEqual(item.milestoneProgress?.externalLinks, ["https://example.com/demo"])
         XCTAssertEqual(item.milestoneProgress?.attachmentIds, ["attach-1"])
         XCTAssertEqual(item.milestoneProgress?.projectStatus, "building")

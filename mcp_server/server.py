@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import time
 import traceback
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -18,6 +19,11 @@ from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope
+
+try:
+    from openai import OpenAI
+except Exception:  # noqa: BLE001
+    OpenAI = None  # type: ignore[assignment]
 
 
 class JSONFormatter(logging.Formatter):
@@ -40,6 +46,31 @@ _handler = logging.StreamHandler(sys.stdout)
 _handler.setFormatter(JSONFormatter())
 logging.basicConfig(level=_log_level, handlers=[_handler])
 logger = logging.getLogger("arcadia.mcp")
+
+_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+_MILESTONE_AUTHOR_MODEL = os.getenv("MCP_MILESTONE_AUTHOR_MODEL", os.getenv("ARCADIA_AGENT_MODEL", "gpt-5"))
+_MILESTONE_AUTHOR_REASONING = os.getenv("MCP_MILESTONE_AUTHOR_REASONING", os.getenv("ARCADIA_AGENT_REASONING", "medium"))
+try:
+    _MILESTONE_AUTHOR_TIMEOUT = float(os.getenv("MCP_MILESTONE_AUTHOR_TIMEOUT", "18.0"))
+except ValueError:
+    _MILESTONE_AUTHOR_TIMEOUT = 18.0
+try:
+    _MILESTONE_AUTHOR_TEMPERATURE = float(os.getenv("MCP_MILESTONE_AUTHOR_TEMPERATURE", "0.6"))
+except ValueError:
+    _MILESTONE_AUTHOR_TEMPERATURE = 0.6
+
+_openai_client: Optional["OpenAI"] = None
+
+
+def _get_openai_client() -> "OpenAI":
+    if OpenAI is None:
+        raise RuntimeError("openai client library is not installed. Install 'openai>=1.40.0'.")
+    if not _OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is required for milestone authoring.")
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=_OPENAI_API_KEY, max_retries=2)
+    return _openai_client
 
 
 class ProductionErrorMiddleware(BaseHTTPMiddleware):
@@ -157,6 +188,202 @@ class Widget(BaseModel):
             ]
         }
     }
+
+
+class MilestoneAuthorProject(BaseModel):
+    project_id: Optional[str] = None
+    title: Optional[str] = None
+    goal_alignment: Optional[str] = None
+    summary: Optional[str] = None
+    deliverables: List[str] = Field(default_factory=list)
+    evidence_checklist: List[str] = Field(default_factory=list)
+    recommended_tools: List[str] = Field(default_factory=list)
+    evaluation_focus: List[str] = Field(default_factory=list)
+    evaluation_steps: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class MilestoneAuthorBrief(BaseModel):
+    headline: str
+    summary: Optional[str] = None
+    objectives: List[str] = Field(default_factory=list)
+    deliverables: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    external_work: List[str] = Field(default_factory=list)
+    capture_prompts: List[str] = Field(default_factory=list)
+    kickoff_steps: List[str] = Field(default_factory=list)
+    coaching_prompts: List[str] = Field(default_factory=list)
+    elo_focus: List[str] = Field(default_factory=list)
+    resources: List[str] = Field(default_factory=list)
+    project: Optional[MilestoneAuthorProject] = None
+    rationale: Optional[str] = None
+    authored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    model: str = Field(default_factory=lambda: _MILESTONE_AUTHOR_MODEL or "gpt-5")
+    reasoning_effort: str = Field(default_factory=lambda: _MILESTONE_AUTHOR_REASONING or "medium")
+    source: str = Field(default="agent", pattern="^(agent|template)$")
+    warnings: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class MilestoneAuthorRequest(BaseModel):
+    username: Optional[str] = None
+    goal: Optional[str] = None
+    use_case: Optional[str] = None
+    strengths: Optional[str] = None
+    category_key: Optional[str] = None
+    category_label: Optional[str] = None
+    module_title: str
+    module_summary: Optional[str] = None
+    module_objectives: List[str] = Field(default_factory=list)
+    module_deliverables: List[str] = Field(default_factory=list)
+    goal_tracks: List[Dict[str, Any]] = Field(default_factory=list)
+    milestone_history: List[Dict[str, Any]] = Field(default_factory=list)
+    milestone_progress: Optional[Dict[str, Any]] = None
+    schedule_notes: Optional[str] = None
+    timezone: Optional[str] = None
+    previous_brief: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class MilestoneAuthorResponse(BaseModel):
+    brief: MilestoneAuthorBrief
+    latency_ms: int
+    model: str
+    reasoning_effort: str
+    warnings: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+_AUTHOR_INSTRUCTIONS = (
+    "You are Arcadia Coach's Milestone Brief Author. Craft concise, motivating milestone briefs for neurodivergent "
+    "software learners. Always produce JSON matching the provided schema. Keep copy goal-aligned, sensory-considerate, "
+    "and specific about evidence expectations. Avoid markdown headings or emojis; write plain sentences or short lists."
+)
+
+
+def _trim(text: Optional[str], *, limit: int = 600) -> Optional[str]:
+    if not text:
+        return None
+    cleaned = text.strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
+def _sanitize_list(items: Iterable[str], *, limit: int = 8) -> List[str]:
+    sanitized: List[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        trimmed = _trim(item, limit=400)
+        if trimmed:
+            sanitized.append(trimmed)
+        if len(sanitized) >= limit:
+            break
+    return sanitized
+
+
+def _author_prompt(payload: MilestoneAuthorRequest) -> str:
+    context: Dict[str, Any] = {
+        "profile": {
+            "username": payload.username,
+            "goal": _trim(payload.goal, limit=400),
+            "use_case": _trim(payload.use_case, limit=400),
+            "strengths": _trim(payload.strengths, limit=400),
+            "timezone": payload.timezone,
+        },
+        "milestone": {
+            "category_key": payload.category_key,
+            "category_label": payload.category_label,
+            "module_title": payload.module_title,
+            "module_summary": _trim(payload.module_summary, limit=600),
+            "module_objectives": _sanitize_list(payload.module_objectives, limit=6),
+            "module_deliverables": _sanitize_list(payload.module_deliverables, limit=6),
+            "schedule_notes": _trim(payload.schedule_notes, limit=600),
+        },
+        "goal_tracks": payload.goal_tracks[:6],
+        "milestone_history": payload.milestone_history[:5],
+        "milestone_progress": payload.milestone_progress,
+        "previous_brief": payload.previous_brief,
+    }
+    serialized = json.dumps(context, ensure_ascii=False, indent=2)
+    return (
+        "Use the learner context and curriculum details below to author a milestone brief. "
+        "Ensure deliverables and evaluation steps map back to the learner's stated goal and current track focus. "
+        "Where history shows blockers, propose gentle next steps. "
+        "Context:\n"
+        f"{serialized}"
+    )
+
+
+def _extract_output_text(response: Any) -> str:
+    text = getattr(response, "output_text", None)
+    if text:
+        return text
+    try:
+        output = getattr(response, "output", None)
+        if output:
+            for item in output:
+                contents = getattr(item, "content", None)
+                if not contents:
+                    continue
+                for content in contents:
+                    value = getattr(content, "text", None)
+                    if value:
+                        return value
+                    if getattr(content, "type", None) == "output_text":
+                        return getattr(content, "text", "") or ""
+        data = getattr(response, "data", None)
+        if data:
+            for item in data:
+                if isinstance(item, dict) and "text" in item:
+                    return item["text"]
+    except Exception:  # noqa: BLE001
+        return ""
+    return ""
+
+
+def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
+    client = _get_openai_client()
+    schema = MilestoneAuthorBrief.model_json_schema()
+    request_payload = {
+        "model": _MILESTONE_AUTHOR_MODEL,
+        "reasoning": {"effort": _MILESTONE_AUTHOR_REASONING},
+        "temperature": _MILESTONE_AUTHOR_TEMPERATURE,
+        "input": [
+            {"role": "system", "content": _AUTHOR_INSTRUCTIONS},
+            {"role": "user", "content": _author_prompt(payload)},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "MilestoneAuthorBrief", "schema": schema},
+        },
+    }
+    start = time.perf_counter()
+    try:
+        response = client.responses.with_options(timeout=_MILESTONE_AUTHOR_TIMEOUT).create(**request_payload)
+    except AttributeError:
+        # Older client versions may not support with_options; fall back to direct call.
+        response = client.responses.create(**request_payload)
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    content = _extract_output_text(response)
+    if not content:
+        raise RuntimeError("Milestone author agent returned empty content.")
+    brief = MilestoneAuthorBrief.model_validate_json(content)
+    brief.model = _MILESTONE_AUTHOR_MODEL or brief.model
+    brief.reasoning_effort = _MILESTONE_AUTHOR_REASONING or brief.reasoning_effort
+    envelope = MilestoneAuthorResponse(
+        brief=brief,
+        latency_ms=latency_ms,
+        model=brief.model,
+        reasoning_effort=brief.reasoning_effort,
+        warnings=list(brief.warnings),
+    )
+    return envelope
 
 
 @dataclass(frozen=True)
@@ -552,6 +779,14 @@ async def scoped_health_route(_request):
     )
 
 
+@mcp.custom_route("/author/milestone", methods=["POST"])
+async def author_milestone_route(request: Request):
+    payload = await request.json()
+    brief_request = MilestoneAuthorRequest.model_validate(payload)
+    envelope = milestone_project_author(brief_request)
+    return JSONResponse(envelope.model_dump(mode="json"))
+
+
 @mcp.tool()
 def lesson_catalog(topic: str) -> WidgetEnvelope:
     """Generate a widget envelope for a requested lesson topic."""
@@ -618,6 +853,37 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
         widgets=[recap, stat_row, drill_list],
         citations=None,
     )
+
+
+@mcp.tool()
+def milestone_project_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
+    """Generate an agent-authored milestone brief tailored to the learner context."""
+
+    if OpenAI is None:
+        raise RuntimeError("Milestone authoring requires the openai python package.")
+    if not _OPENAI_API_KEY:
+        raise RuntimeError("Milestone authoring requires OPENAI_API_KEY to be set.")
+    try:
+        envelope = _call_milestone_author(payload)
+        logger.info(
+            "Milestone author generated brief",
+            extra={
+                "payload": {
+                    "category_key": payload.category_key,
+                    "module_title": payload.module_title,
+                },
+                "latency_ms": envelope.latency_ms,
+                "model": envelope.model,
+            },
+        )
+        return envelope
+    except Exception as err:  # noqa: BLE001
+        logger.exception(
+            "Milestone author failed for module=%s category=%s",
+            payload.module_title,
+            payload.category_key,
+        )
+        raise RuntimeError(f"Milestone author failed: {err}") from err
 
 
 @mcp.tool()

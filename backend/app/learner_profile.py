@@ -169,6 +169,12 @@ class MilestoneBrief(BaseModel):
     kickoff_steps: List[str] = Field(default_factory=list)
     coaching_prompts: List[str] = Field(default_factory=list)
     project: Optional[MilestoneProject] = None
+    rationale: Optional[str] = None
+    authored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    authored_by_model: Optional[str] = None
+    reasoning_effort: Optional[str] = None
+    source: Literal["agent", "template"] = "template"
+    warnings: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgress(BaseModel):

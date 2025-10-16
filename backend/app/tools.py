@@ -335,6 +335,12 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 resources=list(milestone_brief.resources),
                 kickoff_steps=list(milestone_brief.kickoff_steps),
                 coaching_prompts=list(milestone_brief.coaching_prompts),
+                rationale=getattr(milestone_brief, "rationale", None),
+                authored_at=getattr(milestone_brief, "authored_at", None),
+                authored_by_model=getattr(milestone_brief, "authored_by_model", None),
+                reasoning_effort=getattr(milestone_brief, "reasoning_effort", None),
+                source=getattr(milestone_brief, "source", None),
+                warnings=list(getattr(milestone_brief, "warnings", []) or []),
             )
             project = getattr(milestone_brief, "project", None)
             if project:
@@ -355,6 +361,8 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 headline=item.title,
                 summary=getattr(item, "summary", None),
                 prerequisites=_prerequisites_for_brief(None, item),
+                source="template",
+                warnings=[],
             )
         if milestone_progress:
             progress_payload = MilestoneProgressPayload(
