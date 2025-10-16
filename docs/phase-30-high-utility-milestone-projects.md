@@ -7,6 +7,7 @@
 - Added a goal-aware milestone project planner that selects blueprints from a curated catalog based on the learner's goal parser inference and active curriculum category. Briefs now carry a structured `project` payload, and sequenced work items persist the project metadata across refreshes and schedule slices.
 - Extended milestone progress, completion, telemetry, and persistence to capture project status, evaluation outcome, reviewer notes, next steps, and calibrated ELO deltas. The MCP milestone widget, schedule launch prompts, and agent prompt summaries surface the richer project/evaluation context.
 - Updated the macOS client to decode/render the new project details, capture project status and evaluation outcomes during completion, and send structured next steps back to the backend. The milestone completion sheet now gathers status, reviewer outcome, notes, evidence, and follow-up actions.
+- Documented that the current planner still relies on curated templates with contextual fill-ins; fully bespoke, agent-authored milestone briefs are deferred to the forthcoming Agent Authoring phase.
 
 ## Testing
 - `uv run pytest`
