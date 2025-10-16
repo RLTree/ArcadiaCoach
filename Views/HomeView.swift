@@ -21,7 +21,7 @@ struct HomeView: View {
     @State private var completionNotes: String = ""
     @State private var completionLinksText: String = ""
     @State private var selectedAttachmentIds: Set<String> = []
-    @State private var completionProjectStatus: String = "completed"
+    @State private var completionProjectStatus: String = ""
     @State private var completionEvaluationOutcome: String = ""
     @State private var completionEvaluationNotes: String = ""
     @State private var completionNextStepsText: String = ""
@@ -626,13 +626,7 @@ struct HomeView: View {
     private func completeSchedule(item: SequencedWorkItem) {
         if item.kind == .milestone {
             pendingCompletionItem = item
-            completionNotes = ""
-            completionLinksText = ""
-            selectedAttachmentIds = []
-            completionProjectStatus = "completed"
-            completionEvaluationOutcome = ""
-            completionEvaluationNotes = ""
-            completionNextStepsText = ""
+            prepareCompletionSheet(for: item)
             showCompletionSheet = true
             Task { @MainActor in
                 await preloadCompletionAttachments()
@@ -673,6 +667,26 @@ struct HomeView: View {
             evaluationNotes: evaluationNotes.isEmpty ? nil : evaluationNotes,
             nextSteps: nextSteps
         )
+    }
+
+    private func prepareCompletionSheet(for item: SequencedWorkItem) {
+        if let progress = item.milestoneProgress {
+            completionNotes = progress.notes ?? ""
+            completionLinksText = progress.externalLinks.joined(separator: "\n")
+            selectedAttachmentIds = Set(progress.attachmentIds)
+            completionProjectStatus = progress.projectStatus
+            completionNextStepsText = progress.nextSteps.joined(separator: "\n")
+        } else {
+            completionNotes = ""
+            completionLinksText = ""
+            selectedAttachmentIds.removeAll()
+            completionProjectStatus = ""
+            completionNextStepsText = ""
+        }
+
+        let existingCompletion = appVM.milestoneCompletions.first { $0.itemId == item.itemId }
+        completionEvaluationOutcome = existingCompletion?.evaluationOutcome ?? ""
+        completionEvaluationNotes = existingCompletion?.evaluationNotes ?? ""
     }
 
     private func submitScheduleCompletion(item: SequencedWorkItem, completion: ScheduleCompletionSubmission) {
@@ -1177,18 +1191,32 @@ struct MilestoneCompletionSheet: View {
         }
     }
 
-    private let statusOptions: [(label: String, value: String)] = [
-        ("Completed", "completed"),
-        ("Ready for review", "ready_for_review"),
-        ("Building", "building"),
-        ("Blocked", "blocked"),
+    private struct StatusOption: Identifiable {
+        let label: String
+        let value: String
+        var id: String { value }
+    }
+
+    private struct EvaluationOption: Identifiable {
+        let label: String
+        let value: String
+        var id: String { label + value }
+    }
+
+    private let statusOptions: [StatusOption] = [
+        StatusOption(label: "Let Arcadia decide", value: ""),
+        StatusOption(label: "Not started", value: "not_started"),
+        StatusOption(label: "Building", value: "building"),
+        StatusOption(label: "Ready for review", value: "ready_for_review"),
+        StatusOption(label: "Completed", value: "completed"),
+        StatusOption(label: "Blocked", value: "blocked"),
     ]
 
-    private let evaluationOptions: [(label: String, value: String)] = [
-        ("Not set", ""),
-        ("Passed", "passed"),
-        ("Needs revision", "needs_revision"),
-        ("Failed", "failed"),
+    private let evaluationOptions: [EvaluationOption] = [
+        EvaluationOption(label: "Not set", value: ""),
+        EvaluationOption(label: "Passed", value: "passed"),
+        EvaluationOption(label: "Needs revision", value: "needs_revision"),
+        EvaluationOption(label: "Failed", value: "failed"),
     ]
 
     var body: some View {
@@ -1196,20 +1224,26 @@ struct MilestoneCompletionSheet: View {
             Form {
                 Section("Project Status") {
                     Picker("Status", selection: $projectStatus) {
-                        ForEach(statusOptions, id: \.value) { option in
+                        ForEach(statusOptions) { option in
                             Text(option.label).tag(option.value)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
+                    Text("Default keeps the current status inferred from your notes and artefacts.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Evaluation") {
                     Picker("Outcome", selection: $evaluationOutcome) {
-                        ForEach(evaluationOptions, id: \.value) { option in
+                        ForEach(evaluationOptions) { option in
                             Text(option.label).tag(option.value)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
+                    Text("Optional: set after reviewing the learner's deliverable.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
 
                     ZStack(alignment: .topLeading) {
                         if evaluationNotes.isEmpty {

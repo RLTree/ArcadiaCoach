@@ -33,7 +33,7 @@ _TEMPLATES: tuple[_ProjectTemplate, ...] = (
     _ProjectTemplate(
         project_id="frontend-portfolio-feature",
         title="Design & Ship a Portfolio Feature",
-        category_keys=("frontend-foundations", "ui-architecture"),
+        category_keys=("frontend-foundations", "ui-architecture", "frontend", "frontend-experience"),
         goal_keywords=("portfolio", "frontend", "ui", "design"),
         track_keywords=("Frontend", "UI", "Design Systems"),
         summary="Implement a polished UI feature that reflects production-ready interaction patterns.",
@@ -63,7 +63,7 @@ _TEMPLATES: tuple[_ProjectTemplate, ...] = (
     _ProjectTemplate(
         project_id="backend-service-slice",
         title="Ship a Production-Ready Service Slice",
-        category_keys=("backend-foundations", "architecture-systems"),
+        category_keys=("backend-foundations", "architecture-systems", "backend", "backend-systems"),
         goal_keywords=("backend", "api", "service", "platform"),
         track_keywords=("Architecture", "Backend", "Delivery"),
         summary="Develop a service endpoint or workflow that demonstrates reliability, observability, and documentation.",
@@ -93,7 +93,7 @@ _TEMPLATES: tuple[_ProjectTemplate, ...] = (
     _ProjectTemplate(
         project_id="data-insight-report",
         title="Produce a Goal-Aligned Data Insight Report",
-        category_keys=("data-manipulation", "ml-foundations"),
+        category_keys=("data-manipulation", "ml-foundations", "data", "analytics"),
         goal_keywords=("data", "analysis", "machine learning", "ml", "analytics"),
         track_keywords=("Data", "ML", "Analytics"),
         summary="Create a reproducible notebook or report that surfaces actionable insights for your target audience.",
@@ -123,7 +123,7 @@ _TEMPLATES: tuple[_ProjectTemplate, ...] = (
     _ProjectTemplate(
         project_id="automation-workflow",
         title="Build an Automation Workflow",
-        category_keys=("python-foundations", "productivity-automation"),
+        category_keys=("python-foundations", "productivity-automation", "automation", "productivity", "scripting"),
         goal_keywords=("automation", "productivity", "workflow", "tooling"),
         track_keywords=("Productivity", "Automation", "Scripting"),
         summary="Automate a repetitive task with a reliable, well-documented script or tool.",
@@ -181,6 +181,7 @@ def _track_matches(tracks: Sequence[FoundationTrack], keywords: Iterable[str]) -
 def select_milestone_project(
     profile: LearnerProfile,
     category_key: str,
+    category_label: Optional[str] = None,
     *,
     goal_inference: Optional[GoalParserInference] = None,
 ) -> Optional[MilestoneProject]:
@@ -197,14 +198,24 @@ def select_milestone_project(
         )
     )
     tracks: Sequence[FoundationTrack] = goal_inference.tracks if goal_inference and goal_inference.tracks else ()
+    normalized_key = category_key.lower()
+    normalized_label = (category_label or "").lower()
 
     best_template: Optional[_ProjectTemplate] = None
     best_score = -1
 
     for template in _TEMPLATES:
         score = 0
-        if category_key in template.category_keys:
+        template_keys = {key.lower() for key in template.category_keys}
+        if normalized_key in template_keys:
+            score += 4
+        elif any(key in normalized_key or normalized_key in key for key in template_keys):
             score += 3
+        elif normalized_label and any(
+            key.replace("-", " ") in normalized_label or normalized_label in key.replace("-", " ")
+            for key in template_keys
+        ):
+            score += 2
         score += _text_matches(goal_text, template.goal_keywords)
         score += _track_matches(tracks, template.track_keywords)
         if score > best_score:

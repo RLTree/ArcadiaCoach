@@ -588,6 +588,7 @@ class CurriculumSequencer:
         project = select_milestone_project(
             profile,
             module.category_key,
+            category_label=context.label,
             goal_inference=getattr(profile, "goal_inference", None),
         )
         brief = MilestoneBrief(

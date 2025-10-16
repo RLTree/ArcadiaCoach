@@ -219,10 +219,41 @@ private var loadMoreSection: some View {
                         Text(completion.recordedAt, style: .date)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            Label(projectStatusLabel(completion.projectStatus), systemImage: "flag")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(progressStatusColor(completion.projectStatus).opacity(0.12), in: Capsule())
+                                .foregroundStyle(progressStatusColor(completion.projectStatus))
+                            if let outcomeLabel = evaluationOutcomeLabel(completion.evaluationOutcome) {
+                                Label(outcomeLabel, systemImage: "checkmark.seal")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(evaluationOutcomeColor(completion.evaluationOutcome).opacity(0.12), in: Capsule())
+                                    .foregroundStyle(evaluationOutcomeColor(completion.evaluationOutcome))
+                            }
+                            if completion.eloDelta != 0 {
+                                let deltaSymbol = completion.eloDelta > 0 ? "+" : ""
+                                Label("ΔELO \(deltaSymbol)\(completion.eloDelta)", systemImage: "chart.line.uptrend.xyaxis")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background((completion.eloDelta > 0 ? Color.green : Color.orange).opacity(0.12), in: Capsule())
+                                    .foregroundStyle(completion.eloDelta > 0 ? Color.green : Color.orange)
+                            }
+                        }
                         if let notes = completion.notes, !notes.isEmpty {
                             Text(notes)
                                 .font(.caption)
                                 .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let evaluationNotes = completion.evaluationNotes, !evaluationNotes.isEmpty {
+                            Text("Feedback: \(evaluationNotes)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         HStack(spacing: 12) {
@@ -522,6 +553,10 @@ private var loadMoreSection: some View {
                 }
             }
 
+            if let project = item.milestoneProject ?? item.milestoneBrief?.project {
+                projectSection(for: project)
+            }
+
             if let brief = item.milestoneBrief {
                 if !brief.prerequisites.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
@@ -607,6 +642,9 @@ private var loadMoreSection: some View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Latest Progress")
                         .font(.caption.bold())
+                    Text("Status: \(projectStatusLabel(progress.projectStatus))")
+                        .font(.caption)
+                        .foregroundStyle(progressStatusColor(progress.projectStatus))
                     if let notes = progress.notes, !notes.isEmpty {
                         Text(notes)
                             .font(.caption)
@@ -622,6 +660,16 @@ private var loadMoreSection: some View {
                         Text("Attachments: \(progress.attachmentIds.joined(separator: ", "))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    }
+                    if !progress.nextSteps.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Next steps")
+                                .font(.caption.bold())
+                            ForEach(progress.nextSteps, id: \.self) { step in
+                                Text("• \(step)")
+                                    .font(.caption)
+                            }
+                        }
                     }
                 }
             }
@@ -679,6 +727,81 @@ private var loadMoreSection: some View {
                 .stroke(item.userAdjusted ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .animation(.easeInOut(duration: 0.2), value: item.userAdjusted)
+    }
+
+    @ViewBuilder
+    private func projectSection(for project: MilestoneProject) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Milestone Project")
+                .font(.caption.bold())
+            Text(project.title)
+                .font(.callout.bold())
+            Text(project.goalAlignment)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let summary = project.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !project.deliverables.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Deliverables")
+                        .font(.caption.bold())
+                    ForEach(project.deliverables, id: \.self) { deliverable in
+                        Text("• \(deliverable)")
+                            .font(.caption)
+                    }
+                }
+            }
+            if !project.evidenceChecklist.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Evidence checklist")
+                        .font(.caption.bold())
+                    ForEach(project.evidenceChecklist, id: \.self) { item in
+                        Text("• \(item)")
+                            .font(.caption)
+                    }
+                }
+            }
+            if !project.recommendedTools.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Recommended tools")
+                        .font(.caption.bold())
+                    HStack(spacing: 6) {
+                        ForEach(project.recommendedTools, id: \.self) { tool in
+                            Text(tool)
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.blue.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+            }
+            if !project.evaluationFocus.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Evaluation focus")
+                        .font(.caption.bold())
+                    ForEach(project.evaluationFocus, id: \.self) { focus in
+                        Text("• \(focus)")
+                            .font(.caption)
+                    }
+                }
+            }
+            if !project.evaluationSteps.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Evaluation steps")
+                        .font(.caption.bold())
+                    ForEach(project.evaluationSteps, id: \.self) { step in
+                        Text("• \(step)")
+                            .font(.caption)
+                    }
+                }
+            }
+        }
     }
 
     private func formattedDate(_ date: Date) -> String {
@@ -739,6 +862,71 @@ private var loadMoreSection: some View {
             return item.userAdjusted ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04)
         }
     }
+
+    private func projectStatusLabel(_ rawValue: String) -> String {
+        switch rawValue {
+        case "not_started":
+            return "Not started"
+        case "building":
+            return "Building"
+        case "ready_for_review":
+            return "Ready for review"
+        case "blocked":
+            return "Blocked"
+        case "completed":
+            return "Completed"
+        default:
+            return rawValue.capitalized
+        }
+    }
+
+    private func progressStatusColor(_ rawValue: String) -> Color {
+        switch rawValue {
+        case "completed":
+            return .green
+        case "ready_for_review":
+            return .blue
+        case "building":
+            return .accentColor
+        case "blocked":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+
+    private func evaluationOutcomeLabel(_ rawValue: String?) -> String? {
+        guard let value = rawValue, !value.isEmpty else {
+            return nil
+        }
+        switch value {
+        case "passed":
+            return "Passed"
+        case "needs_revision":
+            return "Needs revision"
+        case "failed":
+            return "Failed"
+        default:
+            return value.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    private func evaluationOutcomeColor(_ rawValue: String?) -> Color {
+        guard let value = rawValue else {
+            return .secondary
+        }
+        switch value {
+        case "passed":
+            return .green
+        case "needs_revision":
+            return .orange
+        case "failed":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+
 
     @ViewBuilder
     private func statusBadge(for item: SequencedWorkItem) -> some View {

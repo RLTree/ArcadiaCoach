@@ -403,11 +403,11 @@ struct MilestoneProject: Codable, Hashable {
     var title: String
     var goalAlignment: String
     var summary: String?
-    var deliverables: [String]
-    var evidenceChecklist: [String]
-    var recommendedTools: [String]
-    var evaluationFocus: [String]
-    var evaluationSteps: [String]
+    var deliverables: [String] = []
+    var evidenceChecklist: [String] = []
+    var recommendedTools: [String] = []
+    var evaluationFocus: [String] = []
+    var evaluationSteps: [String] = []
 }
 
 struct MilestoneBrief: Codable, Hashable {

@@ -155,7 +155,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "quiz-m1",
@@ -181,7 +182,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "milestone-backend",
@@ -208,7 +210,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "lesson-m2",
@@ -231,7 +234,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "quiz-m2",
@@ -257,7 +261,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "lesson-m3",
@@ -280,7 +285,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "quiz-m3",
@@ -306,7 +312,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "lesson-m4",
@@ -329,7 +336,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "quiz-m4",
@@ -355,7 +363,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "lesson-m5",
@@ -378,7 +387,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         },
         {
           "item_id": "quiz-m5",
@@ -404,7 +414,8 @@
           "last_completed_at": null,
           "active_session_id": null,
           "milestone_brief": null,
-          "milestone_progress": null
+          "milestone_progress": null,
+          "milestone_project": null
         }
       ],
       "is_stale": false,
