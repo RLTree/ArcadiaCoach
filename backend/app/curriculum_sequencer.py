@@ -479,6 +479,21 @@ class CurriculumSequencer:
         return dependencies
 
     def _split_work_item(self, item: SequencedWorkItem) -> List[SequencedWorkItem]:
+        if item.kind == "milestone":
+            minutes = max(int(item.recommended_minutes or MIN_SESSION_MINUTES), MIN_SESSION_MINUTES)
+            clone = item.model_copy()
+            clone.recommended_minutes = minutes
+            clone.prerequisites = list(item.prerequisites)
+            clone.user_adjusted = False
+            clone.milestone_brief = item.milestone_brief.model_copy(deep=True) if item.milestone_brief else None
+            clone.milestone_progress = (
+                item.milestone_progress.model_copy(deep=True) if item.milestone_progress else None
+            )
+            clone.milestone_project = (
+                item.milestone_project.model_copy(deep=True) if item.milestone_project else None
+            )
+            return [clone]
+
         minutes = max(int(item.recommended_minutes or MIN_SESSION_MINUTES), MIN_SESSION_MINUTES)
         if minutes <= MAX_SESSION_MINUTES:
             cloned = item.model_copy()

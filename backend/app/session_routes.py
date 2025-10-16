@@ -155,12 +155,63 @@ def _schedule_locked_reason(
 
 
 def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProfile) -> str:
-    lines: List[str] = [
-        f"Deliver the scheduled {item.kind} titled '{item.title}'.",
-        f"Recommended duration: approximately {item.recommended_minutes} minutes.",
-    ]
+    def _format_list(values: Iterable[str], limit: int = 6) -> str:
+        items = [value for value in values if value.strip()]
+        if not items:
+            return ""
+        display = items[:limit]
+        suffix = ""
+        if len(items) > limit:
+            suffix = f"\n- (+{len(items) - limit} more)"
+        return "\n".join(f"- {entry}" for entry in display) + suffix
+
+    if item.kind == "milestone":
+        brief = getattr(item, "milestone_brief", None)
+        lines: List[str] = []
+        if brief and brief.headline:
+            lines.append(brief.headline)
+        elif item.title:
+            lines.append(item.title)
+        if brief and brief.summary:
+            lines.append(brief.summary)
+        elif item.summary:
+            lines.append(item.summary)
+
+        project = getattr(item, "milestone_project", None) or (brief.project if brief else None)
+        if project:
+            if project.goal_alignment:
+                lines.append(f"Goal alignment: {project.goal_alignment}")
+            if project.summary:
+                lines.append(project.summary)
+            deliverables = _format_list(project.deliverables, limit=5)
+            if deliverables:
+                lines.append("Deliverables:\n" + deliverables)
+            evidence = _format_list(project.evidence_checklist, limit=5)
+            if evidence:
+                lines.append("Evidence checklist:\n" + evidence)
+        if brief:
+            kickoff = _format_list(brief.kickoff_steps, limit=5)
+            if kickoff:
+                lines.append("Kickoff steps:\n" + kickoff)
+            external = _format_list(brief.external_work, limit=5)
+            if external:
+                lines.append("External work checklist:\n" + external)
+            criteria = _format_list(brief.success_criteria, limit=5)
+            if criteria:
+                lines.append("Success criteria:\n" + criteria)
+            capture = _format_list(brief.capture_prompts, limit=4)
+            if capture:
+                lines.append("Capture prompts:\n" + capture)
+            coaching = _format_list(brief.coaching_prompts, limit=4)
+            if coaching:
+                lines.append("Coaching prompts:\n" + coaching)
+            if brief.elo_focus:
+                lines.append("ELO focus: " + ", ".join(brief.elo_focus))
+        return "\n\n".join(lines)
+
+    lines: List[str] = [item.title]
     if item.summary:
-        lines.append(f"Summary: {item.summary}")
+        lines.append(item.summary)
     if item.objectives:
         objective_lines = "\n".join(f"- {objective}" for objective in item.objectives)
         lines.append(f"Objectives:\n{objective_lines}")
@@ -168,36 +219,6 @@ def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProf
         lines.append(f"Expected outcome: {item.expected_outcome}")
     if item.focus_reason:
         lines.append(f"Focus reason: {item.focus_reason}")
-    if item.kind == "milestone":
-        brief = getattr(item, "milestone_brief", None)
-        if brief:
-            lines.append(f"Milestone brief: {brief.headline}")
-            if brief.external_work:
-                lines.append(
-                    "External work checklist:\n" + "\n".join(f"- {step}" for step in brief.external_work)
-                )
-            if brief.success_criteria:
-                lines.append(
-                    "Success criteria:\n" + "\n".join(f"- {criteria}" for criteria in brief.success_criteria)
-                )
-            if brief.capture_prompts:
-                lines.append(
-                    "Capture prompts:\n" + "\n".join(f"- {prompt}" for prompt in brief.capture_prompts)
-                )
-            if brief.kickoff_steps:
-                lines.append(
-                    "Kickoff steps:\n" + "\n".join(f"- {step}" for step in brief.kickoff_steps)
-                )
-            if brief.coaching_prompts:
-                lines.append(
-                    "Coaching prompts:\n" + "\n".join(f"- {prompt}" for prompt in brief.coaching_prompts)
-                )
-    if profile.goal:
-        lines.append(f"Learner goal: {profile.goal}")
-    if profile.strengths:
-        lines.append(f"Learner strengths: {profile.strengths}")
-    if profile.use_case:
-        lines.append(f"Learner use case: {profile.use_case}")
     return "\n\n".join(lines)
 
 
