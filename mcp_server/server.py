@@ -1252,12 +1252,36 @@ def create_proxy_app(inner_app, include_traceback: bool) -> FastAPI:
                 content.decode(errors="ignore")[:500],
             )
 
-        return Response(
+        response = Response(
             content=content,
             status_code=status,
             headers={k.decode(): v.decode() for k, v in headers},
             media_type=None,
         )
+        response.headers.setdefault("Access-Control-Allow-Origin", "*")
+        return response
+
+    @app.post("/mcp/author/milestone")
+    async def proxy_author_milestone(request: Request) -> Response:
+        logger.info("POST /mcp/author/milestone called from %s", request.client)
+        try:
+            payload = await request.json()
+            brief_request = MilestoneAuthorRequest.model_validate(payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Invalid authoring payload: %s", exc)
+            return JSONResponse(
+                {"error": {"code": -32602, "message": "Invalid payload", "detail": str(exc)}},
+                status_code=400,
+            )
+        try:
+            envelope = milestone_project_author(brief_request)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Milestone author proxy failed")
+            return JSONResponse(
+                {"error": {"code": -32603, "message": "Authoring failed", "detail": str(exc)}},
+                status_code=500,
+            )
+        return JSONResponse(envelope.model_dump(mode="json"))
 
     return app
 
