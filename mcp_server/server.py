@@ -787,6 +787,11 @@ async def author_milestone_route(request: Request):
     return JSONResponse(envelope.model_dump(mode="json"))
 
 
+@mcp.custom_route("/mcp/author/milestone", methods=["POST"])
+async def scoped_author_milestone_route(request: Request):
+    return await author_milestone_route(request)
+
+
 @mcp.tool()
 def lesson_catalog(topic: str) -> WidgetEnvelope:
     """Generate a widget envelope for a requested lesson topic."""
