@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B27837E18E79D5DF33F3BC /* EloPlan.swift */; };
-		717F628B2EA0B39000AA8DD0 /* ArcadiaCoach.icon in Resources */ = {isa = PBXBuildFile; fileRef = 717F628A2EA0B39000AA8DD0 /* ArcadiaCoach.icon */; };
+		717F628D2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon in Resources */ = {isa = PBXBuildFile; fileRef = 717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */; };
 		AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */; };
 		AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
 		AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
@@ -81,7 +81,7 @@
 
 /* Begin PBXFileReference section */
 		703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlanSummaryView.swift; sourceTree = "<group>"; };
-		717F628A2EA0B39000AA8DD0 /* ArcadiaCoach.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = ArcadiaCoach.icon; sourceTree = "<group>"; };
+		717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = ArcadiaCoach.icon; sourceTree = "<group>"; };
 		76B27837E18E79D5DF33F3BC /* EloPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlan.swift; sourceTree = "<group>"; };
 		AA00103729250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArcadiaChatbotView.swift; sourceTree = "<group>"; };
 		AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcadiaCoachApp.swift; sourceTree = "<group>"; };
@@ -168,7 +168,6 @@
 		AA000FEF2924F7D200B8BEA0 = {
 			isa = PBXGroup;
 			children = (
-				717F628A2EA0B39000AA8DD0 /* ArcadiaCoach.icon */,
 				AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */,
 				AA001F1A2924FA6300B8BEA0 /* Info.plist */,
 				AA001F1B2924FA7C00B8BEA0 /* ArcadiaCoach.entitlements */,
@@ -180,6 +179,7 @@
 				AA001F222924FB5F00B8BEA0 /* Views */,
 				AA001F232924FB5F00B8BEA0 /* Tests */,
 				AA001F252924FBE600B8BEA0 /* Products */,
+				717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -407,7 +407,7 @@
 				AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */,
 				AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */,
 				AA00C0042A3B12E300B8BEA0 /* chatkit.inline.mjs in Resources */,
-				717F628B2EA0B39000AA8DD0 /* ArcadiaCoach.icon in Resources */,
+				717F628D2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
