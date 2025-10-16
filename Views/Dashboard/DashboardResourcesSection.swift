@@ -27,10 +27,14 @@ struct DashboardResourcesSection: View {
                 }
             }
 
-            if let plan = appVM.goalInference {
-                FoundationTracksCard(tracks: plan.tracks)
-                    .transition(.opacity)
-            }
+        if let plan = appVM.goalInference {
+            FoundationTracksCard(
+                tracks: plan.tracks,
+                goalSummary: plan.summary,
+                targetOutcomes: plan.targetOutcomes
+            )
+                .transition(.opacity)
+        }
 
             if let summary = appVM.curriculumPlan?.overview, !summary.isEmpty {
                 Text(summary)
@@ -57,6 +61,12 @@ struct DashboardResourcesSection: View {
         }
         if let inference = appVM.goalInference {
             lines.append("Goal parser tracks: \(inference.tracks.count)")
+            if let summary = inference.summary, !summary.isEmpty {
+                lines.append("Goal summary: \(summary)")
+            }
+            if !inference.targetOutcomes.isEmpty {
+                lines.append("Target outcomes: \(inference.targetOutcomes.joined(separator: \", \"))")
+            }
         }
         if let overview = appVM.curriculumPlan?.overview, !overview.isEmpty {
             lines.append("Overview: \(overview)")
