@@ -126,6 +126,41 @@ class CurriculumPlan(BaseModel):
     modules: List[CurriculumModule] = Field(default_factory=list)
 
 
+class MilestonePrerequisite(BaseModel):
+    """Requirement that must be satisfied before unlocking a milestone."""
+
+    item_id: str
+    title: str
+    kind: Literal["lesson", "quiz", "milestone"]
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+    required: bool = Field(default=True)
+    recommended_day_offset: Optional[int] = None
+
+
+class MilestoneBrief(BaseModel):
+    """Structured milestone brief rendered in-app (Phase 27)."""
+
+    headline: str
+    summary: Optional[str] = None
+    objectives: List[str] = Field(default_factory=list)
+    deliverables: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    external_work: List[str] = Field(default_factory=list)
+    capture_prompts: List[str] = Field(default_factory=list)
+    prerequisites: List[MilestonePrerequisite] = Field(default_factory=list)
+    elo_focus: List[str] = Field(default_factory=list)
+    resources: List[str] = Field(default_factory=list)
+
+
+class MilestoneProgress(BaseModel):
+    """Learner-provided milestone progress snapshot."""
+
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    notes: Optional[str] = None
+    external_links: List[str] = Field(default_factory=list)
+    attachment_ids: List[str] = Field(default_factory=list)
+
+
 class SequencedWorkItem(BaseModel):
     """Single learning activity emitted by the curriculum sequencer (Phase 11)."""
 
@@ -146,6 +181,8 @@ class SequencedWorkItem(BaseModel):
     last_launched_at: Optional[datetime] = None
     last_completed_at: Optional[datetime] = None
     active_session_id: Optional[str] = None
+    milestone_brief: Optional[MilestoneBrief] = None
+    milestone_progress: Optional[MilestoneProgress] = None
 
 
 class ScheduleWarning(BaseModel):
@@ -431,6 +468,7 @@ class _DatabaseLearnerProfileStore:
         last_completed_at: Optional[datetime] = None,
         active_session_id: Optional[str] = None,
         clear_active_session: bool = False,
+        milestone_progress: Optional[MilestoneProgress] = None,
     ) -> LearnerProfile:
         with session_scope() as session:
             stored = _repo().update_schedule_item(
@@ -653,6 +691,7 @@ class _LegacyLearnerProfileStore:
         last_completed_at: Optional[datetime] = None,
         active_session_id: Optional[str] = None,
         clear_active_session: bool = False,
+        milestone_progress: Optional[MilestoneProgress] = None,
     ) -> LearnerProfile:
         with self._lock:
             profiles = self._load_unlocked()
@@ -673,6 +712,10 @@ class _LegacyLearnerProfileStore:
                 matching.active_session_id = None
             elif active_session_id is not None:
                 matching.active_session_id = active_session_id
+            if milestone_progress is not None:
+                matching.milestone_progress = milestone_progress.model_copy(deep=True)
+            elif status and status != "completed" and matching.kind == "milestone":
+                matching.milestone_progress = None
             self._touch(profile)
             self._write_unlocked(profiles)
             return self._clone(profile)
@@ -1123,16 +1166,44 @@ class LearnerProfileStore:
         last_completed_at: Optional[datetime] = None,
         active_session_id: Optional[str] = None,
         clear_active_session: bool = False,
+        milestone_progress: Optional[MilestoneProgress] = None,
     ) -> LearnerProfile:
+        profile = self.get(username)
+        if profile is None or profile.curriculum_schedule is None:
+            raise LookupError(f"No curriculum schedule configured for '{username}'.")
+        schedule = profile.curriculum_schedule
+        updated_items: list[SequencedWorkItem] = []
+        target_found = False
+        for entry in schedule.items:
+            if entry.item_id != item_id:
+                updated_items.append(entry)
+                continue
+            target_found = True
+            updates: dict[str, Any] = {}
+            if status:
+                updates["launch_status"] = status
+            if last_launched_at is not None:
+                updates["last_launched_at"] = last_launched_at
+            if last_completed_at is not None:
+                updates["last_completed_at"] = last_completed_at
+            if clear_active_session:
+                updates["active_session_id"] = None
+            elif active_session_id is not None:
+                updates["active_session_id"] = active_session_id
+            if milestone_progress is not None:
+                updates["milestone_progress"] = milestone_progress.model_copy(deep=True)
+            elif status and status != "completed" and entry.kind == "milestone":
+                updates["milestone_progress"] = None
+            updated_items.append(entry.model_copy(update=updates, deep=True))
+        if not target_found:
+            raise LookupError(f"Schedule item '{item_id}' not found for '{username}'.")
+
+        updated_schedule = schedule.model_copy(update={"items": updated_items}, deep=True)
         stored = self._call(
-            "update_schedule_item",
+            "set_curriculum_schedule",
             username,
-            item_id,
-            status=status,
-            last_launched_at=last_launched_at,
-            last_completed_at=last_completed_at,
-            active_session_id=active_session_id,
-            clear_active_session=clear_active_session,
+            updated_schedule,
+            adjustments=profile.schedule_adjustments,
         )
         self._sync_cache(username, stored)
         return stored

@@ -20,6 +20,8 @@ from .learner_profile import (
     LearnerProfile,
     ScheduleRationaleEntry,
     SequencedWorkItem,
+    MilestoneBrief,
+    MilestonePrerequisite,
     profile_store,
 )
 from .telemetry import emit_event
@@ -142,24 +144,30 @@ class CurriculumSequencer:
             if not milestone_attached:
                 milestone_id = f"milestone-{module.category_key}"
                 milestone_minutes = 90 if expected_minutes < 90 else expected_minutes + 30
-                milestone_parts = self._split_work_item(
-                    SequencedWorkItem(
-                        item_id=milestone_id,
-                        category_key=module.category_key,
-                        kind="milestone",
-                        title=f"Milestone: Apply {context.label}",
-                        summary="Translate the lesson into a tangible project increment.",
-                        objectives=[
-                            "Integrate lesson outcomes into a realistic deliverable.",
-                            "Document decisions and open questions for agent review.",
-                        ],
-                        prerequisites=[lesson_tail_id, quiz_tail_id],
-                        recommended_minutes=milestone_minutes,
-                        focus_reason="Creates a tangible artefact to measure competency gains.",
-                        expected_outcome="Wrap with notes ready for agent feedback.",
-                        effort_level="focus",
-                    )
+                milestone_item = SequencedWorkItem(
+                    item_id=milestone_id,
+                    category_key=module.category_key,
+                    kind="milestone",
+                    title=f"Milestone: Apply {context.label}",
+                    summary="Translate the lesson into a tangible project increment.",
+                    objectives=[
+                        "Integrate lesson outcomes into a realistic deliverable.",
+                        "Document decisions and open questions for agent review.",
+                    ],
+                    prerequisites=[lesson_tail_id, quiz_tail_id],
+                    recommended_minutes=milestone_minutes,
+                    focus_reason="Creates a tangible artefact to measure competency gains.",
+                    expected_outcome="Wrap with notes ready for agent feedback.",
+                    effort_level="focus",
                 )
+                milestone_item.milestone_brief = self._build_milestone_brief(
+                    module,
+                    context,
+                    profile,
+                    lesson_tail_id,
+                    quiz_tail_id,
+                )
+                milestone_parts = self._split_work_item(milestone_item)
                 chunk.extend(milestone_parts)
                 milestone_attached = True
 
@@ -447,6 +455,10 @@ class CurriculumSequencer:
             cloned.prerequisites = list(item.prerequisites)
             cloned.recommended_minutes = minutes
             cloned.user_adjusted = False
+            cloned.milestone_brief = item.milestone_brief.model_copy(deep=True) if item.milestone_brief else None
+            cloned.milestone_progress = (
+                item.milestone_progress.model_copy(deep=True) if item.milestone_progress else None
+            )
             return [cloned]
 
         parts = math.ceil(minutes / MAX_SESSION_MINUTES)
@@ -470,6 +482,10 @@ class CurriculumSequencer:
                 part.item_id = f"{item.item_id}-part{index + 1}"
                 part.prerequisites = [results[-1].item_id]
             part.user_adjusted = False
+            part.milestone_brief = item.milestone_brief.model_copy(deep=True) if item.milestone_brief else None
+            part.milestone_progress = (
+                item.milestone_progress.model_copy(deep=True) if item.milestone_progress else None
+            )
             results.append(part)
 
         total_minutes = sum(part.recommended_minutes for part in results)
@@ -484,6 +500,66 @@ class CurriculumSequencer:
             last.recommended_minutes = adjusted
 
         return results
+
+    def _build_milestone_brief(
+        self,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        profile: LearnerProfile,
+        lesson_tail_id: str,
+        quiz_tail_id: str,
+    ) -> MilestoneBrief:
+        summary = module.summary or f"Apply {context.label} in a realistic deliverable."
+        objectives = list(module.objectives) or [
+            f"Demonstrate core {context.label.lower()} fluency.",
+            "Document the journey so future refreshers anchor to real work.",
+        ]
+        deliverables = list(module.deliverables) or [
+            "Concrete project artefact (repo branch, design mock, notebook).",
+            "Reflection journal covering choices made during implementation.",
+        ]
+        success_criteria = [
+            f"Evidence that {context.label.lower()} skills improved through a tangible output.",
+            "Clear explanation of decisions, trade-offs, and any open risks.",
+        ]
+        if profile.goal:
+            success_criteria.append(f"Connect the milestone to the learner goal: {profile.goal}.")
+        external_work = [
+            f"Block focus time outside Arcadia to build or extend a {module.title.lower()} artefact.",
+            "Capture screenshots, repo links, or notes that illustrate progress.",
+        ]
+        capture_prompts = [
+            "What outcome did you produce and how does it serve your longer-term goal?",
+            "Which blockers or questions surfaced while working through the milestone?",
+            "What support or follow-ups do you want from Arcadia Coach next?",
+        ]
+        prerequisites = [
+            MilestonePrerequisite(
+                item_id=lesson_tail_id,
+                title=f"Lesson • {module.title}",
+                kind="lesson",
+            ),
+            MilestonePrerequisite(
+                item_id=quiz_tail_id,
+                title=f"Skill Check • {module.title}",
+                kind="quiz",
+            ),
+        ]
+        resources: List[str] = []
+        if module.summary:
+            resources.append(module.summary)
+        return MilestoneBrief(
+            headline=f"Ship {module.title}",
+            summary=summary,
+            objectives=objectives,
+            deliverables=deliverables,
+            success_criteria=success_criteria,
+            external_work=external_work,
+            capture_prompts=capture_prompts,
+            prerequisites=prerequisites,
+            elo_focus=[context.label] if context.label else [],
+            resources=resources,
+        )
 
     def _balance_module_chunks(
         self,

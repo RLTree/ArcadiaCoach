@@ -16,6 +16,11 @@ struct HomeView: View {
     @State private var selectedTab: MainTab = .dashboard
     @State private var sessionContentExpanded = false
     @State private var dashboardSection: DashboardSection = .elo
+    @State private var showCompletionSheet = false
+    @State private var pendingCompletionItem: SequencedWorkItem?
+    @State private var completionNotes: String = ""
+    @State private var completionLinksText: String = ""
+    @State private var selectedAttachmentIds: Set<String> = []
 
     private var assessmentTabBadge: String? {
         appVM.requiresAssessment ? "!" : nil
@@ -107,6 +112,39 @@ struct HomeView: View {
             if showOnboarding {
                 onboardingOverlay
             }
+        }
+        .sheet(isPresented: $showCompletionSheet, onDismiss: {
+            pendingCompletionItem = nil
+            selectedAttachmentIds.removeAll()
+        }) {
+            MilestoneCompletionSheet(
+                item: pendingCompletionItem,
+                notes: $completionNotes,
+                linksText: $completionLinksText,
+                attachments: appVM.pendingAssessmentAttachments,
+                selectedAttachmentIds: $selectedAttachmentIds,
+                onCancel: {
+                    showCompletionSheet = false
+                    pendingCompletionItem = nil
+                    completionNotes = ""
+                    completionLinksText = ""
+                    selectedAttachmentIds.removeAll()
+                },
+                onSubmit: {
+                    guard let item = pendingCompletionItem else {
+                        showCompletionSheet = false
+                        return
+                    }
+                    let submission = makeCompletionSubmission()
+                    showCompletionSheet = false
+                    pendingCompletionItem = nil
+                    completionNotes = ""
+                    completionLinksText = ""
+                    selectedAttachmentIds.removeAll()
+                    submitScheduleCompletion(item: item, completion: submission)
+                }
+            )
+            .environmentObject(appVM)
         }
         .onReceive(session.$lesson.compactMap { $0 }) { lesson in
             appVM.recordLesson(lesson)
@@ -558,6 +596,39 @@ struct HomeView: View {
     }
 
     private func completeSchedule(item: SequencedWorkItem) {
+        if item.kind == .milestone {
+            pendingCompletionItem = item
+            completionNotes = ""
+            completionLinksText = ""
+            selectedAttachmentIds = []
+            showCompletionSheet = true
+            Task { @MainActor in
+                await preloadCompletionAttachments()
+            }
+        } else {
+            submitScheduleCompletion(item: item, completion: .empty)
+        }
+    }
+
+    private func preloadCompletionAttachments() async {
+        guard let base = BackendService.trimmed(url: settings.chatkitBackendURL) else { return }
+        let username = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !username.isEmpty else { return }
+        await appVM.refreshPendingAssessmentAttachments(baseURL: base, username: username)
+    }
+
+    private func makeCompletionSubmission() -> ScheduleCompletionSubmission {
+        let trimmedNotes = completionNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let notesValue = trimmedNotes.isEmpty ? nil : trimmedNotes
+        let links = completionLinksText
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let attachmentIds = Array(selectedAttachmentIds)
+        return ScheduleCompletionSubmission(notes: notesValue, externalLinks: links, attachmentIds: attachmentIds)
+    }
+
+    private func submitScheduleCompletion(item: SequencedWorkItem, completion: ScheduleCompletionSubmission) {
         Task { @MainActor in
             guard let base = BackendService.trimmed(url: settings.chatkitBackendURL) else {
                 appVM.error = BackendServiceError.missingBackend.localizedDescription
@@ -574,7 +645,8 @@ struct HomeView: View {
                     baseURL: base,
                     username: username,
                     item: item,
-                    sessionId: session.sessionId
+                    sessionId: session.sessionId,
+                    completion: completion
                 )
                 session.lastEventDescription = "Marked \"\(item.title)\" complete."
             } catch let serviceError as BackendServiceError {
@@ -1028,5 +1100,103 @@ struct AssessmentSubmissionDetailView: View {
                 }
             }
         }
+    }
+}
+
+struct MilestoneCompletionSheet: View {
+    let item: SequencedWorkItem?
+    @Binding var notes: String
+    @Binding var linksText: String
+    let attachments: [AssessmentSubmissionRecord.Attachment]
+    @Binding var selectedAttachmentIds: Set<String>
+    let onCancel: () -> Void
+    let onSubmit: () -> Void
+
+    private func isSelected(_ attachment: AssessmentSubmissionRecord.Attachment) -> Bool {
+        guard let identifier = attachment.attachmentId else { return false }
+        return selectedAttachmentIds.contains(identifier)
+    }
+
+    private func toggleAttachment(_ attachment: AssessmentSubmissionRecord.Attachment, enabled: Bool) {
+        guard let identifier = attachment.attachmentId else { return }
+        if enabled {
+            selectedAttachmentIds.insert(identifier)
+        } else {
+            selectedAttachmentIds.remove(identifier)
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Reflection") {
+                    ZStack(alignment: .topLeading) {
+                        if notes.isEmpty {
+                            Text("Summarise what you delivered, decisions you made, and any blockers.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                        }
+                        TextEditor(text: $notes)
+                            .frame(minHeight: 120)
+                    }
+                }
+
+                Section("External Links") {
+                    TextEditor(text: $linksText)
+                        .frame(minHeight: 80)
+                    Text("Enter one link per line (e.g. repository, demo, documentation).")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Attachments") {
+                    if attachments.isEmpty {
+                        Text("No uploaded attachments yet. Use the assessment attachment manager to add files or links.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        ForEach(attachments) { attachment in
+                            let identifier = attachment.attachmentId
+                            Toggle(isOn: Binding(
+                                get: { isSelected(attachment) },
+                                set: { newValue in toggleAttachment(attachment, enabled: newValue) }
+                            )) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(attachment.name)
+                                        .font(.subheadline)
+                                    if let description = attachment.description, !description.isEmpty {
+                                        Text(description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let size = attachment.sizeLabel {
+                                        Text(size)
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                            .disabled(identifier == nil)
+                        }
+                        Text("Selected attachments will be linked to this milestone submission.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle(item?.title ?? "Milestone Progress")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Mark Complete", action: onSubmit)
+                        .disabled(item == nil)
+                }
+            }
+        }
+        .frame(minWidth: 520, minHeight: 460)
     }
 }

@@ -32,6 +32,14 @@ final class TelemetryReporter {
     }
 }
 
+struct ScheduleCompletionSubmission {
+    var notes: String?
+    var externalLinks: [String]
+    var attachmentIds: [String]
+
+    static let empty = ScheduleCompletionSubmission(notes: nil, externalLinks: [], attachmentIds: [])
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var game = GameState()
@@ -202,7 +210,8 @@ final class AppViewModel: ObservableObject {
         baseURL: String,
         username: String,
         item: SequencedWorkItem,
-        sessionId: String?
+        sessionId: String?,
+        completion: ScheduleCompletionSubmission
     ) async throws {
         completingScheduleItemId = item.itemId
         defer { completingScheduleItemId = nil }
@@ -210,7 +219,10 @@ final class AppViewModel: ObservableObject {
             baseURL: baseURL,
             username: username,
             itemId: item.itemId,
-            sessionId: sessionId
+            sessionId: sessionId,
+            notes: completion.notes,
+            externalLinks: completion.externalLinks,
+            attachmentIds: completion.attachmentIds
         )
         let previousSlice = curriculumSchedule?.slice
         let merged = mergeSchedules(current: curriculumSchedule, incoming: schedule, merge: curriculumSchedule != nil)

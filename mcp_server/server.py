@@ -621,8 +621,85 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
 
 
 @mcp.tool()
-def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope:
-    """Celebrate a milestone and propose next steps."""
+def milestone_update(
+    name: str,
+    summary: Optional[str] = None,
+    brief: Optional[dict] = None,
+) -> WidgetEnvelope:
+    """Celebrate a milestone and render its structured brief."""
+
+    if brief:
+        headline = brief.get("headline") or name
+        objectives = brief.get("objectives") or []
+        deliverables = brief.get("deliverables") or []
+        success = brief.get("success_criteria") or []
+        external = brief.get("external_work") or []
+        capture = brief.get("capture_prompts") or []
+        elo_focus = brief.get("elo_focus") or []
+        resources = brief.get("resources") or []
+
+        overview_sections = []
+        if objectives:
+            overview_sections.append(WidgetCardSection(heading="Objectives", items=list(objectives)))
+        if deliverables:
+            overview_sections.append(WidgetCardSection(heading="Deliverables", items=list(deliverables)))
+        if success:
+            overview_sections.append(WidgetCardSection(heading="Success criteria", items=list(success)))
+
+        overview_card = Widget(
+            type=WidgetType.CARD,
+            propsCard=WidgetCardProps(
+                title=headline,
+                sections=overview_sections or [
+                    WidgetCardSection(
+                        heading=None,
+                        items=[summary or "Capture how you applied this milestone."],
+                    )
+                ],
+            ),
+        )
+
+        rows: List[WidgetListRow] = []
+        if external:
+            rows.extend(WidgetListRow(label=item, meta="External work") for item in external)
+        if capture:
+            rows.extend(WidgetListRow(label=prompt, meta="Capture prompt") for prompt in capture)
+        if resources:
+            rows.extend(WidgetListRow(label=resource, meta="Reference") for resource in resources)
+
+        checklist_widget = None
+        if rows:
+            checklist_widget = Widget(
+                type=WidgetType.LIST,
+                propsList=WidgetListProps(
+                    title="Milestone checklist",
+                    rows=rows,
+                ),
+            )
+
+        stats_widget = None
+        if elo_focus:
+            stats_widget = Widget(
+                type=WidgetType.STAT_ROW,
+                propsStat=WidgetStatRowProps(
+                    items=[WidgetStatItem(label="Focus", value=focus) for focus in elo_focus[:4]]
+                ),
+            )
+
+        widgets = [overview_card]
+        if checklist_widget:
+            widgets.append(checklist_widget)
+        if stats_widget:
+            widgets.append(stats_widget)
+
+        display_text = summary or brief.get("summary") or "Celebrate the milestone and capture what you accomplished."
+        return WidgetEnvelope(
+            intent="Milestone",
+            display=display_text,
+            widgets=widgets,
+            citations=None,
+        )
+
     celebration = Widget(
         type=WidgetType.CARD,
         propsCard=WidgetCardProps(
@@ -633,7 +710,7 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
                     items=[
                         "Unlocked new practice arena",
                         "Bonus focus timer theme",
-                        "Invite-only study circle"
+                        "Invite-only study circle",
                     ],
                 ),
                 WidgetCardSection(
@@ -651,12 +728,9 @@ def milestone_update(name: str, summary: Optional[str] = None) -> WidgetEnvelope
         propsList=WidgetListProps(
             title="Suggested quests",
             rows=[
-                WidgetListRow(
-                    label="Draft a project retrospective", meta="15 minutes"),
-                WidgetListRow(
-                    label="Teach a friend one core concept", meta="10 minutes"),
-                WidgetListRow(label="Update Arcadia roadmap",
-                              href="https://arcadia.example/roadmap"),
+                WidgetListRow(label="Draft a project retrospective", meta="15 minutes"),
+                WidgetListRow(label="Teach a friend one core concept", meta="10 minutes"),
+                WidgetListRow(label="Update Arcadia roadmap", href="https://arcadia.example/roadmap"),
             ],
         ),
     )

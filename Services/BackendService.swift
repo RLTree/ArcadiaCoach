@@ -88,6 +88,9 @@ final class BackendService {
         var username: String
         var itemId: String
         var sessionId: String?
+        var notes: String?
+        var externalLinks: [String]?
+        var attachmentIds: [String]?
     }
 
     private struct AssessmentAttachmentLinkPayload: Encodable {
@@ -354,7 +357,10 @@ final class BackendService {
         baseURL: String,
         username: String,
         itemId: String,
-        sessionId: String?
+        sessionId: String?,
+        notes: String?,
+        externalLinks: [String],
+        attachmentIds: [String]
     ) async throws -> CurriculumSchedule {
         guard let trimmedBase = trimmed(url: baseURL) else {
             throw BackendServiceError.missingBackend
@@ -364,10 +370,20 @@ final class BackendService {
         guard !trimmedUsername.isEmpty, !trimmedItemId.isEmpty else {
             throw BackendServiceError.invalidURL
         }
+        let sanitizedLinks = externalLinks
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let sanitizedAttachments = attachmentIds
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = ScheduleCompletePayload(
             username: trimmedUsername,
             itemId: trimmedItemId,
-            sessionId: normalizedIdentifier(sessionId)
+            sessionId: normalizedIdentifier(sessionId),
+            notes: trimmedNotes?.isEmpty == false ? trimmedNotes : nil,
+            externalLinks: sanitizedLinks.isEmpty ? nil : sanitizedLinks,
+            attachmentIds: sanitizedAttachments.isEmpty ? nil : sanitizedAttachments
         )
         let schedule = try await post(
             baseURL: trimmedBase,

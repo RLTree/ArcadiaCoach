@@ -422,13 +422,107 @@ struct CurriculumScheduleView: View {
                 }
             }
 
-            if !item.prerequisites.isEmpty {
+            if let brief = item.milestoneBrief {
+                if !brief.prerequisites.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Prerequisites")
+                            .font(.caption.bold())
+                        ForEach(brief.prerequisites) { prerequisite in
+                            let status = SequencedWorkItem.LaunchStatus(rawValue: prerequisite.status) ?? .pending
+                            HStack(spacing: 8) {
+                                Image(systemName: statusIcon(for: status))
+                                    .font(.caption)
+                                Text(prerequisite.title)
+                                    .font(.caption)
+                                Spacer()
+                                Text(status.label)
+                                    .font(.caption2)
+                                    .foregroundStyle(statusColor(for: status))
+                            }
+                        }
+                    }
+                }
+                if !brief.externalWork.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("External Work")
+                            .font(.caption.bold())
+                        ForEach(brief.externalWork, id: \.self) { item in
+                            Text("• \(item)")
+                                .font(.caption)
+                        }
+                    }
+                }
+                if !brief.capturePrompts.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Capture Prompts")
+                            .font(.caption.bold())
+                        ForEach(brief.capturePrompts, id: \.self) { prompt in
+                            Text("• \(prompt)")
+                                .font(.caption)
+                        }
+                    }
+                }
+                if !brief.successCriteria.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Success Criteria")
+                            .font(.caption.bold())
+                        ForEach(brief.successCriteria, id: \.self) { criterion in
+                            Text("• \(criterion)")
+                                .font(.caption)
+                        }
+                    }
+                }
+                if !brief.eloFocus.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(brief.eloFocus, id: \.self) { focus in
+                            Text(focus)
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+                if !brief.resources.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Resources")
+                            .font(.caption.bold())
+                        ForEach(brief.resources, id: \.self) { resource in
+                            Text("• \(resource)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } else if !item.prerequisites.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Prerequisites")
                         .font(.caption.bold())
                     Text(item.prerequisites.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+            if let progress = item.milestoneProgress {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Latest Progress")
+                        .font(.caption.bold())
+                    if let notes = progress.notes, !notes.isEmpty {
+                        Text(notes)
+                            .font(.caption)
+                    }
+                    if !progress.externalLinks.isEmpty {
+                        ForEach(progress.externalLinks, id: \.self) { link in
+                            Text(link)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !progress.attachmentIds.isEmpty {
+                        Text("Attachments: \(progress.attachmentIds.joined(separator: ", "))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             HStack(alignment: .center, spacing: 12) {

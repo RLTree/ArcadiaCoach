@@ -191,6 +191,58 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(response.schedule.items.first?.activeSessionId, "session-123")
     }
 
+    func testSequencedWorkItemDecodesMilestoneBriefAndProgress() throws {
+        let json = """
+        {
+            "item_id": "milestone-backend",
+            "kind": "milestone",
+            "category_key": "backend",
+            "title": "Milestone: Apply Backend Systems",
+            "summary": "Translate the lesson into a project increment.",
+            "objectives": ["Integrate lesson outcomes", "Document decisions"],
+            "prerequisites": ["lesson-backend", "quiz-backend"],
+            "recommended_minutes": 120,
+            "recommended_day_offset": 6,
+            "effort_level": "focus",
+            "user_adjusted": false,
+            "scheduled_for": "2025-10-21T00:00:00Z",
+            "launch_status": "pending",
+            "milestone_brief": {
+                "headline": "Ship Backend Foundations",
+                "summary": "Apply backend concepts to a tangible artefact.",
+                "objectives": ["Demonstrate backend fluency"],
+                "deliverables": ["Repository branch", "Reflection notes"],
+                "success_criteria": ["Share working prototype"],
+                "external_work": ["Build feature outside Arcadia"],
+                "capture_prompts": ["What did you build?"],
+                "prerequisites": [
+                    {"item_id": "lesson-backend", "title": "Lesson • Backend Foundations", "kind": "lesson", "status": "completed", "required": true},
+                    {"item_id": "quiz-backend", "title": "Skill Check • Backend Foundations", "kind": "quiz", "status": "in_progress", "required": true}
+                ],
+                "elo_focus": ["Backend Systems"],
+                "resources": ["Backend playbook"]
+            },
+            "milestone_progress": {
+                "recorded_at": "2025-10-21T18:05:00Z",
+                "notes": "Shipped API refactor.",
+                "external_links": ["https://example.com/demo"],
+                "attachment_ids": ["attach-1"]
+            }
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        let item = try decoder.decode(SequencedWorkItem.self, from: Data(json.utf8))
+
+        XCTAssertEqual(item.kind, .milestone)
+        XCTAssertEqual(item.milestoneBrief?.headline, "Ship Backend Foundations")
+        XCTAssertEqual(item.milestoneBrief?.prerequisites.count, 2)
+        XCTAssertEqual(item.milestoneBrief?.eloFocus, ["Backend Systems"])
+        XCTAssertEqual(item.milestoneProgress?.externalLinks, ["https://example.com/demo"])
+        XCTAssertEqual(item.milestoneProgress?.attachmentIds, ["attach-1"])
+    }
+
     func testLearnerProfileSnapshotDecodesGoalInference() throws {
         let json = """
         {

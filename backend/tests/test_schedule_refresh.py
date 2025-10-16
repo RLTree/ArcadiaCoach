@@ -138,6 +138,65 @@ def test_schedule_refresh_success_emits_telemetry() -> None:
     profile_store.delete(username)
 
 
+def test_milestone_brief_attached_to_schedule() -> None:
+    username = "scheduler-brief"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    generated = generate_schedule_for_user(username)
+
+    assert generated.curriculum_schedule is not None
+    milestone = next(item for item in generated.curriculum_schedule.items if item.kind == "milestone")
+
+    assert milestone.milestone_brief is not None
+    assert milestone.milestone_brief.prerequisites, "Milestone brief should list prerequisites."
+    assert milestone.milestone_brief.elo_focus, "Milestone brief should surface ELO focus categories."
+
+    profile_store.delete(username)
+
+
+def test_schedule_completion_records_milestone_progress() -> None:
+    username = "scheduler-progress"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    events = _collect_events()
+    client = TestClient(app)
+
+    refresh = client.get(f"/api/profile/{username}/schedule", params={"refresh": "true"})
+    assert refresh.status_code == 200, refresh.text
+    schedule_payload = refresh.json()
+    milestone = next(item for item in schedule_payload["items"] if item["kind"] == "milestone")
+
+    complete = client.post(
+        "/api/session/schedule/complete",
+        json={
+            "username": username,
+            "item_id": milestone["item_id"],
+            "notes": "Shipped the backend prototype.",
+            "external_links": ["https://example.com/repo"],
+            "attachment_ids": ["attach-123"],
+        },
+    )
+    assert complete.status_code == 200, complete.text
+    updated_schedule = complete.json()
+    milestone_payload = next(item for item in updated_schedule["items"] if item["item_id"] == milestone["item_id"])
+
+    assert milestone_payload["milestone_progress"] is not None
+    assert milestone_payload["milestone_progress"]["notes"] == "Shipped the backend prototype."
+    assert milestone_payload["milestone_progress"]["external_links"] == ["https://example.com/repo"]
+    assert milestone_payload["milestone_progress"]["attachment_ids"] == ["attach-123"]
+
+    progress_events = [
+        event
+        for event in events
+        if event.name == "schedule_launch_completed" and event.payload.get("status") == "completed"
+    ]
+    assert progress_events, "Expected schedule completion telemetry event."
+    assert progress_events[-1].payload.get("progress_recorded") is True
+
+    clear_listeners()
+    profile_store.delete(username)
+
+
 def test_schedule_generation_respects_adjustments() -> None:
     username = "scheduler-adjust"
     profile_store.delete(username)

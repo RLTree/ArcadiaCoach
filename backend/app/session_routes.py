@@ -29,7 +29,7 @@ from .agent_models import (
 )
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
-from .learner_profile import LearnerProfile, SequencedWorkItem, profile_store
+from .learner_profile import LearnerProfile, SequencedWorkItem, MilestoneProgress, profile_store
 from .memory_store import MemoryStore
 from .prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
 from .telemetry import emit_event
@@ -122,6 +122,22 @@ def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProf
         lines.append(f"Expected outcome: {item.expected_outcome}")
     if item.focus_reason:
         lines.append(f"Focus reason: {item.focus_reason}")
+    if item.kind == "milestone":
+        brief = getattr(item, "milestone_brief", None)
+        if brief:
+            lines.append(f"Milestone brief: {brief.headline}")
+            if brief.external_work:
+                lines.append(
+                    "External work checklist:\n" + "\n".join(f"- {step}" for step in brief.external_work)
+                )
+            if brief.success_criteria:
+                lines.append(
+                    "Success criteria:\n" + "\n".join(f"- {criteria}" for criteria in brief.success_criteria)
+                )
+            if brief.capture_prompts:
+                lines.append(
+                    "Capture prompts:\n" + "\n".join(f"- {prompt}" for prompt in brief.capture_prompts)
+                )
     if profile.goal:
         lines.append(f"Learner goal: {profile.goal}")
     if profile.strengths:
@@ -401,6 +417,9 @@ class ScheduleCompleteRequest(BaseModel):
     username: str = Field(..., min_length=1)
     item_id: str = Field(..., min_length=1)
     session_id: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=4000)
+    external_links: List[str] = Field(default_factory=list)
+    attachment_ids: List[str] = Field(default_factory=list)
 
 
 class ResetRequest(BaseModel):
@@ -686,6 +705,21 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
     previous_launch = item.last_launched_at
     previous_status = item.launch_status
     now = datetime.now(timezone.utc)
+    notes = payload.notes.strip() if isinstance(payload.notes, str) and payload.notes.strip() else None
+    links = [link.strip() for link in payload.external_links if isinstance(link, str) and link.strip()]
+    attachment_ids = [att.strip() for att in payload.attachment_ids if isinstance(att, str) and att.strip()]
+    progress_entry: Optional[MilestoneProgress] = None
+    if (notes or links or attachment_ids) and item.kind != "milestone":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only milestone items accept progress notes or attachments.",
+        )
+    if item.kind == "milestone" and (notes or links or attachment_ids):
+        progress_entry = MilestoneProgress(
+            notes=notes,
+            external_links=links,
+            attachment_ids=attachment_ids,
+        )
     try:
         profile = profile_store.update_schedule_item(
             username,
@@ -693,6 +727,7 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             status="completed",
             last_completed_at=now,
             clear_active_session=True,
+            milestone_progress=progress_entry,
         )
     except LookupError as exc:
         raise HTTPException(
@@ -717,6 +752,7 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
         session_id=payload.session_id or item.active_session_id,
         duration_ms=duration_ms,
         previous_status=previous_status,
+        progress_recorded=bool(progress_entry),
     )
     return schedule_payload
 

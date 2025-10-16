@@ -100,6 +100,35 @@ class CurriculumModulePayload(BaseModel):
     prerequisite_module_ids: List[str] = Field(default_factory=list)
 
 
+class MilestonePrerequisitePayload(BaseModel):
+    item_id: str
+    title: str
+    kind: Literal["lesson", "quiz", "milestone"]
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+    required: bool = Field(default=True)
+    recommended_day_offset: Optional[int] = None
+
+
+class MilestoneBriefPayload(BaseModel):
+    headline: str
+    summary: Optional[str] = None
+    objectives: List[str] = Field(default_factory=list)
+    deliverables: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    external_work: List[str] = Field(default_factory=list)
+    capture_prompts: List[str] = Field(default_factory=list)
+    prerequisites: List[MilestonePrerequisitePayload] = Field(default_factory=list)
+    elo_focus: List[str] = Field(default_factory=list)
+    resources: List[str] = Field(default_factory=list)
+
+
+class MilestoneProgressPayload(BaseModel):
+    recorded_at: datetime
+    notes: Optional[str] = None
+    external_links: List[str] = Field(default_factory=list)
+    attachment_ids: List[str] = Field(default_factory=list)
+
+
 class SequencedWorkItemPayload(BaseModel):
     item_id: str
     kind: Literal["lesson", "quiz", "milestone"]
@@ -120,6 +149,8 @@ class SequencedWorkItemPayload(BaseModel):
     last_completed_at: Optional[datetime] = None
     active_session_id: Optional[str] = None
     launch_locked_reason: Optional[str] = None
+    milestone_brief: Optional[MilestoneBriefPayload] = None
+    milestone_progress: Optional[MilestoneProgressPayload] = None
 
 
 class ScheduleWarningPayload(BaseModel):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from ..assessment_result import AssessmentGradingResult
@@ -28,6 +28,7 @@ from ..learner_profile import (
     SequencedWorkItem,
     DEFAULT_VECTOR_STORE_ID,
     EloCategoryPlan,
+    MilestoneProgress,
 )
 
 MAX_MEMORY_RECORDS = 150
@@ -266,6 +267,7 @@ class LearnerProfileRepository:
         last_completed_at: Optional[datetime] = None,
         active_session_id: Optional[str] = None,
         clear_active_session: bool = False,
+        milestone_progress: Optional[MilestoneProgress] = None,
     ) -> LearnerProfile:
         model = self._require_model(session, username)
         schedule_model = self._get_schedule_model(session, model.id)
@@ -281,16 +283,30 @@ class LearnerProfileRepository:
         record = session.execute(stmt).scalar_one_or_none()
         if record is None:
             raise LookupError(f"Schedule item '{item_id}' not found for '{username}'.")
+
+        update_values: dict[str, Any] = {}
         if status:
-            record.status = status
+            update_values["status"] = status
         if last_launched_at is not None:
-            record.last_started_at = last_launched_at
+            update_values["last_started_at"] = last_launched_at
         if last_completed_at is not None:
-            record.last_completed_at = last_completed_at
+            update_values["last_completed_at"] = last_completed_at
         if clear_active_session:
-            record.active_session_id = None
+            update_values["active_session_id"] = None
         elif active_session_id is not None:
-            record.active_session_id = active_session_id
+            update_values["active_session_id"] = active_session_id
+        if milestone_progress is not None:
+            update_values["milestone_progress"] = milestone_progress.model_dump(mode="json")
+        elif status and status != "completed" and record.kind == "milestone":
+            update_values["milestone_progress"] = None
+
+        if update_values:
+            session.execute(
+                update(CurriculumScheduleItemModel)
+                .where(CurriculumScheduleItemModel.id == record.id)
+                .values(**update_values)
+            )
+
         session.flush()
         model.last_updated = datetime.now(timezone.utc)
         self._record_audit(
@@ -301,6 +317,7 @@ class LearnerProfileRepository:
                 "item_id": item_id,
                 "status": status,
                 "clear_active_session": clear_active_session,
+                "progress_recorded": milestone_progress is not None,
             },
         )
         return self._to_domain(session, model)
@@ -579,6 +596,8 @@ class LearnerProfileRepository:
                     "last_launched_at": item.last_started_at,
                     "last_completed_at": item.last_completed_at,
                     "active_session_id": item.active_session_id,
+                    "milestone_brief": item.milestone_brief,
+                    "milestone_progress": item.milestone_progress,
                 }
                 for item in items
             ],
@@ -629,6 +648,16 @@ class LearnerProfileRepository:
                     last_started_at=getattr(work_item, "last_launched_at", None),
                     last_completed_at=getattr(work_item, "last_completed_at", None),
                     active_session_id=getattr(work_item, "active_session_id", None),
+                    milestone_brief=(
+                        work_item.milestone_brief.model_dump(mode="json")
+                        if work_item.milestone_brief
+                        else None
+                    ),
+                    milestone_progress=(
+                        work_item.milestone_progress.model_dump(mode="json")
+                        if work_item.milestone_progress
+                        else None
+                    ),
                 )
             )
 

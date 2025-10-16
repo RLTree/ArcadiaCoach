@@ -138,6 +138,8 @@ class CurriculumScheduleItemModel(Base):
     last_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     active_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    milestone_brief: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    milestone_progress: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 

@@ -18,6 +18,8 @@ from .learner_profile import (
     FoundationModuleReference,
     FoundationTrack,
     LearnerProfile,
+    MilestoneBrief,
+    MilestonePrerequisite,
     profile_store,
     slice_schedule,
 )
@@ -49,6 +51,9 @@ from .agent_models import (
     ScheduleRationaleEntryPayload,
     ScheduleWarningPayload,
     ScheduleSlicePayload,
+    MilestoneBriefPayload,
+    MilestonePrerequisitePayload,
+    MilestoneProgressPayload,
     SequencedWorkItemPayload,
     SkillRatingPayload,
 )
@@ -123,10 +128,85 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             return "Complete earlier lessons and quizzes before unlocking this milestone."
         return None
 
+    item_lookup = {entry.item_id: entry for entry in schedule.items}
+
+    def _prerequisites_for_brief(
+        brief: MilestoneBrief | None,
+        item: Any,
+    ) -> List[MilestonePrerequisitePayload]:
+        prerequisites: List[MilestonePrerequisite] = []
+        if brief and brief.prerequisites:
+            prerequisites = list(brief.prerequisites)
+        elif getattr(item, "prerequisites", None):
+            prerequisites = [
+                MilestonePrerequisite(
+                    item_id=prereq_id,
+                    title=getattr(item_lookup.get(prereq_id), "title", prereq_id),
+                    kind=getattr(item_lookup.get(prereq_id), "kind", "lesson"),
+                    status=getattr(item_lookup.get(prereq_id), "launch_status", "pending"),
+                    recommended_day_offset=getattr(item_lookup.get(prereq_id), "recommended_day_offset", None),
+                )
+                for prereq_id in getattr(item, "prerequisites", [])
+            ]
+
+        payload: List[MilestonePrerequisitePayload] = []
+        for entry in prerequisites:
+            source = item_lookup.get(entry.item_id)
+            title = entry.title
+            kind = entry.kind
+            status = entry.status
+            recommended_day_offset = entry.recommended_day_offset
+            if source is not None:
+                title = getattr(source, "title", title)
+                kind = getattr(source, "kind", kind)
+                status = getattr(source, "launch_status", status)
+                recommended_day_offset = getattr(source, "recommended_day_offset", recommended_day_offset)
+            payload.append(
+                MilestonePrerequisitePayload(
+                    item_id=entry.item_id,
+                    title=title,
+                    kind=kind,
+                    status=status,
+                    required=entry.required,
+                    recommended_day_offset=recommended_day_offset,
+                )
+            )
+        return payload
+
     for item in schedule.items:
         local_date = anchor_date + timedelta(days=item.recommended_day_offset)
         scheduled_for = datetime.combine(local_date, time.min, tzinfo=tz)
         locked_reason = _locked_reason(item, schedule.items)
+        brief_payload: MilestoneBriefPayload | None = None
+        progress_payload: MilestoneProgressPayload | None = None
+        milestone_brief = getattr(item, "milestone_brief", None)
+        milestone_progress = getattr(item, "milestone_progress", None)
+        if milestone_brief:
+            brief_payload = MilestoneBriefPayload(
+                headline=milestone_brief.headline,
+                summary=milestone_brief.summary,
+                objectives=list(milestone_brief.objectives),
+                deliverables=list(milestone_brief.deliverables),
+                success_criteria=list(milestone_brief.success_criteria),
+                external_work=list(milestone_brief.external_work),
+                capture_prompts=list(milestone_brief.capture_prompts),
+                prerequisites=_prerequisites_for_brief(milestone_brief, item),
+                elo_focus=list(milestone_brief.elo_focus),
+                resources=list(milestone_brief.resources),
+            )
+        elif getattr(item, "prerequisites", None):
+            brief_payload = MilestoneBriefPayload(
+                headline=item.title,
+                summary=getattr(item, "summary", None),
+                prerequisites=_prerequisites_for_brief(None, item),
+            )
+        if milestone_progress:
+            progress_payload = MilestoneProgressPayload(
+                recorded_at=milestone_progress.recorded_at,
+                notes=milestone_progress.notes,
+                external_links=list(milestone_progress.external_links),
+                attachment_ids=list(milestone_progress.attachment_ids),
+            )
         items.append(
             SequencedWorkItemPayload(
                 item_id=item.item_id,
@@ -148,6 +228,8 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 last_completed_at=getattr(item, "last_completed_at", None),
                 active_session_id=getattr(item, "active_session_id", None),
                 launch_locked_reason=locked_reason,
+                milestone_brief=brief_payload,
+                milestone_progress=progress_payload,
             )
         )
     allocations = [

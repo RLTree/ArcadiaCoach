@@ -270,6 +270,37 @@ struct CurriculumSchedule: Codable, Hashable {
     }
 }
 
+struct MilestonePrerequisite: Codable, Hashable, Identifiable {
+    var itemId: String
+    var title: String
+    var kind: String
+    var status: String
+    var required: Bool
+    var recommendedDayOffset: Int?
+
+    var id: String { itemId }
+}
+
+struct MilestoneBrief: Codable, Hashable {
+    var headline: String
+    var summary: String?
+    var objectives: [String]
+    var deliverables: [String]
+    var successCriteria: [String]
+    var externalWork: [String]
+    var capturePrompts: [String]
+    var prerequisites: [MilestonePrerequisite]
+    var eloFocus: [String]
+    var resources: [String]
+}
+
+struct MilestoneProgress: Codable, Hashable {
+    var recordedAt: Date
+    var notes: String?
+    var externalLinks: [String]
+    var attachmentIds: [String]
+}
+
 struct SequencedWorkItem: Codable, Hashable, Identifiable {
     enum Kind: String, Codable, Hashable {
         case lesson
@@ -352,6 +383,8 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var lastCompletedAt: Date?
     var activeSessionId: String?
     var launchLockedReason: String?
+    var milestoneBrief: MilestoneBrief?
+    var milestoneProgress: MilestoneProgress?
 
     var id: String { itemId }
 
