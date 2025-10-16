@@ -405,6 +405,7 @@ struct HomeView: View {
             DashboardScheduleSection(
                 schedule: appVM.curriculumSchedule,
                 categoryLabels: categoryLabels,
+                milestoneCompletions: appVM.milestoneCompletions,
                 isRefreshing: appVM.scheduleRefreshing,
                 isLoadingNextSlice: appVM.loadingScheduleSlice,
                 adjustingItemId: appVM.adjustingScheduleItemId,

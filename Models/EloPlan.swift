@@ -134,6 +134,7 @@ struct LearnerProfileSnapshot: Codable {
     var eloCategoryPlan: EloCategoryPlan?
     var curriculumPlan: OnboardingCurriculumPlan?
     var curriculumSchedule: CurriculumSchedule?
+    var milestoneCompletions: [MilestoneCompletion] = []
     var onboardingAssessment: OnboardingAssessment?
     var onboardingAssessmentResult: AssessmentGradingResult?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
@@ -212,6 +213,7 @@ struct CurriculumSchedule: Codable, Hashable {
     var anchorDate: Date?
     var cadenceNotes: String?
     var items: [SequencedWorkItem]
+    var milestoneCompletions: [MilestoneCompletion] = []
     var isStale: Bool = false
     var warnings: [ScheduleWarning] = []
     var pacingOverview: String?
@@ -299,6 +301,24 @@ struct MilestoneProgress: Codable, Hashable {
     var notes: String?
     var externalLinks: [String]
     var attachmentIds: [String]
+}
+
+struct MilestoneCompletion: Codable, Hashable, Identifiable {
+    var completionId: String
+    var itemId: String
+    var categoryKey: String
+    var title: String
+    var headline: String?
+    var summary: String?
+    var notes: String?
+    var externalLinks: [String]
+    var attachmentIds: [String]
+    var eloFocus: [String]
+    var recommendedDayOffset: Int?
+    var sessionId: String?
+    var recordedAt: Date
+
+    var id: String { completionId }
 }
 
 struct SequencedWorkItem: Codable, Hashable, Identifiable {

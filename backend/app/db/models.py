@@ -63,6 +63,9 @@ class LearnerProfileModel(TimestampMixin, Base):
     attachments: Mapped[list["AssessmentAttachmentModel"]] = relationship(
         back_populates="learner", cascade="all, delete-orphan"
     )
+    milestone_completions: Mapped[list["MilestoneCompletionModel"]] = relationship(
+        back_populates="learner", cascade="all, delete-orphan"
+    )
 
 
 class LearnerMemoryRecordModel(Base):
@@ -144,6 +147,35 @@ class CurriculumScheduleItemModel(Base):
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 
 
+class MilestoneCompletionModel(TimestampMixin, Base):
+    __tablename__ = "milestone_completions"
+    __table_args__ = (
+        Index("ix_milestone_completions_learner", "learner_id"),
+        UniqueConstraint("learner_id", "item_id", name="uq_milestone_completion_item"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    learner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("learner_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    item_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    category_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    headline: Mapped[str | None] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    external_links: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
+    attachment_ids: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
+    elo_focus: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
+    recommended_day_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    learner: Mapped[LearnerProfileModel] = relationship(back_populates="milestone_completions")
+
+
 class AssessmentSubmissionModel(Base):
     __tablename__ = "assessment_submissions"
     __table_args__ = (
@@ -219,5 +251,6 @@ __all__ = [
     "CurriculumScheduleModel",
     "LearnerMemoryRecordModel",
     "LearnerProfileModel",
+    "MilestoneCompletionModel",
     "PersistenceAuditEventModel",
 ]

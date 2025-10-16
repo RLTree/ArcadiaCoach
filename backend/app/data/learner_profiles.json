@@ -149,7 +149,13 @@
           "focus_reason": "ELO 1100; aligned with goal: goal",
           "expected_outcome": "deliver",
           "effort_level": "moderate",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "quiz-m1",
@@ -169,7 +175,13 @@
           "focus_reason": "Validates progress before expanding backend coverage.",
           "expected_outcome": "Score at least 70% to stay on track.",
           "effort_level": "light",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "milestone-backend",
@@ -190,7 +202,13 @@
           "focus_reason": "Creates a tangible artefact to measure competency gains.",
           "expected_outcome": "Wrap with notes ready for agent feedback.",
           "effort_level": "focus",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "lesson-m2",
@@ -207,7 +225,13 @@
           "focus_reason": "ELO 1100; aligned with goal: goal",
           "expected_outcome": "deliver",
           "effort_level": "moderate",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "quiz-m2",
@@ -227,7 +251,13 @@
           "focus_reason": "Validates progress before expanding backend coverage.",
           "expected_outcome": "Score at least 70% to stay on track.",
           "effort_level": "light",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "lesson-m3",
@@ -244,7 +274,13 @@
           "focus_reason": "ELO 1100; aligned with goal: goal",
           "expected_outcome": "deliver",
           "effort_level": "moderate",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "quiz-m3",
@@ -264,7 +300,13 @@
           "focus_reason": "Validates progress before expanding backend coverage.",
           "expected_outcome": "Score at least 70% to stay on track.",
           "effort_level": "light",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "lesson-m4",
@@ -281,7 +323,13 @@
           "focus_reason": "ELO 1100; aligned with goal: goal",
           "expected_outcome": "deliver",
           "effort_level": "moderate",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "quiz-m4",
@@ -301,7 +349,13 @@
           "focus_reason": "Validates progress before expanding backend coverage.",
           "expected_outcome": "Score at least 70% to stay on track.",
           "effort_level": "light",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "lesson-m5",
@@ -318,7 +372,13 @@
           "focus_reason": "ELO 1100; aligned with goal: goal",
           "expected_outcome": "deliver",
           "effort_level": "moderate",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         },
         {
           "item_id": "quiz-m5",
@@ -338,7 +398,13 @@
           "focus_reason": "Validates progress before expanding backend coverage.",
           "expected_outcome": "Score at least 70% to stay on track.",
           "effort_level": "light",
-          "user_adjusted": false
+          "user_adjusted": false,
+          "launch_status": "pending",
+          "last_launched_at": null,
+          "last_completed_at": null,
+          "active_session_id": null,
+          "milestone_brief": null,
+          "milestone_progress": null
         }
       ],
       "is_stale": false,
@@ -350,13 +416,15 @@
       "projected_weekly_minutes": 0,
       "long_range_item_count": 0,
       "extended_weeks": 0,
-      "long_range_category_keys": []
+      "long_range_category_keys": [],
+      "slice": null
     },
     "schedule_adjustments": {},
     "onboarding_assessment": null,
     "onboarding_assessment_result": null,
     "goal_inference": null,
     "foundation_tracks": [],
+    "milestone_completions": [],
     "last_updated": "2025-10-14T04:29:12.619924Z"
   }
 }

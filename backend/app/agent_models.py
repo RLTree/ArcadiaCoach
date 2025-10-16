@@ -153,6 +153,22 @@ class SequencedWorkItemPayload(BaseModel):
     milestone_progress: Optional[MilestoneProgressPayload] = None
 
 
+class MilestoneCompletionPayload(BaseModel):
+    completion_id: str
+    item_id: str
+    category_key: str
+    title: str
+    headline: Optional[str] = None
+    summary: Optional[str] = None
+    notes: Optional[str] = None
+    external_links: List[str] = Field(default_factory=list)
+    attachment_ids: List[str] = Field(default_factory=list)
+    elo_focus: List[str] = Field(default_factory=list)
+    recommended_day_offset: Optional[int] = None
+    session_id: Optional[str] = None
+    recorded_at: datetime
+
+
 class ScheduleWarningPayload(BaseModel):
     code: str
     message: str
@@ -206,6 +222,7 @@ class CurriculumSchedulePayload(BaseModel):
     extended_weeks: int = Field(default=0, ge=0)
     long_range_category_keys: List[str] = Field(default_factory=list)
     slice: Optional[ScheduleSlicePayload] = None
+    milestone_completions: List[MilestoneCompletionPayload] = Field(default_factory=list)
 
 
 class ScheduleLaunchContentPayload(BaseModel):
@@ -388,6 +405,7 @@ class LearnerProfilePayload(BaseModel):
     goal_inference: Optional[GoalParserInferencePayload] = None
     foundation_tracks: List[FoundationTrackPayload] = Field(default_factory=list)
     assessment_submissions: List[AssessmentSubmissionPayload] = Field(default_factory=list)
+    milestone_completions: List[MilestoneCompletionPayload] = Field(default_factory=list)
 
 
 class LearnerProfileGetResponse(BaseModel):

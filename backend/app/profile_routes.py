@@ -28,6 +28,7 @@ from .agent_models import (
     OnboardingAssessmentPayload,
     OnboardingAssessmentTaskPayload,
     OnboardingCurriculumPayload,
+    MilestoneCompletionPayload,
     SkillRatingPayload,
 )
 from .assessment_submission import submission_payload, submission_store
@@ -40,6 +41,7 @@ from .learner_profile import (
     EloCategoryDefinition,
     EloRubricBand,
     LearnerProfile,
+    MilestoneCompletion,
     OnboardingAssessment,
     ScheduleWarning,
     FoundationModuleReference,
@@ -135,6 +137,28 @@ def _assessment_section_payload(section: AssessmentSection) -> AssessmentSection
     )
 
 
+def _milestone_completion_payloads(profile: LearnerProfile) -> List[MilestoneCompletionPayload]:
+    completions = getattr(profile, "milestone_completions", []) or []
+    return [
+        MilestoneCompletionPayload(
+            completion_id=entry.completion_id,
+            item_id=entry.item_id,
+            category_key=entry.category_key,
+            title=entry.title,
+            headline=entry.headline,
+            summary=entry.summary,
+            notes=entry.notes,
+            external_links=list(entry.external_links or []),
+            attachment_ids=list(entry.attachment_ids or []),
+            elo_focus=list(entry.elo_focus or []),
+            recommended_day_offset=entry.recommended_day_offset,
+            session_id=entry.session_id,
+            recorded_at=entry.recorded_at,
+        )
+        for entry in completions
+    ]
+
+
 def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
     plan = profile.elo_category_plan
     plan_payload: EloCategoryPlanPayload | None = None
@@ -181,6 +205,24 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
             ],
         )
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    completion_payloads = [
+        MilestoneCompletionPayload(
+            completion_id=entry.completion_id,
+            item_id=entry.item_id,
+            category_key=entry.category_key,
+            title=entry.title,
+            headline=entry.headline,
+            summary=entry.summary,
+            notes=entry.notes,
+            external_links=list(entry.external_links or []),
+            attachment_ids=list(entry.attachment_ids or []),
+            elo_focus=list(entry.elo_focus or []),
+            recommended_day_offset=entry.recommended_day_offset,
+            session_id=entry.session_id,
+            recorded_at=entry.recorded_at,
+        )
+        for entry in getattr(profile, "milestone_completions", []) or []
+    ]
     assessment_payload: OnboardingAssessmentPayload | None = None
     if profile.onboarding_assessment:
         assessment = _ensure_assessment_task_coverage(profile)
@@ -275,6 +317,7 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
         goal_inference=inference_payload,
         foundation_tracks=track_payloads,
         assessment_submissions=submission_payloads,
+        milestone_completions=completion_payloads,
     )
 
 
@@ -459,6 +502,7 @@ def get_curriculum_schedule(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+    schedule_payload.milestone_completions = _milestone_completion_payloads(profile)
     duration_ms = round((perf_counter() - started_at) * 1000.0, 2)
 
     if fallback_schedule is not None:

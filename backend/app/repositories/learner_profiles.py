@@ -15,6 +15,7 @@ from ..db.models import (
     CurriculumScheduleModel,
     LearnerMemoryRecordModel,
     LearnerProfileModel,
+    MilestoneCompletionModel,
     PersistenceAuditEventModel,
 )
 from ..learner_profile import (
@@ -24,9 +25,11 @@ from ..learner_profile import (
     GoalParserInference,
     LearnerProfile,
     MemoryRecord,
+    MilestoneCompletion,
     OnboardingAssessment,
     SequencedWorkItem,
     DEFAULT_VECTOR_STORE_ID,
+    MAX_MILESTONE_COMPLETIONS,
     EloCategoryPlan,
     MilestoneProgress,
 )
@@ -322,6 +325,87 @@ class LearnerProfileRepository:
         )
         return self._to_domain(session, model)
 
+    def record_milestone_completion(
+        self,
+        session: Session,
+        username: str,
+        completion: MilestoneCompletion,
+    ) -> LearnerProfile:
+        model = self._require_model(session, username, create_if_missing=True)
+        stmt = (
+            select(MilestoneCompletionModel)
+            .where(
+                MilestoneCompletionModel.learner_id == model.id,
+                MilestoneCompletionModel.item_id == completion.item_id,
+            )
+        )
+        record = session.execute(stmt).scalar_one_or_none()
+        if record is None:
+            record = MilestoneCompletionModel(
+                id=completion.completion_id,
+                learner_id=model.id,
+                item_id=completion.item_id,
+                category_key=completion.category_key,
+                title=completion.title,
+                headline=completion.headline,
+                summary=completion.summary,
+                notes=completion.notes,
+                external_links=list(completion.external_links or []),
+                attachment_ids=list(completion.attachment_ids or []),
+                elo_focus=list(completion.elo_focus or []),
+                recommended_day_offset=completion.recommended_day_offset,
+                session_id=completion.session_id,
+                recorded_at=completion.recorded_at,
+            )
+            session.add(record)
+        else:
+            record.category_key = completion.category_key
+            record.title = completion.title
+            record.headline = completion.headline
+            record.summary = completion.summary
+            record.notes = completion.notes
+            record.external_links = list(completion.external_links or [])
+            record.attachment_ids = list(completion.attachment_ids or [])
+            record.elo_focus = list(completion.elo_focus or [])
+            record.recommended_day_offset = completion.recommended_day_offset
+            record.session_id = completion.session_id
+            record.recorded_at = completion.recorded_at
+
+        snapshot = dict(model.elo_snapshot or {})
+        focus_categories = list(completion.elo_focus or []) or [completion.category_key]
+        for key in focus_categories:
+            if not isinstance(key, str) or not key:
+                continue
+            rating = int(snapshot.get(key, 1100))
+            snapshot[key] = max(rating + 12, 0)
+        model.elo_snapshot = snapshot
+
+        model.last_updated = datetime.now(timezone.utc)
+        session.flush()
+
+        stmt_all = (
+            select(MilestoneCompletionModel)
+            .where(MilestoneCompletionModel.learner_id == model.id)
+            .order_by(MilestoneCompletionModel.recorded_at.desc(), MilestoneCompletionModel.created_at.desc())
+        )
+        records = session.execute(stmt_all).scalars().all()
+        if len(records) > MAX_MILESTONE_COMPLETIONS:
+            for stale in records[MAX_MILESTONE_COMPLETIONS:]:
+                session.delete(stale)
+            session.flush()
+
+        self._record_audit(
+            session,
+            model.id,
+            "milestone_completion_recorded",
+            {
+                "item_id": completion.item_id,
+                "category_key": completion.category_key,
+                "recorded_at": completion.recorded_at.isoformat(),
+            },
+        )
+        return self._to_domain(session, model)
+
     def apply_schedule_adjustment(self, session: Session, username: str, item_id: str, target_offset: int) -> LearnerProfile:
         model = self._require_model(session, username)
         if not item_id:
@@ -516,6 +600,7 @@ class LearnerProfileRepository:
             "knowledge_tags": model.knowledge_tags or [],
             "recent_sessions": model.recent_sessions or [],
             "memory_records": self._load_memory_records(session, model.id),
+            "milestone_completions": self._load_milestone_completions(session, model.id),
             "memory_index_id": model.memory_index_id or DEFAULT_VECTOR_STORE_ID,
             "elo_snapshot": model.elo_snapshot or {},
             "schedule_adjustments": model.schedule_adjustments or {},
@@ -558,6 +643,32 @@ class LearnerProfileRepository:
                 note=record.note,
                 tags=list(record.tags or []),
                 created_at=record.created_at,
+            )
+            for record in records
+        ]
+
+    def _load_milestone_completions(self, session: Session, learner_id) -> list[MilestoneCompletion]:
+        stmt = (
+            select(MilestoneCompletionModel)
+            .where(MilestoneCompletionModel.learner_id == learner_id)
+            .order_by(MilestoneCompletionModel.recorded_at.desc(), MilestoneCompletionModel.created_at.desc())
+        )
+        records = session.execute(stmt).scalars().all()
+        return [
+            MilestoneCompletion(
+                completion_id=record.id,
+                item_id=record.item_id,
+                category_key=record.category_key,
+                title=record.title,
+                headline=record.headline,
+                summary=record.summary,
+                notes=record.notes,
+                external_links=list(record.external_links or []),
+                attachment_ids=list(record.attachment_ids or []),
+                elo_focus=list(record.elo_focus or []),
+                recommended_day_offset=record.recommended_day_offset,
+                session_id=record.session_id,
+                recorded_at=record.recorded_at,
             )
             for record in records
         ]

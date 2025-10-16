@@ -193,6 +193,18 @@ def test_schedule_completion_records_milestone_progress() -> None:
     assert progress_events, "Expected schedule completion telemetry event."
     assert progress_events[-1].payload.get("progress_recorded") is True
 
+    completion_events = [event for event in events if event.name == "milestone_completion_recorded"]
+    assert completion_events, "Expected milestone completion telemetry event."
+    assert completion_events[-1].payload.get("item_id") == milestone["item_id"]
+
+    stored_profile = profile_store.get(username)
+    assert stored_profile is not None
+    assert stored_profile.milestone_completions, "Expected milestone completion history to be recorded."
+    recorded = stored_profile.milestone_completions[0]
+    assert recorded.item_id == milestone["item_id"]
+    assert recorded.notes == "Shipped the backend prototype."
+    assert recorded.external_links == ["https://example.com/repo"]
+
     clear_listeners()
     profile_store.delete(username)
 

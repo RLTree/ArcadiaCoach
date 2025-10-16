@@ -10,6 +10,23 @@ final class BackendServiceTests: XCTestCase {
         "anchor_date": "2025-10-14T00:00:00Z",
         "cadence_notes": "Scheduled 18 items across 18 sessions (~780 minutes total) spanning ~126 days.",
         "items": [],
+        "milestone_completions": [
+            {
+                "completion_id": "complete-backend",
+                "item_id": "milestone-backend",
+                "category_key": "backend",
+                "title": "Milestone: Apply Backend Systems",
+                "headline": "Milestone: Apply Backend Systems",
+                "summary": "Wrapped a resilient service increment.",
+                "notes": "Captured observability rollout and next stretch goals.",
+                "external_links": ["https://example.com/demo"],
+                "attachment_ids": ["attach-1"],
+                "elo_focus": ["Backend Systems"],
+                "recommended_day_offset": 14,
+                "session_id": "session-789",
+                "recorded_at": "2025-10-13T18:00:00Z"
+            }
+        ],
         "is_stale": false,
         "warnings": [],
         "pacing_overview": "Pacing 3 sessions/week (~130 minutes/week) over 126 days (~18 weeks, ~780 minutes total). Focus mix: Backend Systems 60%; Frontend Flow 40%.",
@@ -87,6 +104,7 @@ final class BackendServiceTests: XCTestCase {
                     "launch_locked_reason": null
                 }
             ],
+            "milestone_completions": [],
             "category_allocations": [],
             "rationale_history": [],
             "is_stale": false,
@@ -171,6 +189,8 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.longRangeItemCount, 6)
         XCTAssertEqual(schedule.extendedWeeks, 18)
         XCTAssertEqual(schedule.longRangeCategoryKeys, ["backend", "frontend"])
+        XCTAssertEqual(schedule.milestoneCompletions.count, 1)
+        XCTAssertEqual(schedule.milestoneCompletions.first?.title, "Milestone: Apply Backend Systems")
         XCTAssertEqual(schedule.slice?.startDay, 0)
         XCTAssertEqual(schedule.slice?.daySpan, 7)
         XCTAssertEqual(schedule.slice?.hasMore, true)
@@ -282,6 +302,23 @@ final class BackendServiceTests: XCTestCase {
                 ],
                 "missing_templates": []
             },
+            "milestone_completions": [
+                {
+                    "completion_id": "complete-backend",
+                    "item_id": "milestone-backend",
+                    "category_key": "backend",
+                    "title": "Backend Systems Milestone",
+                    "headline": "Backend Systems Milestone",
+                    "summary": "Delivered backend reliability improvements.",
+                    "notes": "Documented tracing rollout.",
+                    "external_links": ["https://example.com/demo"],
+                    "attachment_ids": ["attach-2"],
+                    "elo_focus": ["Backend Systems"],
+                    "recommended_day_offset": 7,
+                    "session_id": "session-123",
+                    "recorded_at": "2025-10-14T12:00:00Z"
+                }
+            ],
             "foundation_tracks": [
                 {
                     "track_id": "backend",
@@ -315,6 +352,7 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.goalInference?.tracks.first?.label, "Backend Foundations")
         XCTAssertEqual(snapshot.goalInference?.targetOutcomes.count, 2)
         XCTAssertEqual(snapshot.foundationTracks.first?.priority, "now")
+        XCTAssertEqual(snapshot.milestoneCompletions.first?.notes, "Documented tracing rollout.")
     }
 
     @MainActor

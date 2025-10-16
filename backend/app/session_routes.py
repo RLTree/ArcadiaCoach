@@ -23,13 +23,20 @@ from .agent_models import (
     EndLearn,
     EndMilestone,
     EndQuiz,
+    MilestoneCompletionPayload,
     ScheduleLaunchContentPayload,
     ScheduleLaunchResponsePayload,
     WidgetEnvelope,
 )
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
-from .learner_profile import LearnerProfile, SequencedWorkItem, MilestoneProgress, profile_store
+from .learner_profile import (
+    LearnerProfile,
+    MilestoneCompletion,
+    MilestoneProgress,
+    SequencedWorkItem,
+    profile_store,
+)
 from .memory_store import MemoryStore
 from .prompt_utils import apply_preferences_overlay, schedule_summary_from_profile
 from .telemetry import emit_event
@@ -87,6 +94,28 @@ def _reset_state(session_id: Optional[str]) -> None:
         _session_states.pop(session_id, None)
     else:
         _session_states.clear()
+
+
+def _milestone_completion_payloads(profile: LearnerProfile) -> List[MilestoneCompletionPayload]:
+    completions = getattr(profile, "milestone_completions", []) or []
+    return [
+        MilestoneCompletionPayload(
+            completion_id=entry.completion_id,
+            item_id=entry.item_id,
+            category_key=entry.category_key,
+            title=entry.title,
+            headline=entry.headline,
+            summary=entry.summary,
+            notes=entry.notes,
+            external_links=list(entry.external_links or []),
+            attachment_ids=list(entry.attachment_ids or []),
+            elo_focus=list(entry.elo_focus or []),
+            recommended_day_offset=entry.recommended_day_offset,
+            session_id=entry.session_id,
+            recorded_at=entry.recorded_at,
+        )
+        for entry in completions
+    ]
 
 
 def _schedule_locked_reason(
@@ -641,6 +670,7 @@ async def launch_schedule_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+    schedule_payload.milestone_completions = _milestone_completion_payloads(refreshed_profile)
     item_payload = next((entry for entry in schedule_payload.items if entry.item_id == item_id), None)
     if item_payload is None:
         raise HTTPException(
@@ -734,12 +764,40 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    if item.kind == "milestone":
+        brief = getattr(item, "milestone_brief", None)
+        completion = MilestoneCompletion(
+            item_id=item.item_id,
+            category_key=item.category_key,
+            title=item.title,
+            headline=getattr(brief, "headline", None) or item.title,
+            summary=getattr(brief, "summary", None) or item.summary,
+            notes=notes,
+            external_links=links,
+            attachment_ids=attachment_ids,
+            elo_focus=list(getattr(brief, "elo_focus", []) or [item.category_key]),
+            recommended_day_offset=item.recommended_day_offset,
+            session_id=payload.session_id or item.active_session_id,
+            recorded_at=progress_entry.recorded_at if progress_entry is not None else now,
+        )
+        profile = profile_store.record_milestone_completion(username, completion)
+        emit_event(
+            "milestone_completion_recorded",
+            username=username,
+            item_id=item_id,
+            category_key=item.category_key,
+            recorded_at=completion.recorded_at.isoformat(),
+            has_notes=bool(completion.notes),
+            link_count=len(completion.external_links),
+            attachment_count=len(completion.attachment_ids),
+        )
     schedule_payload = _schedule_payload(profile.curriculum_schedule)
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+    schedule_payload.milestone_completions = _milestone_completion_payloads(profile)
     duration_ms: Optional[int] = None
     if previous_launch is not None:
         duration_ms = int((now - previous_launch).total_seconds() * 1000)

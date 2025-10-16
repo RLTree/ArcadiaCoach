@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardScheduleSection: View {
     let schedule: CurriculumSchedule?
     let categoryLabels: [String:String]
+    let milestoneCompletions: [MilestoneCompletion]
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
@@ -22,6 +23,7 @@ struct DashboardScheduleSection: View {
                 CurriculumScheduleView(
                     schedule: schedule,
                     categoryLabels: categoryLabels,
+                    milestoneCompletions: milestoneCompletions,
                     isRefreshing: isRefreshing,
                     isLoadingNextSlice: isLoadingNextSlice,
                     adjustingItemId: adjustingItemId,

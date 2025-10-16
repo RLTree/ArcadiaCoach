@@ -56,6 +56,8 @@ class _CategoryContext:
     rating_delta: Optional[int]
     modules: List[CurriculumModule]
     track_weight: float = 0.0
+    last_completion_at: Optional[datetime] = None
+    completion_count: int = 0
 
 
 class CurriculumSequencer:
@@ -91,6 +93,7 @@ class CurriculumSequencer:
         module_order = self._prioritize_modules(categories.values())
         module_chunks: List[Tuple[str, List[SequencedWorkItem]]] = []
         milestone_attached = False
+        milestone_target_key = self._select_milestone_category(categories)
 
         for module in module_order:
             context = categories[module.category_key]
@@ -141,7 +144,9 @@ class CurriculumSequencer:
             chunk.extend(quiz_parts)
             quiz_tail_id = quiz_parts[-1].item_id
 
-            if not milestone_attached:
+            if not milestone_attached and (
+                milestone_target_key is None or module.category_key == milestone_target_key
+            ):
                 milestone_id = f"milestone-{module.category_key}"
                 milestone_minutes = 90 if expected_minutes < 90 else expected_minutes + 30
                 milestone_item = SequencedWorkItem(
@@ -353,6 +358,19 @@ class CurriculumSequencer:
                 tier=1,
             )
             context.modules.append(placeholder)
+
+        completions = getattr(profile, "milestone_completions", []) or []
+        if completions:
+            for completion in sorted(completions, key=lambda entry: entry.recorded_at, reverse=True):
+                context = categories.get(completion.category_key)
+                if context is None:
+                    continue
+                context.completion_count += 1
+                if (
+                    context.last_completion_at is None
+                    or completion.recorded_at > context.last_completion_at
+                ):
+                    context.last_completion_at = completion.recorded_at
 
         return categories
 
@@ -631,6 +649,32 @@ class CurriculumSequencer:
                 return idx
         return None
 
+    def _select_milestone_category(self, categories: Dict[str, _CategoryContext]) -> Optional[str]:
+        if not categories:
+            return None
+        prioritized = sorted(categories.values(), key=self._priority_score, reverse=True)
+        without_history = [context for context in prioritized if context.last_completion_at is None]
+        if without_history:
+            return without_history[0].key
+        now = datetime.now(timezone.utc)
+        best_key = prioritized[0].key
+        best_days = self._days_since_completion(prioritized[0], now)
+        for context in prioritized:
+            days_since = self._days_since_completion(context, now)
+            if days_since >= 21:
+                return context.key
+            if days_since > best_days:
+                best_key = context.key
+                best_days = days_since
+        return best_key
+
+    @staticmethod
+    def _days_since_completion(context: _CategoryContext, now: datetime) -> int:
+        if context.last_completion_at is None:
+            return 10_000
+        delta = now - context.last_completion_at
+        return max(int(delta.days), 0)
+
     def _priority_score(self, context: _CategoryContext) -> float:
         weight_component = context.weight * 1.25
         rating_component = max(0.0, (1300 - float(context.rating)) / 300.0)
@@ -641,7 +685,24 @@ class CurriculumSequencer:
         if context.rating_delta is not None:
             delta_component = -context.rating_delta / 400.0
         track_component = context.track_weight * 0.6
-        return weight_component + rating_component + score_component + delta_component + track_component
+        completion_penalty = 0.0
+        if context.last_completion_at is not None:
+            days_since = max((datetime.now(timezone.utc) - context.last_completion_at).days, 0)
+            if days_since < 14:
+                completion_penalty += 0.6
+            elif days_since < 28:
+                completion_penalty += 0.35
+            elif days_since < 42:
+                completion_penalty += 0.2
+        completion_penalty += min(context.completion_count * 0.05, 0.3)
+        return (
+            weight_component
+            + rating_component
+            + score_component
+            + delta_component
+            + track_component
+            - completion_penalty
+        )
 
     def _assessment_scores(self, result: Optional[AssessmentGradingResult]) -> Dict[str, float]:
         if result is None:
@@ -800,6 +861,11 @@ class CurriculumSequencer:
             f"Prioritising {focus_text} while pacing at {sessions_per_week} sessions per week.",
             goal_text,
         ]
+        if getattr(profile, "milestone_completions", None):
+            latest_completion = profile.milestone_completions[0]
+            summary_parts.append(
+                f"Latest milestone: {latest_completion.title} completed on {latest_completion.recorded_at.date().isoformat()}."
+            )
         new_entry = ScheduleRationaleEntry(
             headline=headline,
             summary=" ".join(summary_parts),
@@ -1256,6 +1322,9 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
             item.last_launched_at = getattr(prior, "last_launched_at", item.last_launched_at)
             item.last_completed_at = getattr(prior, "last_completed_at", item.last_completed_at)
             item.active_session_id = getattr(prior, "active_session_id", item.active_session_id)
+            prior_progress = getattr(prior, "milestone_progress", None)
+            if prior_progress is not None:
+                item.milestone_progress = prior_progress.model_copy(deep=True)
     applied_deltas: Dict[str, Tuple[int, int]] = {}
     if adjustments:
         adjusted_items, applied_deltas = sequencer._apply_adjustments(schedule.items, adjustments)
@@ -1312,6 +1381,7 @@ def generate_schedule_for_user(username: str) -> LearnerProfile:
         long_range_category_count=long_range_category_count,
         long_range_weeks=schedule.extended_weeks,
         user_adjusted_count=user_adjusted_count,
+        milestone_completion_total=len(getattr(profile, "milestone_completions", []) or []),
     )
     distribution_payload = sequencer._summarize_distribution(
         schedule.items,

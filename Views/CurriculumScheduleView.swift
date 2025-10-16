@@ -3,6 +3,7 @@ import SwiftUI
 struct CurriculumScheduleView: View {
     let schedule: CurriculumSchedule
     let categoryLabels: [String:String]
+    let milestoneCompletions: [MilestoneCompletion]
     let isRefreshing: Bool
     let isLoadingNextSlice: Bool
     let adjustingItemId: String?
@@ -43,6 +44,10 @@ struct CurriculumScheduleView: View {
 
     private var rationaleEntries: [ScheduleRationaleEntry] {
         schedule.rationaleHistory.sorted { $0.generatedAt > $1.generatedAt }
+    }
+
+    private var recentMilestoneCompletions: [MilestoneCompletion] {
+        Array(milestoneCompletions.prefix(3))
     }
 
     private var longRangeDescription: String? {
@@ -95,6 +100,9 @@ struct CurriculumScheduleView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if !recentMilestoneCompletions.isEmpty {
+                milestoneHistorySection
             }
             if !schedule.categoryAllocations.isEmpty {
                 pacingSection
@@ -149,6 +157,53 @@ struct CurriculumScheduleView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(12)
+    }
+
+    @ViewBuilder
+    private var milestoneHistorySection: some View {
+        if recentMilestoneCompletions.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Latest milestone wins", systemImage: "flag.checkered")
+                    .font(.subheadline.bold())
+                ForEach(recentMilestoneCompletions) { completion in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(completion.title)
+                            .font(.callout.bold())
+                        Text(completion.recordedAt, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let notes = completion.notes, !notes.isEmpty {
+                            Text(notes)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        HStack(spacing: 12) {
+                            if !completion.externalLinks.isEmpty {
+                                Label("Links: \(completion.externalLinks.count)", systemImage: "link")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if !completion.attachmentIds.isEmpty {
+                                Label("Attachments: \(completion.attachmentIds.count)", systemImage: "paperclip")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if !completion.eloFocus.isEmpty {
+                                Label("Focus: \(completion.eloFocus.joined(separator: ", "))", systemImage: "target")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
     }
 
     @ViewBuilder

@@ -22,6 +22,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
     var eloSnapshot: [String:Int]
     var curriculumPlan: OnboardingCurriculumPlan?
     var curriculumSchedule: CurriculumSchedule?
+    var milestoneCompletions: [MilestoneCompletion] = []
     var onboardingAssessment: OnboardingAssessment?
     var assessmentSubmissions: [AssessmentSubmissionRecord] = []
     var goalInference: GoalInferenceModel?
@@ -43,6 +44,7 @@ struct LearnerProfileModel: Codable, Identifiable, Equatable {
         eloSnapshot: [:],
         curriculumPlan: nil,
         curriculumSchedule: nil,
+        milestoneCompletions: [],
         onboardingAssessment: nil,
         assessmentSubmissions: [],
         goalInference: nil,

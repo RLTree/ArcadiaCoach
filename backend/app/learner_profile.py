@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DEFAULT_VECTOR_STORE_ID = "vs_68e81d741f388191acdaabce2f92b7d5"
 MAX_MEMORY_RECORDS = 150
+MAX_MILESTONE_COMPLETIONS = 100
 
 
 if TYPE_CHECKING:
@@ -159,6 +161,24 @@ class MilestoneProgress(BaseModel):
     notes: Optional[str] = None
     external_links: List[str] = Field(default_factory=list)
     attachment_ids: List[str] = Field(default_factory=list)
+
+
+class MilestoneCompletion(BaseModel):
+    """Historical record capturing milestone completion details (Phase 28)."""
+
+    completion_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    item_id: str
+    category_key: str
+    title: str
+    headline: Optional[str] = None
+    summary: Optional[str] = None
+    notes: Optional[str] = None
+    external_links: List[str] = Field(default_factory=list)
+    attachment_ids: List[str] = Field(default_factory=list)
+    elo_focus: List[str] = Field(default_factory=list)
+    recommended_day_offset: Optional[int] = None
+    session_id: Optional[str] = None
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SequencedWorkItem(BaseModel):
@@ -377,6 +397,7 @@ class LearnerProfile(BaseModel):
     onboarding_assessment_result: Optional[AssessmentGradingResult] = None
     goal_inference: Optional[GoalParserInference] = None
     foundation_tracks: List[FoundationTrack] = Field(default_factory=list)
+    milestone_completions: List[MilestoneCompletion] = Field(default_factory=list)
     last_updated: datetime = Field(default_factory=_now)
 
 
@@ -480,7 +501,13 @@ class _DatabaseLearnerProfileStore:
                 last_completed_at=last_completed_at,
                 active_session_id=active_session_id,
                 clear_active_session=clear_active_session,
+                milestone_progress=milestone_progress,
             )
+            return self._clone(stored)
+
+    def record_milestone_completion(self, username: str, completion: MilestoneCompletion) -> LearnerProfile:
+        with session_scope() as session:
+            stored = _repo().record_milestone_completion(session, username, completion)
             return self._clone(stored)
 
     def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
@@ -716,6 +743,29 @@ class _LegacyLearnerProfileStore:
                 matching.milestone_progress = milestone_progress.model_copy(deep=True)
             elif status and status != "completed" and matching.kind == "milestone":
                 matching.milestone_progress = None
+            self._touch(profile)
+            self._write_unlocked(profiles)
+            return self._clone(profile)
+
+    def record_milestone_completion(self, username: str, completion: MilestoneCompletion) -> LearnerProfile:
+        clone = completion.model_copy(deep=True)
+        with self._lock:
+            profiles = self._load_unlocked()
+            profile, _ = self._ensure_profile(profiles, username, create=True)
+            history = list(profile.milestone_completions or [])
+            for index, existing in enumerate(history):
+                if existing.item_id == clone.item_id:
+                    history[index] = clone
+                    break
+            else:
+                history.insert(0, clone)
+            profile.milestone_completions = history[:MAX_MILESTONE_COMPLETIONS]
+            snapshot = dict(profile.elo_snapshot or {})
+            focus = list(clone.elo_focus or []) or [clone.category_key]
+            for key in focus:
+                if isinstance(key, str) and key:
+                    snapshot[key] = max(int(snapshot.get(key, 1100)) + 12, 0)
+            profile.elo_snapshot = snapshot
             self._touch(profile)
             self._write_unlocked(profiles)
             return self._clone(profile)
@@ -1093,6 +1143,8 @@ class LearnerProfileStore:
                 self._db_store.set_elo_category_plan(username, legacy_profile.elo_category_plan)
             if legacy_profile.goal_inference:
                 self._db_store.set_goal_inference(username, legacy_profile.goal_inference)
+            for completion in getattr(legacy_profile, "milestone_completions", []) or []:
+                self._db_store.record_milestone_completion(username, completion)
             self._pending_resync.discard(normalized)
             self._sync_cache(username, legacy_profile)
         except Exception as exc:  # noqa: BLE001
@@ -1208,6 +1260,11 @@ class LearnerProfileStore:
         self._sync_cache(username, stored)
         return stored
 
+    def record_milestone_completion(self, username: str, completion: MilestoneCompletion) -> LearnerProfile:
+        stored = self._call("record_milestone_completion", username, completion)
+        self._sync_cache(username, stored)
+        return stored
+
     def apply_schedule_adjustment(self, username: str, item_id: str, target_offset: int) -> LearnerProfile:
         stored = self._call("apply_schedule_adjustment", username, item_id, target_offset)
         self._sync_cache(username, stored)
@@ -1294,6 +1351,7 @@ __all__ = [
     "EloCategoryDefinition",
     "EloCategoryPlan",
     "EloRubricBand",
+    "MilestoneCompletion",
     "LearnerProfile",
     "LearnerProfileStore",
     "slice_schedule",

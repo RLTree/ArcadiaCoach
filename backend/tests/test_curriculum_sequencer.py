@@ -25,6 +25,7 @@ from app.learner_profile import (
     SequencedWorkItem,
     FoundationModuleReference,
     FoundationTrack,
+    MilestoneCompletion,
 )
 from app.profile_routes import _serialize_profile
 from app.tools import _schedule_payload
@@ -145,6 +146,67 @@ def test_dependency_order_precedes_priority() -> None:
     assert lesson_ids, "Expected lessons in the generated schedule."
     assert lesson_ids[0] == "lesson-python-basics", "Intro module should precede dependent advanced module."
     assert any(item.item_id == "lesson-python-testing" for item in schedule.items)
+
+
+def test_milestone_rotates_after_recent_completion() -> None:
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend", "Backend Systems", 1.2),
+            _category("frontend", "Frontend Flow", 1.1),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Full stack progression",
+        success_criteria=["Ship cohesive feature"],
+        modules=[
+            CurriculumModule(
+                module_id="backend-api",
+                category_key="backend",
+                title="Backend API Foundations",
+                summary="Harden API ergonomics.",
+                objectives=["Design endpoints"],
+                activities=["Workshop"],
+                deliverables=["API spec"],
+                estimated_minutes=80,
+            ),
+            CurriculumModule(
+                module_id="frontend-ui",
+                category_key="frontend",
+                title="Frontend UI Iteration",
+                summary="Polish SwiftUI flows.",
+                objectives=["Improve state flow"],
+                activities=["UI refactor"],
+                deliverables=["Updated views"],
+                estimated_minutes=70,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="milestone-rotation",
+        goal="Ship cohesive feature",
+        use_case="Adaptive curriculum",
+        strengths="Testing discipline",
+        elo_snapshot={"backend": 980, "frontend": 940},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+        milestone_completions=[
+            MilestoneCompletion(
+                completion_id="complete-backend",
+                item_id="milestone-backend",
+                category_key="backend",
+                title="Milestone Backend",
+                recorded_at=datetime.now(timezone.utc),
+                elo_focus=["backend"],
+            )
+        ],
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    milestone_items = [item for item in schedule.items if item.kind == "milestone"]
+    assert milestone_items, "Expected milestone in generated schedule."
+    assert milestone_items[0].category_key == "frontend"
 
 
 def test_curriculum_sequencer_prioritises_low_scores() -> None:
@@ -415,7 +477,10 @@ def test_profile_serialization_includes_schedule_payload() -> None:
         curriculum_schedule=schedule,
     )
 
-    payload = _serialize_profile(profile)
+    from unittest.mock import patch
+
+    with patch("app.profile_routes.submission_store.list_user", return_value=[]):
+        payload = _serialize_profile(profile)
 
     assert payload.curriculum_schedule is not None
     assert len(payload.curriculum_schedule.items) == 2

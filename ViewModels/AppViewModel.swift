@@ -73,6 +73,7 @@ final class AppViewModel: ObservableObject {
     @Published var goalInference: GoalInferenceModel?
     @Published var foundationTracks: [FoundationTrackModel] = []
     @Published var hasUnseenAssessmentResults: Bool = false
+    @Published var milestoneCompletions: [MilestoneCompletion] = []
 
     private var lastScheduleEventSignature: String?
     private var lastScheduleEventTimestamp: Date?
@@ -183,6 +184,7 @@ final class AppViewModel: ObservableObject {
             finalSchedule = merged
         }
         curriculumSchedule = finalSchedule
+        milestoneCompletions = finalSchedule.milestoneCompletions
         if let timezone = finalSchedule.timezone, !timezone.isEmpty {
             learnerTimezone = timezone
         }
@@ -233,6 +235,7 @@ final class AppViewModel: ObservableObject {
             finalSchedule = merged
         }
         curriculumSchedule = finalSchedule
+        milestoneCompletions = finalSchedule.milestoneCompletions
         if let timezone = finalSchedule.timezone, !timezone.isEmpty {
             learnerTimezone = timezone
         }
@@ -295,6 +298,7 @@ final class AppViewModel: ObservableObject {
                 merge: mergeSlices && curriculumSchedule != nil
             )
             curriculumSchedule = merged
+            milestoneCompletions = merged.milestoneCompletions
             if let timezone = merged.timezone, !timezone.isEmpty {
                 learnerTimezone = timezone
             }
@@ -312,6 +316,7 @@ final class AppViewModel: ObservableObject {
             )
             var aggregateCopy = merged
             aggregateCopy.slice = nil
+            aggregateCopy.milestoneCompletions = merged.milestoneCompletions
             ScheduleSliceCache.shared.store(schedule: aggregateCopy, username: trimmedUsername, startDay: 0)
             recordScheduleTelemetry(
                 event: refresh ? "schedule_refresh_completed" : "schedule_slice_completed",
@@ -351,6 +356,7 @@ final class AppViewModel: ObservableObject {
                     merge: mergeSlices && curriculumSchedule != nil
                 )
                 curriculumSchedule = mergedCache
+                milestoneCompletions = mergedCache.milestoneCompletions
                 if let timezone = mergedCache.timezone, !timezone.isEmpty {
                     learnerTimezone = timezone
                 }
@@ -405,6 +411,7 @@ final class AppViewModel: ObservableObject {
                     merge: mergeSlices && curriculumSchedule != nil
                 )
                 curriculumSchedule = mergedCache
+                milestoneCompletions = mergedCache.milestoneCompletions
                 if let timezone = mergedCache.timezone, !timezone.isEmpty {
                     learnerTimezone = timezone
                 }
@@ -444,6 +451,11 @@ final class AppViewModel: ObservableObject {
             return lhs.recommendedDayOffset < rhs.recommendedDayOffset
         }
         merged.isStale = incoming.isStale || current.isStale
+        if !incoming.milestoneCompletions.isEmpty {
+            merged.milestoneCompletions = incoming.milestoneCompletions
+        } else {
+            merged.milestoneCompletions = current.milestoneCompletions
+        }
         return merged
     }
 
@@ -1029,9 +1041,13 @@ final class AppViewModel: ObservableObject {
             eloPlan = nil
         }
         curriculumPlan = snapshot.curriculumPlan
-        curriculumSchedule = snapshot.curriculumSchedule
-        if let schedule = snapshot.curriculumSchedule {
+        milestoneCompletions = snapshot.milestoneCompletions
+        if var schedule = snapshot.curriculumSchedule {
+            schedule.milestoneCompletions = snapshot.milestoneCompletions
+            curriculumSchedule = schedule
             ScheduleSliceCache.shared.store(schedule: schedule, username: snapshot.username)
+        } else {
+            curriculumSchedule = nil
         }
         adjustingScheduleItemId = nil
         onboardingAssessment = snapshot.onboardingAssessment

@@ -52,6 +52,7 @@ from .agent_models import (
     ScheduleWarningPayload,
     ScheduleSlicePayload,
     MilestoneBriefPayload,
+    MilestoneCompletionPayload,
     MilestonePrerequisitePayload,
     MilestoneProgressPayload,
     SequencedWorkItemPayload,
@@ -454,6 +455,24 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
         )
         if not track_payloads:
             track_payloads = [ _track_payload(track) for track in profile.goal_inference.tracks ]
+    completion_payloads = [
+        MilestoneCompletionPayload(
+            completion_id=entry.completion_id,
+            item_id=entry.item_id,
+            category_key=entry.category_key,
+            title=entry.title,
+            headline=entry.headline,
+            summary=entry.summary,
+            notes=entry.notes,
+            external_links=list(entry.external_links or []),
+            attachment_ids=list(entry.attachment_ids or []),
+            elo_focus=list(entry.elo_focus or []),
+            recommended_day_offset=entry.recommended_day_offset,
+            session_id=entry.session_id,
+            recorded_at=entry.recorded_at,
+        )
+        for entry in getattr(profile, "milestone_completions", []) or []
+    ]
     return LearnerProfilePayload(
         username=profile.username,
         goal=profile.goal,
@@ -476,6 +495,7 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
         onboarding_assessment_result=assessment_result_payload,
         goal_inference=inference_payload,
         foundation_tracks=track_payloads,
+        milestone_completions=completion_payloads,
     )
 
 

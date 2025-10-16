@@ -311,10 +311,10 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Updated session launch/complete APIs, the MCP milestone tool, and the macOS dashboard to render briefs, prerequisite locks, and learner progress capture (notes, links, attachment IDs).  
     - Expanded pytest + Swift coverage to assert milestone split handling, schedule completion telemetry, and UI rendering.  
     - **Follow-ups:** Improve milestone kickoff guidance and surface completion telemetry in dashboards (see Phases 29 & 33).  
-28. **Phase 28 – Milestone Progress Integration**  
-    - Feed milestone completion data back into the sequencer so upcoming lessons/quizzes adjust automatically.  
-    - Reapply completion signals to ELO deltas, schedule rationale entries, and goal parser insights.  
-    - Backfill unit/integration coverage ensuring sequencer fallbacks behave when progress data is missing.  
+28. **Phase 28 – Milestone Progress Integration** ✅ *(completed October 16, 2025; see `docs/phase-28-milestone-progress-integration.md`)*  
+    - Persist milestone completion history across Postgres and legacy storage, emit telemetry, and fold completions into learner profile/schedule payloads with light ELO boosts.  
+    - Teach the curriculum sequencer to rotate milestones away from recently completed categories, preserve milestone progress during regeneration, and surface completions in rationale summaries.  
+    - Update the macOS client models, caching, and dashboard schedule view to decode, store, and render recent milestone wins.  
 29. **Phase 29 – Milestone Experience & Telemetry**  
     - Display milestone status, prerequisites, and “what’s next” guidance across dashboard, chat, and MCP widgets using the existing slice endpoints.  
     - Refine milestone brief copy with concrete kickoff steps and surface agent coaching prompts based on outstanding tasks.  
