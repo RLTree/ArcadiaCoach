@@ -65,7 +65,8 @@ struct DashboardResourcesSection: View {
                 lines.append("Goal summary: \(summary)")
             }
             if !inference.targetOutcomes.isEmpty {
-                lines.append("Target outcomes: \(inference.targetOutcomes.joined(separator: \", \"))")
+                let outcomes = inference.targetOutcomes.joined(separator: ", ")
+                lines.append("Target outcomes: \(outcomes)")
             }
         }
         if let overview = appVM.curriculumPlan?.overview, !overview.isEmpty {
