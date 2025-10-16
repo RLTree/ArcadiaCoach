@@ -11,7 +11,7 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from .config import Settings
-from .learner_profile import MilestoneBrief, MilestoneProject
+from .learner_profile import MilestoneBrief, MilestoneProject, MilestoneRequirement
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,13 @@ class MilestoneAuthorProjectPayload(BaseModel):
     recommended_tools: List[str] = Field(default_factory=list)
     evaluation_focus: List[str] = Field(default_factory=list)
     evaluation_steps: List[str] = Field(default_factory=list)
+
+
+class MilestoneAuthorRequirementPayload(BaseModel):
+    category_key: str
+    category_label: Optional[str] = None
+    minimum_rating: Optional[int] = None
+    rationale: Optional[str] = None
 
 
 class MilestoneAuthorBriefPayload(BaseModel):
@@ -49,6 +56,7 @@ class MilestoneAuthorBriefPayload(BaseModel):
     reasoning_effort: Optional[str] = None
     source: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
+    requirements: List["MilestoneAuthorRequirementPayload"] = Field(default_factory=list)
 
 
 class MilestoneAuthorResponsePayload(BaseModel):
@@ -103,6 +111,26 @@ class MilestoneAuthorResponsePayload(BaseModel):
             source=self.brief.source or "agent",
             warnings=list(set(self.brief.warnings + self.warnings)),
         )
+        requirements: List[MilestoneRequirement] = []
+        for req_payload in self.brief.requirements or []:
+            key = getattr(req_payload, "category_key", None)
+            if not key:
+                continue
+            try:
+                minimum = int(getattr(req_payload, "minimum_rating", 0) or 0)
+            except (TypeError, ValueError):
+                minimum = 0
+            label = getattr(req_payload, "category_label", None) or key
+            requirements.append(
+                MilestoneRequirement(
+                    category_key=key,
+                    category_label=label,
+                    minimum_rating=minimum,
+                    rationale=getattr(req_payload, "rationale", None),
+                )
+            )
+        if requirements:
+            brief.requirements = requirements
         return brief, project
 
 
@@ -123,6 +151,8 @@ class MilestoneAuthorRequestPayload(BaseModel):
     schedule_notes: Optional[str] = None
     timezone: Optional[str] = None
     previous_brief: Optional[Dict[str, Any]] = None
+    elo_snapshot: Dict[str, int] = Field(default_factory=dict)
+    elo_categories: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class MilestoneAuthorError(RuntimeError):

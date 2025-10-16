@@ -144,6 +144,7 @@ class CurriculumScheduleItemModel(Base):
     milestone_brief: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     milestone_progress: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     milestone_project: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    milestone_requirements: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 

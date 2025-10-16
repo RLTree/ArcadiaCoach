@@ -817,7 +817,11 @@ async def launch_schedule_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
-    schedule_payload = _schedule_payload(refreshed_profile.curriculum_schedule)
+    schedule_payload = _schedule_payload(
+        refreshed_profile.curriculum_schedule,
+        elo_snapshot=getattr(refreshed_profile, "elo_snapshot", {}),
+        elo_plan=getattr(refreshed_profile, "elo_category_plan", None),
+    )
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -977,7 +981,11 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             evaluation_outcome=completion.evaluation_outcome or "",
             elo_delta=completion.elo_delta,
         )
-    schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    schedule_payload = _schedule_payload(
+        profile.curriculum_schedule,
+        elo_snapshot=getattr(profile, "elo_snapshot", {}),
+        elo_plan=getattr(profile, "elo_category_plan", None),
+    )
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -216,7 +216,11 @@ def _serialize_profile(profile: LearnerProfile) -> LearnerProfilePayload:
                 for module in curriculum.modules
             ],
         )
-    schedule_payload = _schedule_payload(profile.curriculum_schedule)
+    schedule_payload = _schedule_payload(
+        profile.curriculum_schedule,
+        elo_snapshot=getattr(profile, "elo_snapshot", {}),
+        elo_plan=getattr(profile, "elo_category_plan", None),
+    )
     completion_payloads = [
         MilestoneCompletionPayload(
             completion_id=entry.completion_id,
@@ -508,7 +512,11 @@ def get_curriculum_schedule(
             detail=f"No curriculum schedule configured for '{username}'.",
         )
     sliced_schedule = slice_schedule(schedule, requested_start, day_span)
-    schedule_payload = _schedule_payload(sliced_schedule)
+    schedule_payload = _schedule_payload(
+        sliced_schedule,
+        elo_snapshot=getattr(profile, "elo_snapshot", {}),
+        elo_plan=getattr(profile, "elo_category_plan", None),
+    )
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -618,7 +626,11 @@ def adjust_curriculum_schedule(username: str, payload: ScheduleAdjustmentRequest
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to regenerate the curriculum schedule after the adjustment.",
         ) from exc
-    schedule_payload = _schedule_payload(refreshed.curriculum_schedule)
+    schedule_payload = _schedule_payload(
+        refreshed.curriculum_schedule,
+        elo_snapshot=getattr(refreshed, "elo_snapshot", {}),
+        elo_plan=getattr(refreshed, "elo_category_plan", None),
+    )
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

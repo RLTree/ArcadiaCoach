@@ -55,6 +55,7 @@ from .agent_models import (
     MilestoneCompletionPayload,
     MilestoneProjectPayload,
     MilestonePrerequisitePayload,
+    MilestoneRequirementPayload,
     MilestoneProgressPayload,
     MilestoneGuidancePayload,
     SequencedWorkItemPayload,
@@ -91,7 +92,12 @@ def progress_advance(idx: int, total: int) -> Dict[str, Any]:
     next_idx = min(idx + 1, total - 1)
     return _progress_payload(idx=next_idx, total=total)
 
-def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[CurriculumSchedulePayload]:
+def _schedule_payload(
+    schedule: Optional[CurriculumSchedule],
+    *,
+    elo_snapshot: Optional[Dict[str, int]] = None,
+    elo_plan: Optional[EloCategoryPlan] = None,
+) -> Optional[CurriculumSchedulePayload]:
     if schedule is None:
         return None
     tz_name = getattr(schedule, "timezone", None) or "UTC"
@@ -110,16 +116,60 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         )
     for warning in getattr(schedule, "warnings", [])
     ]
+    snapshot = {
+        key: int(value)
+        for key, value in (elo_snapshot or {}).items()
+        if isinstance(key, str) and isinstance(value, (int, float))
+    }
+    plan_labels = {}
+    if elo_plan and getattr(elo_plan, "categories", None):
+        plan_labels = {
+            category.key: getattr(category, "label", category.key)
+            for category in elo_plan.categories
+            if getattr(category, "key", None)
+        }
     items: List[SequencedWorkItemPayload] = []
 
     def _deduplicate_strings(values: Iterable[str]) -> List[str]:
         return list(dict.fromkeys([value.strip() for value in values if isinstance(value, str) and value.strip()]))
 
-    def _locked_reason(target: Any, all_items: List[Any]) -> Optional[str]:
+    def _normalize_requirements(*sources: Iterable[Any]) -> List[Any]:
+        combined: List[Any] = []
+        seen: set[tuple[str, int]] = set()
+        for source in sources:
+            for requirement in source or []:
+                key = getattr(requirement, "category_key", None)
+                if not key:
+                    continue
+                try:
+                    minimum = int(getattr(requirement, "minimum_rating", 0) or 0)
+                except (TypeError, ValueError):
+                    minimum = 0
+                identifier = (key, minimum)
+                if identifier in seen:
+                    continue
+                combined.append(requirement)
+                seen.add(identifier)
+        return combined
+
+    def _requirement_label(requirement: Any) -> str:
+        label = getattr(requirement, "category_label", "") or ""
+        key = getattr(requirement, "category_key", "")
+        if label:
+            return label
+        if key and key in plan_labels:
+            return plan_labels[key]
+        return key or "Milestone prerequisite"
+
+    def _locked_reason(
+        target: Any,
+        all_items: List[Any],
+        requirements: Iterable[Any],
+    ) -> tuple[Optional[str], List[tuple[Any, int]]]:
         kind = getattr(target, "kind", None)
         status = getattr(target, "launch_status", "pending")
         if kind != "milestone":
-            return None
+            return None, []
         incomplete = [
             other
             for other in all_items
@@ -129,10 +179,30 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             and getattr(other, "launch_status", "pending") != "completed"
         ]
         if status == "completed":
-            return None
+            return None, []
         if incomplete:
-            return "Complete earlier lessons and quizzes before unlocking this milestone."
-        return None
+            return "Complete earlier lessons and quizzes before unlocking this milestone.", []
+        unmet: List[tuple[Any, int]] = []
+        for requirement in requirements:
+            key = getattr(requirement, "category_key", None)
+            minimum = getattr(requirement, "minimum_rating", None)
+            if not key or minimum is None:
+                continue
+            try:
+                required = int(minimum)
+            except (TypeError, ValueError):
+                continue
+            current = int(snapshot.get(key, 0))
+            if current < required:
+                unmet.append((requirement, current))
+        if unmet:
+            segments = [
+                f"{_requirement_label(req)} {current}/{getattr(req, 'minimum_rating', 0)}"
+                for req, current in unmet[:3]
+            ]
+            reason = "Build your ratings to unlock this milestone: " + "; ".join(segments)
+            return reason, unmet
+        return None, []
 
     item_lookup = {entry.item_id: entry for entry in schedule.items}
     completions_lookup = {
@@ -144,6 +214,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
         brief: MilestoneBrief | None,
         progress: Any,
         locked_reason: Optional[str],
+        unmet_requirements: List[tuple[Any, int]],
     ) -> Optional[MilestoneGuidancePayload]:
         if getattr(item, "kind", None) != "milestone":
             return None
@@ -230,7 +301,20 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             if brief and brief.coaching_prompts:
                 next_actions.extend(list(brief.coaching_prompts)[:2])
         else:
-            if locked_reason:
+            if unmet_requirements:
+                state = "locked"
+                summary = "Raise your ratings before starting this milestone."
+                badges.append("Locked")
+                for requirement, current in unmet_requirements[:3]:
+                    minimum = getattr(requirement, "minimum_rating", 0)
+                    label = _requirement_label(requirement)
+                    next_actions.append(f"Reach {minimum} in {label} (currently {current}).")
+                    rationale = getattr(requirement, "rationale", None)
+                    if rationale:
+                        warnings_local.append(rationale)
+                if brief and brief.requirements:
+                    warnings_local.append("Meet the milestone requirements highlighted in the brief.")
+            elif locked_reason:
                 state = "locked"
                 summary = "Finish prerequisite lessons/quizzes before starting."
                 badges.append("Locked")
@@ -315,10 +399,26 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
     for item in schedule.items:
         local_date = anchor_date + timedelta(days=item.recommended_day_offset)
         scheduled_for = datetime.combine(local_date, time.min, tzinfo=tz)
-        locked_reason = _locked_reason(item, schedule.items)
+        milestone_brief = getattr(item, "milestone_brief", None)
+        requirements = _normalize_requirements(
+            getattr(item, "milestone_requirements", []) or [],
+            getattr(milestone_brief, "requirements", []) if milestone_brief else [],
+        )
+        if milestone_brief and requirements:
+            milestone_brief.requirements = list(requirements)
+        locked_reason, unmet_requirements = _locked_reason(item, schedule.items, requirements)
+        requirement_payloads = [
+            MilestoneRequirementPayload(
+                category_key=getattr(requirement, "category_key", ""),
+                category_label=_requirement_label(requirement),
+                minimum_rating=int(getattr(requirement, "minimum_rating", 0) or 0),
+                rationale=getattr(requirement, "rationale", None),
+            )
+            for requirement in requirements
+            if getattr(requirement, "category_key", None)
+        ]
         brief_payload: MilestoneBriefPayload | None = None
         progress_payload: MilestoneProgressPayload | None = None
-        milestone_brief = getattr(item, "milestone_brief", None)
         milestone_progress = getattr(item, "milestone_progress", None)
         project_payload: MilestoneProjectPayload | None = None
         if milestone_brief:
@@ -331,6 +431,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 external_work=list(milestone_brief.external_work),
                 capture_prompts=list(milestone_brief.capture_prompts),
                 prerequisites=_prerequisites_for_brief(milestone_brief, item),
+                requirements=requirement_payloads,
                 elo_focus=list(milestone_brief.elo_focus),
                 resources=list(milestone_brief.resources),
                 kickoff_steps=list(milestone_brief.kickoff_steps),
@@ -356,11 +457,12 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                     evaluation_steps=list(project.evaluation_steps),
                 )
                 brief_payload.project = project_payload
-        elif getattr(item, "prerequisites", None):
+        elif getattr(item, "prerequisites", None) or requirement_payloads:
             brief_payload = MilestoneBriefPayload(
                 headline=item.title,
                 summary=getattr(item, "summary", None),
                 prerequisites=_prerequisites_for_brief(None, item),
+                requirements=requirement_payloads,
                 source="template",
                 warnings=[],
             )
@@ -392,6 +494,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
             milestone_brief,
             milestone_progress,
             locked_reason,
+            unmet_requirements,
         )
         if guidance_payload and guidance_payload.warnings:
             for message in guidance_payload.warnings:
@@ -428,6 +531,7 @@ def _schedule_payload(schedule: Optional[CurriculumSchedule]) -> Optional[Curric
                 milestone_progress=progress_payload,
                 milestone_guidance=guidance_payload,
                 milestone_project=project_payload,
+                milestone_requirements=requirement_payloads,
             )
         )
     if dynamic_warning_entries:
@@ -645,7 +749,11 @@ def _profile_payload(profile: LearnerProfile) -> LearnerProfilePayload:
                 for outcome in result.category_outcomes
             ],
         )
-    schedule_payload = _schedule_payload(getattr(profile, "curriculum_schedule", None))
+    schedule_payload = _schedule_payload(
+        getattr(profile, "curriculum_schedule", None),
+        elo_snapshot=getattr(profile, "elo_snapshot", {}),
+        elo_plan=getattr(profile, "elo_category_plan", None),
+    )
     track_payloads = [_track_payload(track) for track in getattr(profile, "foundation_tracks", []) or []]
     inference_payload: GoalParserInferencePayload | None = None
     if profile.goal_inference:

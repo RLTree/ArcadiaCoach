@@ -425,6 +425,7 @@ struct HomeView: View {
             DashboardScheduleSection(
                 schedule: appVM.curriculumSchedule,
                 categoryLabels: categoryLabels,
+                skillRatings: appVM.game.elo,
                 milestoneCompletions: appVM.milestoneCompletions,
                 telemetryEvents: appVM.telemetryEvents,
                 isRefreshing: appVM.scheduleRefreshing,

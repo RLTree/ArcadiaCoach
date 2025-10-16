@@ -121,6 +121,13 @@ class MilestoneProjectPayload(BaseModel):
     evaluation_steps: List[str] = Field(default_factory=list)
 
 
+class MilestoneRequirementPayload(BaseModel):
+    category_key: str
+    category_label: str
+    minimum_rating: int = Field(default=1200, ge=0)
+    rationale: Optional[str] = None
+
+
 class MilestoneBriefPayload(BaseModel):
     headline: str
     summary: Optional[str] = None
@@ -130,6 +137,7 @@ class MilestoneBriefPayload(BaseModel):
     external_work: List[str] = Field(default_factory=list)
     capture_prompts: List[str] = Field(default_factory=list)
     prerequisites: List[MilestonePrerequisitePayload] = Field(default_factory=list)
+    requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
     elo_focus: List[str] = Field(default_factory=list)
     resources: List[str] = Field(default_factory=list)
     kickoff_steps: List[str] = Field(default_factory=list)
@@ -185,6 +193,7 @@ class SequencedWorkItemPayload(BaseModel):
     milestone_progress: Optional[MilestoneProgressPayload] = None
     milestone_guidance: Optional[MilestoneGuidancePayload] = None
     milestone_project: Optional[MilestoneProjectPayload] = None
+    milestone_requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
 
 
 class MilestoneCompletionPayload(BaseModel):

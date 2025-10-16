@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardScheduleSection: View {
     let schedule: CurriculumSchedule?
     let categoryLabels: [String:String]
+    let skillRatings: [String:Int]
     let milestoneCompletions: [MilestoneCompletion]
     let telemetryEvents: [LearnerTelemetryEvent]
     let isRefreshing: Bool
@@ -24,6 +25,7 @@ struct DashboardScheduleSection: View {
                 CurriculumScheduleView(
                     schedule: schedule,
                     categoryLabels: categoryLabels,
+                    skillRatings: skillRatings,
                     milestoneCompletions: milestoneCompletions,
                     telemetryEvents: telemetryEvents,
                     isRefreshing: isRefreshing,

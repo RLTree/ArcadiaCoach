@@ -153,6 +153,50 @@ def test_dependency_order_precedes_priority() -> None:
     assert any(item.item_id == "lesson-python-testing" for item in schedule.items)
 
 
+def test_milestone_includes_requirements(monkeypatch) -> None:
+    monkeypatch.setattr("app.curriculum_sequencer.should_author", lambda _settings: False)
+    plan = EloCategoryPlan(
+        categories=[
+            _category("python", "Python Foundations", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Python progression",
+        success_criteria=["Ship dependable Python automation."],
+        modules=[
+            CurriculumModule(
+                module_id="python-basics",
+                category_key="python",
+                title="Python Basics",
+                summary="Refresh syntax fundamentals.",
+                objectives=["Reinforce syntax."],
+                activities=["Syntax drills."],
+                deliverables=["Practice journal."],
+                estimated_minutes=90,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="requirements-check",
+        goal="Automate workflows with reliable Python tooling.",
+        use_case="Agent support.",
+        strengths="Strong SwiftUI background",
+        elo_snapshot={"python": 1180},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    milestone_items = [item for item in schedule.items if item.kind == "milestone"]
+    assert milestone_items, "Expected a milestone item to be generated."
+    requirement = milestone_items[0].milestone_requirements[0]
+    assert requirement.category_key == "python"
+    assert requirement.category_label
+    assert requirement.minimum_rating >= 1100
+
+
 def test_milestone_rotates_after_recent_completion() -> None:
     plan = EloCategoryPlan(
         categories=[
@@ -733,6 +777,7 @@ def test_milestone_brief_uses_agent_when_enabled(monkeypatch) -> None:
         profile,
         lesson_tail_id="lesson-backend-foundations",
         quiz_tail_id="quiz-backend-foundations",
+        categories={module.category_key: context},
     )
 
     assert brief.source == "agent"
@@ -791,6 +836,7 @@ def test_milestone_brief_falls_back_on_author_error(monkeypatch) -> None:
         profile,
         lesson_tail_id="lesson-frontend-foundations",
         quiz_tail_id="quiz-frontend-foundations",
+        categories={module.category_key: context},
     )
 
     assert brief.source == "template"

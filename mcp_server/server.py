@@ -191,6 +191,15 @@ class MilestoneAuthorProject(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class MilestoneRequirement(BaseModel):
+    category_key: str
+    category_label: Optional[str] = None
+    minimum_rating: Optional[int] = None
+    rationale: Optional[str] = None
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class MilestoneAuthorBrief(BaseModel):
     headline: str
     summary: Optional[str] = None
@@ -210,6 +219,7 @@ class MilestoneAuthorBrief(BaseModel):
     reasoning_effort: str = Field(default_factory=lambda: _MILESTONE_AUTHOR_REASONING or "medium")
     source: str = Field(default="agent", pattern="^(agent|template)$")
     warnings: List[str] = Field(default_factory=list)
+    requirements: List[MilestoneRequirement] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -231,6 +241,8 @@ class MilestoneAuthorRequest(BaseModel):
     schedule_notes: Optional[str] = None
     timezone: Optional[str] = None
     previous_brief: Optional[Dict[str, Any]] = None
+    elo_snapshot: Dict[str, int] = Field(default_factory=dict)
+    elo_categories: List[Dict[str, Any]] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -315,13 +327,15 @@ def _author_prompt(payload: MilestoneAuthorRequest) -> str:
         "milestone_history": payload.milestone_history[:5],
         "milestone_progress": payload.milestone_progress,
         "previous_brief": payload.previous_brief,
+        "elo_snapshot": payload.elo_snapshot,
+        "elo_categories": payload.elo_categories[:12],
     }
     serialized = json.dumps(context, ensure_ascii=False, indent=2)
     schema = json.dumps(MilestoneAuthorBrief.model_json_schema(), ensure_ascii=False, indent=2)
     return (
         "Use the learner context and curriculum details below to author a milestone brief. "
         "Ensure deliverables and evaluation steps map back to the learner's stated goal and current track focus. "
-        "Where history shows blockers, propose gentle next steps. "
+        "Where history shows blockers, propose gentle next steps. Always emit at least one requirement describing the minimum rating needed to unlock the milestone; use canonical category keys and include a rationale. "
         "Context:\n"
         f"{serialized}\n\n"
         "Respond ONLY with JSON matching the MilestoneAuthorBrief schema (no prose, no markdown).\n"

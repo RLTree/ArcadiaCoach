@@ -199,7 +199,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 7. **Phase 6 – Frontend Chat & Accessibility Enhancements** ✅ *(completed October 13, 2025; see `docs/phase-6-frontend-chat-accessibility.md`)*
    - Deliver the upgraded Agent Chat panel with per-model capability picker, reasoning effort controls, attachment rendering, and a persisted transcript sidebar.
    - Harden attachment policies (full files for GPT-5/Mini, images-only for GPT-5 Codex) while keeping web search available per model selection.
-   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 34).
+   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 37).
 8. **Phase 7 – Chat Continuity & Prompt Hardening** ✅ *(completed October 13, 2025; see `docs/phase-7-chat-continuity.md`)*
    - Centralise prompt overlays so GPT-5/Mini always run `file_search` on attachments, GPT-5 Codex leans on inline previews, and web-enabled turns call `web_search` with Markdown hyperlink citations.
    - Add session resume support in the macOS client (active transcript tracking, sidebar ordering, resume button) without resetting backend threads.
@@ -231,7 +231,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added resilient fallbacks: failed refreshes now reuse the previous schedule, mark it `is_stale`, and surface warning metadata to both API and SwiftUI.
     - Triggered automatic schedule regeneration immediately after onboarding grading and updated the agent prompt so Chat answers reference `curriculum_schedule` data.
     - Expanded regression coverage for telemetry fan-out, fallback warnings, and post-grading schedule creation.
-    - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 36).
+    - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 39).
 14. **Phase 13 – Adaptive Curriculum MVP** ✅ *(completed October 14, 2025; see `docs/phase-13-adaptive-curriculum-mvp.md`)*
     - Regenerated curriculum schedules immediately after onboarding so every learner leaves planning with a populated 2–3 week roadmap.
     - Persisted learner `schedule_adjustments`, surfaced `user_adjusted` flags in schedule payloads, and taught the sequencer to honour deferrals on refresh.
@@ -270,7 +270,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Replaced the JSON-backed stores with SQLAlchemy repositories and Alembic migrations so learner profiles, submissions, schedules, and attachments now live in PostgreSQL.  
     - Added connection management helpers, pooling defaults, and a `backfill_json_stores.py` utility to migrate historical data safely.  
     - Documented new database env vars, developer workflow updates, and Render rollout steps so teammates can apply migrations consistently.  
-    - **Follow-ups:** automate Alembic migrations within the deployment pipeline, add database health/telemetry dashboards, and harden rollback tooling (tracked under Phases 45–47).
+    - **Follow-ups:** automate Alembic migrations within the deployment pipeline, add database health/telemetry dashboards, and harden rollback tooling (tracked under Phases 48–50).
 
 20. **Phase 20 – Persistence Migration – Client Integration** ✅ *(completed October 15, 2025; see `docs/phase-20-persistence-migration-client.md`)*  
     - Added persistence-mode switching (`database` / `legacy` / `hybrid`) so phased rollouts can fail over safely.  
@@ -282,7 +282,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Wrapped backend boot in `start.sh` so `python -m scripts.run_migrations` blocks deployments on schema drift before Uvicorn starts.  
     - Added `/healthz/database`, pool instrumentation, and the `scripts.db_metrics` probe so ops can monitor connection health in staging/production.  
     - Authored the database recovery runbook covering backup validation, failover rotation, and rollback paths.  
-    - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 45–47).
+    - **Follow-ups:** wire `db_pool_status` telemetry into Render alerts, add migration-duration metrics, and stage automated rollback drills (Phases 48–50).
 22. **Phase 22 – ELO Integrity & Responsiveness** ✅ *(completed October 15, 2025; see `docs/phase-22-elo-integrity.md`)*
     - Deduplicated overlapping ELO categories (label-first canonical keys) and foundation tracks, emitting `elo_category_collision` telemetry when merges occur.
     - Adopted schedule slicing across backend tools, agent prompts, and the macOS client, adding the `schedule_slice` telemetry event for latency monitoring.
@@ -314,7 +314,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added structured milestone briefs to sequencer payloads and persisted them across legacy JSON files and Postgres via the new Alembic migration.  
     - Updated session launch/complete APIs, the MCP milestone tool, and the macOS dashboard to render briefs, prerequisite locks, and learner progress capture (notes, links, attachment IDs).  
     - Expanded pytest + Swift coverage to assert milestone split handling, schedule completion telemetry, and UI rendering.  
-    - **Follow-ups:** Improve milestone kickoff guidance and surface completion telemetry in dashboards (see Phases 29 & 34).  
+    - **Follow-ups:** Improve milestone kickoff guidance and surface completion telemetry in dashboards (see Phases 29 & 37).  
 28. **Phase 28 – Milestone Progress Integration** ✅ *(completed October 16, 2025; see `docs/phase-28-milestone-progress-integration.md`)*  
     - Persist milestone completion history across Postgres and legacy storage, emit telemetry, and fold completions into learner profile/schedule payloads with light ELO boosts.  
     - Teach the curriculum sequencer to rotate milestones away from recently completed categories, preserve milestone progress during regeneration, and surface completions in rationale summaries.  
@@ -333,76 +333,90 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 31. **Phase 31 – Agent-Authored Milestone Projects** ✅ *(completed October 16, 2025; see `docs/phase-31-agent-authored-milestone-projects.md`)*  
     - Delivered the `milestone_project_author` MCP tool backed by GPT‑5 Responses, including strict JSON schemas, configurable model settings, and a REST shortcut used by the sequencer.  
     - Orchestrated backend calls during schedule generation with resilient fallbacks, telemetry (`milestone_author_invoked`, `milestone_author_latency`, `milestone_author_fallback`), and merged agent copy with template prerequisites.  
-    - Surfaced agent metadata (rationale, authored timestamps, model, warnings) across persistence, APIs, and the macOS schedule view with VoiceOver-friendly affordances and regression coverage.  
-    - **Follow-ups:** Explore reviewer agent capabilities for milestone grading and build automated prompt-health monitoring dashboards.  
-32. **Phase 32 – Lesson Deck Foundations**  
+    - Surfaced agent metadata (rationale, authored timestamps, model, warnings) across persistence, APIs, and the macOS schedule view with VoiceOver-friendly affordances, compact milestone cards, and launch flows that drop learners directly into the authored instructions.  
+    - **Follow-ups:** Explore reviewer agent capabilities for milestone grading, build automated prompt-health monitoring dashboards, and feed milestone requirements into the new unlock system (Phases 32–34).  
+32. **Phase 32 – Milestone Requirement Modeling** ✅ *(completed October 16, 2025; see `docs/phase-32-milestone-requirements.md`)*  
+    - Added the `MilestoneRequirement` schema and Alembic migration so schedule items persist requirement metadata across Postgres and legacy JSON stores.  
+    - Taught the sequencer + milestone author pipeline to emit validated requirements, merge agent output with deterministic fallbacks, and surface unmet thresholds through schedule payloads/tool guidance.  
+    - Updated REST/Swift models, widgets, and the dashboard UI to render requirement badges, highlight unmet ratings, and propagate the data through chat/tooling; expanded pytest + Swift decoding coverage accordingly.  
+    - **Follow-ups:** Stream requirement telemetry to observe unlock pressure, add Swift UI snapshot coverage for the new requirement badges, and expose coach-side prompts that explain how to raise the flagged ratings.  
+33. **Phase 33 – Milestone Unlock UX & Notifications**  
+    - Move milestones out of the main schedule into a dedicated dashboard tab with lock states, progress summaries, and unlock requirements.  
+    - Trigger in-app/system notifications when learners reach the required ratings, and log telemetry for unlock attempts, notifications, and milestone starts.  
+    - Stand up a dedicated *Requirement Advisor* agent (Agents SDK) that determines the canonical ELO categories/thresholds for each milestone using curriculum context + goal parser outputs, falling back only when rating evidence is missing.  
+    - Update macOS/SwiftUI models to display requirement breakdowns, gating status, and progress toward unlock thresholds with VoiceOver support.  
+34. **Phase 34 – Sequencer Dependency Alignment**  
+    - Teach the curriculum sequencer to prioritise lessons/quizzes that advance the Requirement Advisor’s milestones, factoring in dependency metadata and respecting logical skill progression.  
+    - Ensure adaptive scheduling avoids surfacing milestones with unsatisfied foundational categories (e.g. PLM projects only after Python/PyTorch/CUDA tracks reach required ratings) and records rationale/history updates.  
+    - Add regression tests and telemetry verifying requirement-driven pacing, unlock readiness calculations, and agent fallbacks when thresholds cannot be inferred.  
+35. **Phase 35 – Lesson Deck Foundations**  
     - Stand up a Lesson Deck Author agent (MCP endpoint) that converts curriculum modules into slide-style decks with citations, accessibility notes, and optional deep-dive links.  
     - Establish shared deck components and export formats so both chat and dashboard views reuse the agent-authored content pipeline.  
     - Ensure lesson decks remain self-contained while highlighting optional references pulled in by the agent.  
-33. **Phase 33 – Lesson Comprehension & Knowledge Checks**  
+36. **Phase 36 – Lesson Comprehension & Knowledge Checks**  
     - Introduce a Lesson Coach agent that generates adaptive comprehension checks and targeted explanations based on the learner’s recent deck interactions.  
     - Add lightweight progress indicators and reminders so learners know when to complete follow-up checks, feeding agent-authored results back into the sequencer and ELO model.  
     - Resolve remaining Swift concurrency warnings tied to the deck components so agent-generated content renders smoothly on macOS.  
-34. **Phase 34 – Attachment Preview & Mapping**  
+37. **Phase 37 – Attachment Preview & Mapping**  
     - Extend attachment presentation with inline previews/captions and map `file_search` IDs to human-readable filenames and titles across chat, schedule, and assessment panes.  
     - Launch an Attachment Summariser agent that generates concise captions, risk flags, and accessibility notes for new uploads while falling back to deterministic metadata when the agent is unavailable.  
     - Align attachment chips/cards in macOS and widgets so completion sheets and history surfaces share a unified layout.  
     - Expose preview metadata and agent-authored captions so milestone summaries and grading notes reference friendly filenames.  
-35. **Phase 35 – Attachment Resiliency & Lifecycle**  
+38. **Phase 38 – Attachment Resiliency & Lifecycle**  
     - Harden upload flows for large artefacts with resumable transfers, checksum validation, and progress indicators.  
     - Add retry/backoff handling plus UI error states for failed uploads and external link attachments.  
     - Document attachment retention/encryption policies ahead of the persistence migration freeze.  
-36. **Phase 36 – Citation UX & Linking**  
+39. **Phase 39 – Citation UX & Linking**  
     - Refresh the agent + client rendering pipeline so Markdown citations consistently show richer metadata across chat, lessons, and dashboard views.  
     - Add a Citation Verifier agent that samples references, validates availability, and proposes replacements when links drift, with dashboards tracking verification status.  
     - Surface backend citation metadata in UI chip components with quick-open/download affordances.  
     - Add regression coverage ensuring citation targets remain accessible after persistence migration.  
-37. **Phase 37 – MCP Marketplace Discoverability**  
+40. **Phase 40 – MCP Marketplace Discoverability**  
     - Build an MCP marketplace surface in the macOS dashboard so learners can browse, search, and filter curated connectors (e.g., PubMed).  
     - Launch a Marketplace Curator agent that recommends connectors based on learner goals, recent sessions, and accessibility preferences, with deterministic fallbacks for offline support.  
     - Provide detailed connector sheets outlining capabilities, permissions, accessibility notes, and expected usage costs before enabling.  
     - Gate marketplace access behind onboarding state and capture discovery telemetry to inform future curation and prioritisation.  
-38. **Phase 38 – MCP Governance Foundations**  
+41. **Phase 41 – MCP Governance Foundations**  
     - Define connector review policies, permission prompts, and telemetry requirements before learners can enable new MCP tools.  
     - Implement admin/developer workflows for approving, suspending, and auditing marketplace connectors.  
     - Document operational runbooks covering review cadence, rollback procedure, and escalations.  
-39. **Phase 39 – MCP Runtime Integration**  
+42. **Phase 42 – MCP Runtime Integration**  
     - Update agent tooling to hydrate only approved MCP endpoints per learner selections.  
     - Enforce quotas, safety policies, and graceful fallbacks when MCP calls fail or exceed limits.  
     - Add integration tests that simulate connector enable/disable flows and ensure telemetry captures remediation paths.  
-40. **Phase 40 – Code Editor Foundations**  
+43. **Phase 43 – Code Editor Foundations**  
     - Ship syntax highlighting, inline formatting, and editor shortcuts inside assessment and lesson surfaces ahead of richer quiz flows.  
     - Introduce a Pair Programming tutor agent that offers contextual hints, code reviews, and debugging prompts directly in the editor, with toggles for instructor-mode or silent mode.  
     - Respect accessibility preferences (font sizing, colour themes, reduced motion) across every code-entry context.  
     - Add UI tests that lock in the new editor behaviours and keyboard interactions.  
-41. **Phase 41 – Interactive Quiz Runner**  
+44. **Phase 44 – Interactive Quiz Runner**  
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback loops.  
     - Integrate the new code editor components and ensure quizzes capture attempt metadata for follow-up analysis.  
     - Deploy a Quiz Judge agent that evaluates open-ended responses, surfaces formative feedback, and hands off final grading to the existing rubric pipeline when higher assurance is needed.  
     - Ensure accessibility and offline considerations are met for the upgraded quiz surfaces.  
-42. **Phase 42 – Assessment Review & Adaptive Feedback**  
+45. **Phase 45 – Assessment Review & Adaptive Feedback**  
     - Provide dedicated review views so learners can revisit answers, rationales, references, and attachments across assessment attempts.  
     - Deploy a Reflection Guide agent that summarises assessment outcomes, suggests next steps, and feeds personalised feedback into ELO updates with clearer explanations of rating deltas and confidence bands.  
     - Sync key feedback summaries back into the broader coaching prompts so future agent turns reference the latest review data.  
-43. **Phase 43 – Learner Insight Nudges**  
+46. **Phase 46 – Learner Insight Nudges**  
     - Capture telemetry on assessment retries, snoozes, and follow-up completions to power personalised nudges.  
     - Launch a Nudge Orchestrator agent that composes gentle reminders and motivational check-ins aligned with learner preferences, with deterministic fallback messaging when agents are offline.  
     - Trigger in-app reminders and chat suggestions that align with pending schedule items or weak categories.  
     - Expose opt-in controls and audit logging so learners can tune reminder frequency.  
-44. **Phase 44 – Reassessment & Refresh Cadence**  
+47. **Phase 47 – Reassessment & Refresh Cadence**  
     - Schedule periodic reassessments and surface their status alongside historical submissions.  
     - Introduce a Reassessment Planner agent that proposes timing, scope, and preparatory resources based on learner mastery trends and agent feedback.  
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.  
     - Define thresholds for triggering reassessment vs. lightweight check-ins.  
-45. **Phase 45 – Developer Sandbox & Execution Toggles**  
+48. **Phase 48 – Developer Sandbox & Execution Toggles**  
     - Evaluate optional lint/run hooks for in-app prompts and surface clear affordances when sandbox execution is available.  
     - Provide developer-oriented toggles for sandboxed execution, logging verbosity, and failure triage.  
     - Document the security and resource guardrails required before enabling execution in production.  
-46. **Phase 46 – API Reliability & Test Coverage**  
+49. **Phase 49 – API Reliability & Test Coverage**  
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).  
     - Add contract tests for assessment history payloads, including legacy compatibility verification.  
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.  
-47. **Phase 47 – Evaluation & Benchmarking Framework**  
+50. **Phase 50 – Evaluation & Benchmarking Framework**  
     - Validate GPT-graded outcomes against representative human reviews and build a replayable evaluation harness.  
     - Curate ground-truth datasets across lesson types and surface scorecards to the team.  
     - Track model drift and regression deltas, feeding results into adaptive curriculum decisions.  
@@ -443,6 +457,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 - **What went wrong:** After Phase 30, milestone projects still came from curated templates, so learners expecting bespoke agent copy saw generic deliverables.  
 - **Correct approach:** Route milestone project generation through the new agent workflow introduced in Phase 31, keeping deterministic templates solely as a fallback.  
 - **Action for future work:** Instrument fallback telemetry and add a developer toggle so we can compare agent-authored versus template briefs during rollout.  
+
+### Responses vs. Chat completion parameters (added October 16, 2025)
+- **What went wrong:** When moving the MCP milestone author back to the Agents SDK, we kept passing `temperature` and `reasoning` in combinations unsupported by the Responses API, triggering 400 errors (`unknown parameter: temperature`) and blocking milestone unlocks.  
+- **Correct approach:** Use the Agents SDK’s `RunConfig` for reasoning effort and drop unsupported Chat/Responses parameters; when in doubt, confirm the target API’s allowed fields before dispatching requests.  
+- **Action for future work:** Any time we upgrade the OpenAI SDK or switch transport layers, exercise milestone author smoke tests and keep a compatibility matrix of model parameters vs. API surfaces.  
 
 ### Schedule slice reapplication after launches (added October 15, 2025)
 - **What went wrong:** Launching or completing a scheduled item replaced the learner’s sliced view with the full horizon because the client overwrote the cached slice with the backend’s whole schedule payload.

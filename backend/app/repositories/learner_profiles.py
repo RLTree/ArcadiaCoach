@@ -720,6 +720,7 @@ class LearnerProfileRepository:
                     "milestone_brief": item.milestone_brief,
                     "milestone_progress": item.milestone_progress,
                     "milestone_project": item.milestone_project,
+                    "milestone_requirements": item.milestone_requirements or [],
                 }
                 for item in items
             ],
@@ -785,6 +786,10 @@ class LearnerProfileRepository:
                         if work_item.milestone_project
                         else None
                     ),
+                    milestone_requirements=[
+                        requirement.model_dump(mode="json")
+                        for requirement in getattr(work_item, "milestone_requirements", []) or []
+                    ],
                 )
             )
 

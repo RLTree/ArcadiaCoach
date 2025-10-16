@@ -3,6 +3,7 @@ import SwiftUI
 struct CurriculumScheduleView: View {
     let schedule: CurriculumSchedule
     let categoryLabels: [String:String]
+    let skillRatings: [String:Int]
     let milestoneCompletions: [MilestoneCompletion]
     let telemetryEvents: [LearnerTelemetryEvent]
     let isRefreshing: Bool
@@ -68,6 +69,15 @@ struct CurriculumScheduleView: View {
             }
         }
         .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func rating(for categoryKey: String) -> Int {
+        skillRatings[categoryKey] ?? 0
+    }
+
+    private func requirementStatus(for requirement: MilestoneRequirement) -> (met: Bool, current: Int) {
+        let current = rating(for: requirement.categoryKey)
+        return (current >= requirement.minimumRating, current)
     }
 
     private var longRangeDescription: String? {
@@ -918,6 +928,13 @@ private var loadMoreSection: some View {
             }
         }
 
+        let effectiveRequirements: [MilestoneRequirement] = {
+            if !item.milestoneRequirements.isEmpty {
+                return item.milestoneRequirements
+            }
+            return brief?.requirements ?? []
+        }()
+
         let additionalProjectItems: Bool = {
             guard let project else { return false }
             if isExpanded { return false }
@@ -939,7 +956,28 @@ private var loadMoreSection: some View {
                 || !brief.capturePrompts.isEmpty
                 || !brief.resources.isEmpty
                 || !brief.prerequisites.isEmpty
+                || !effectiveRequirements.isEmpty
         }()
+
+        if !effectiveRequirements.isEmpty && !isExpanded {
+            let unmet = effectiveRequirements.filter { !requirementStatus(for: $0).met }
+            if let first = unmet.first {
+                let status = requirementStatus(for: first)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text("Need \(first.minimumRating) in \(first.categoryLabel) • current \(status.current)")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+            } else {
+                Label("Requirements met", systemImage: "checkmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
 
         if isExpanded {
             if let project {
@@ -947,7 +985,8 @@ private var loadMoreSection: some View {
             }
             milestoneDetailSections(
                 brief: brief,
-                prerequisites: brief?.prerequisites ?? []
+                prerequisites: brief?.prerequisites ?? [],
+                requirements: effectiveRequirements
             )
             Button {
                 withAnimation { binding.wrappedValue = false }
@@ -970,7 +1009,8 @@ private var loadMoreSection: some View {
     @ViewBuilder
     private func milestoneDetailSections(
         brief: MilestoneBrief?,
-        prerequisites: [MilestonePrerequisite]
+        prerequisites: [MilestonePrerequisite],
+        requirements: [MilestoneRequirement]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if !prerequisites.isEmpty {
@@ -988,6 +1028,32 @@ private var loadMoreSection: some View {
                             Text(status.label)
                                 .font(.caption2)
                                 .foregroundStyle(statusColor(for: status))
+                        }
+                    }
+                }
+            }
+            if !requirements.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Requirements")
+                        .font(.caption.bold())
+                    ForEach(requirements) { requirement in
+                        let status = requirementStatus(for: requirement)
+                        HStack(spacing: 8) {
+                            Image(systemName: status.met ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(status.met ? Color.green : Color.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(requirement.categoryLabel)
+                                    .font(.caption)
+                                Text("Need \(requirement.minimumRating) • Current \(status.current)")
+                                    .font(.caption2)
+                                    .foregroundStyle(status.met ? Color.secondary : Color.orange)
+                                if let rationale = requirement.rationale, !rationale.isEmpty {
+                                    Text(rationale)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
                 }

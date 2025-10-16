@@ -22,6 +22,7 @@ from .learner_profile import (
     ScheduleRationaleEntry,
     SequencedWorkItem,
     MilestoneBrief,
+    MilestoneRequirement,
     MilestonePrerequisite,
     profile_store,
 )
@@ -181,7 +182,12 @@ class CurriculumSequencer:
                     profile,
                     lesson_tail_id,
                     quiz_tail_id,
+                    categories,
                 )
+                if milestone_item.milestone_brief:
+                    milestone_item.milestone_requirements = list(
+                        milestone_item.milestone_brief.requirements or []
+                    )
                 if milestone_item.milestone_brief and milestone_item.milestone_brief.project:
                     milestone_item.milestone_project = milestone_item.milestone_brief.project
                 milestone_parts = self._split_work_item(milestone_item)
@@ -492,6 +498,9 @@ class CurriculumSequencer:
             clone.milestone_project = (
                 item.milestone_project.model_copy(deep=True) if item.milestone_project else None
             )
+            clone.milestone_requirements = [
+                requirement.model_copy(deep=True) for requirement in item.milestone_requirements
+            ]
             return [clone]
 
         minutes = max(int(item.recommended_minutes or MIN_SESSION_MINUTES), MIN_SESSION_MINUTES)
@@ -507,6 +516,9 @@ class CurriculumSequencer:
             cloned.milestone_project = (
                 item.milestone_project.model_copy(deep=True) if item.milestone_project else None
             )
+            cloned.milestone_requirements = [
+                requirement.model_copy(deep=True) for requirement in item.milestone_requirements
+            ]
             return [cloned]
 
         parts = math.ceil(minutes / MAX_SESSION_MINUTES)
@@ -537,6 +549,9 @@ class CurriculumSequencer:
             part.milestone_project = (
                 item.milestone_project.model_copy(deep=True) if item.milestone_project else None
             )
+            part.milestone_requirements = [
+                requirement.model_copy(deep=True) for requirement in item.milestone_requirements
+            ]
             results.append(part)
 
         total_minutes = sum(part.recommended_minutes for part in results)
@@ -559,6 +574,7 @@ class CurriculumSequencer:
         profile: LearnerProfile,
         lesson_tail_id: str,
         quiz_tail_id: str,
+        categories: Dict[str, _CategoryContext],
     ) -> MilestoneBrief:
         fallback_brief = self._fallback_milestone_brief(
             module,
@@ -567,6 +583,7 @@ class CurriculumSequencer:
             lesson_tail_id,
             quiz_tail_id,
         )
+        fallback_requirements = list(fallback_brief.requirements or [])
         settings = get_settings()
         if not should_author(settings):
             return fallback_brief
@@ -628,6 +645,13 @@ class CurriculumSequencer:
             brief.resources = fallback_brief.resources
         if brief.project is None and fallback_brief.project is not None:
             brief.project = fallback_brief.project
+        brief.requirements = self._merge_milestone_requirements(
+            profile,
+            context,
+            getattr(brief, "requirements", []) or [],
+            fallback_requirements,
+            categories,
+        )
         brief.source = "agent"
         combined_warnings = list(
             dict.fromkeys(fallback_brief.warnings + brief.warnings + result.warnings)
@@ -734,6 +758,7 @@ class CurriculumSequencer:
         )
         if project:
             brief.project = project
+        brief.requirements = self._fallback_requirements(module, context, profile)
         return brief
 
     def _author_payload(
@@ -749,6 +774,13 @@ class CurriculumSequencer:
             goal_tracks = [
                 track.model_dump(mode="json")
                 for track in inference.tracks[:6]
+            ]
+        plan = getattr(profile, "elo_category_plan", None)
+        elo_categories: List[Dict[str, Any]] = []
+        if plan and getattr(plan, "categories", None):
+            elo_categories = [
+                category.model_dump(mode="json")
+                for category in plan.categories[:12]
             ]
         history = [
             completion.model_dump(mode="json")
@@ -771,6 +803,8 @@ class CurriculumSequencer:
             schedule_notes=self._author_schedule_notes(context, profile),
             timezone=getattr(profile, "timezone", None),
             previous_brief=fallback_brief.model_dump(mode="json"),
+            elo_snapshot=dict(getattr(profile, "elo_snapshot", {}) or {}),
+            elo_categories=elo_categories,
         )
 
     def _author_schedule_notes(
@@ -794,6 +828,102 @@ class CurriculumSequencer:
         if overview:
             details.append(f"Curriculum focus: {overview[:180]}")
         return "; ".join(details) if details else None
+
+    def _default_requirement_threshold(
+        self,
+        profile: LearnerProfile,
+        category_key: str,
+        context: _CategoryContext,
+    ) -> int:
+        baseline = 1200
+        plan = getattr(profile, "elo_category_plan", None)
+        if plan and getattr(plan, "categories", None):
+            for category in plan.categories:
+                if category.key == category_key:
+                    try:
+                        baseline = max(baseline, int(category.starting_rating))
+                    except (TypeError, ValueError):
+                        pass
+                    break
+        if getattr(context, "rating", None):
+            try:
+                baseline = max(baseline, int(context.rating))
+            except (TypeError, ValueError):
+                pass
+        snapshot = getattr(profile, "elo_snapshot", {}) or {}
+        current = int(snapshot.get(category_key, 0) or 0)
+        if current > 0:
+            baseline = max(baseline, current + 40)
+        return min(max(baseline, 1100), 2400)
+
+    def _fallback_requirements(
+        self,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        profile: LearnerProfile,
+    ) -> List[MilestoneRequirement]:
+        label = context.label or module.category_key
+        minimum = self._default_requirement_threshold(profile, module.category_key, context)
+        rationale = (
+            f"Reach {minimum} in {label} before launching this milestone."
+            if label
+            else f"Reach a rating of {minimum} before launching this milestone."
+        )
+        return [
+            MilestoneRequirement(
+                category_key=module.category_key,
+                category_label=label or module.category_key,
+                minimum_rating=minimum,
+                rationale=rationale,
+            )
+        ]
+
+    def _merge_milestone_requirements(
+        self,
+        profile: LearnerProfile,
+        context: _CategoryContext,
+        generated: Iterable[MilestoneRequirement],
+        fallback: List[MilestoneRequirement],
+        categories: Dict[str, _CategoryContext],
+    ) -> List[MilestoneRequirement]:
+        fallback_by_key = {entry.category_key: entry for entry in fallback if entry.category_key}
+        merged: List[MilestoneRequirement] = []
+        seen: Set[str] = set()
+        for entry in generated or []:
+            key = (getattr(entry, "category_key", "") or "").strip()
+            if not key:
+                continue
+            source_context = categories.get(key, context)
+            if source_context is None:
+                continue
+            label = getattr(entry, "category_label", None) or source_context.label or key
+            try:
+                minimum = int(getattr(entry, "minimum_rating", 0) or 0)
+            except (TypeError, ValueError):
+                minimum = 0
+            if minimum <= 0:
+                fallback_requirement = fallback_by_key.get(key)
+                if fallback_requirement:
+                    minimum = fallback_requirement.minimum_rating
+                else:
+                    minimum = self._default_requirement_threshold(profile, key, source_context)
+            minimum = min(max(minimum, 1100), 2400)
+            rationale = getattr(entry, "rationale", None)
+            merged.append(
+                MilestoneRequirement(
+                    category_key=key,
+                    category_label=label,
+                    minimum_rating=minimum,
+                    rationale=rationale,
+                )
+            )
+            seen.add(key)
+        for entry in fallback:
+            if entry.category_key not in seen:
+                merged.append(entry.model_copy(deep=True))
+        if not merged:
+            return [entry.model_copy(deep=True) for entry in fallback]
+        return merged
 
     def _match_track(
         self,

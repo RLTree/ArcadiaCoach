@@ -129,7 +129,11 @@ def developer_auto_complete(payload: DeveloperAutoCompleteRequest) -> Curriculum
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
-    schedule_payload = _schedule_payload(refreshed.curriculum_schedule)
+    schedule_payload = _schedule_payload(
+        refreshed.curriculum_schedule,
+        elo_snapshot=getattr(refreshed, "elo_snapshot", {}),
+        elo_plan=getattr(refreshed, "elo_category_plan", None),
+    )
     if schedule_payload is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -287,6 +287,14 @@ final class BackendServiceTests: XCTestCase {
                 "evaluation_focus": ["Code quality", "Operational readiness"],
                 "evaluation_steps": ["Run load tests", "Document release plan"]
             },
+            "milestone_requirements": [
+                {
+                    "category_key": "backend",
+                    "category_label": "Backend Systems",
+                    "minimum_rating": 1250,
+                    "rationale": "Raise your backend rating before unlocking."
+                }
+            ],
             "milestone_guidance": {
                 "state": "in_progress",
                 "summary": "Milestone in progress. Capture blockers and progress snapshots.",
@@ -317,6 +325,8 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(item.milestoneProgress?.projectStatus, "building")
         XCTAssertEqual(item.milestoneProgress?.nextSteps, ["Capture CI results"])
         XCTAssertEqual(item.milestoneProject?.title, "Ship a Production-Ready Service Slice")
+        XCTAssertEqual(item.milestoneRequirements.first?.categoryKey, "backend")
+        XCTAssertEqual(item.milestoneRequirements.first?.minimumRating, 1250)
         XCTAssertEqual(item.milestoneGuidance?.state, "in_progress")
         XCTAssertEqual(item.milestoneGuidance?.nextActions.first, "Log quick notes or links to capture progress.")
     }

@@ -153,6 +153,15 @@ class MilestoneProject(BaseModel):
     evaluation_steps: List[str] = Field(default_factory=list)
 
 
+class MilestoneRequirement(BaseModel):
+    """Rating requirement that must be satisfied before unlocking a milestone."""
+
+    category_key: str
+    category_label: str
+    minimum_rating: int = Field(default=1200, ge=0)
+    rationale: Optional[str] = None
+
+
 class MilestoneBrief(BaseModel):
     """Structured milestone brief rendered in-app (Phase 27)."""
 
@@ -169,6 +178,7 @@ class MilestoneBrief(BaseModel):
     kickoff_steps: List[str] = Field(default_factory=list)
     coaching_prompts: List[str] = Field(default_factory=list)
     project: Optional[MilestoneProject] = None
+    requirements: List[MilestoneRequirement] = Field(default_factory=list)
     rationale: Optional[str] = None
     authored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     authored_by_model: Optional[str] = None
@@ -244,6 +254,7 @@ class SequencedWorkItem(BaseModel):
     milestone_brief: Optional[MilestoneBrief] = None
     milestone_progress: Optional[MilestoneProgress] = None
     milestone_project: Optional[MilestoneProject] = None
+    milestone_requirements: List[MilestoneRequirement] = Field(default_factory=list)
 
 
 class ScheduleWarning(BaseModel):

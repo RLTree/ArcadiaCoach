@@ -410,6 +410,15 @@ struct MilestoneProject: Codable, Hashable {
     var evaluationSteps: [String] = []
 }
 
+struct MilestoneRequirement: Codable, Hashable, Identifiable {
+    var categoryKey: String
+    var categoryLabel: String
+    var minimumRating: Int
+    var rationale: String?
+
+    var id: String { categoryKey }
+}
+
 struct MilestoneBrief: Codable, Hashable {
     var headline: String
     var summary: String?
@@ -424,12 +433,128 @@ struct MilestoneBrief: Codable, Hashable {
     var kickoffSteps: [String] = []
     var coachingPrompts: [String] = []
     var project: MilestoneProject?
+    var requirements: [MilestoneRequirement] = []
     var rationale: String?
     var authoredAt: Date?
     var authoredByModel: String?
     var reasoningEffort: String?
     var source: String = "template"
     var warnings: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case headline
+        case summary
+        case objectives
+        case deliverables
+        case successCriteria
+        case externalWork
+        case capturePrompts
+        case prerequisites
+        case eloFocus
+        case resources
+        case kickoffSteps
+        case coachingPrompts
+        case project
+        case requirements
+        case rationale
+        case authoredAt
+        case authoredByModel
+        case reasoningEffort
+        case source
+        case warnings
+    }
+
+    init(
+        headline: String,
+        summary: String? = nil,
+        objectives: [String] = [],
+        deliverables: [String] = [],
+        successCriteria: [String] = [],
+        externalWork: [String] = [],
+        capturePrompts: [String] = [],
+        prerequisites: [MilestonePrerequisite] = [],
+        eloFocus: [String] = [],
+        resources: [String] = [],
+        kickoffSteps: [String] = [],
+        coachingPrompts: [String] = [],
+        project: MilestoneProject? = nil,
+        requirements: [MilestoneRequirement] = [],
+        rationale: String? = nil,
+        authoredAt: Date? = nil,
+        authoredByModel: String? = nil,
+        reasoningEffort: String? = nil,
+        source: String = "template",
+        warnings: [String] = []
+    ) {
+        self.headline = headline
+        self.summary = summary
+        self.objectives = objectives
+        self.deliverables = deliverables
+        self.successCriteria = successCriteria
+        self.externalWork = externalWork
+        self.capturePrompts = capturePrompts
+        self.prerequisites = prerequisites
+        self.eloFocus = eloFocus
+        self.resources = resources
+        self.kickoffSteps = kickoffSteps
+        self.coachingPrompts = coachingPrompts
+        self.project = project
+        self.requirements = requirements
+        self.rationale = rationale
+        self.authoredAt = authoredAt
+        self.authoredByModel = authoredByModel
+        self.reasoningEffort = reasoningEffort
+        self.source = source
+        self.warnings = warnings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        headline = try container.decode(String.self, forKey: .headline)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        objectives = try container.decodeIfPresent([String].self, forKey: .objectives) ?? []
+        deliverables = try container.decodeIfPresent([String].self, forKey: .deliverables) ?? []
+        successCriteria = try container.decodeIfPresent([String].self, forKey: .successCriteria) ?? []
+        externalWork = try container.decodeIfPresent([String].self, forKey: .externalWork) ?? []
+        capturePrompts = try container.decodeIfPresent([String].self, forKey: .capturePrompts) ?? []
+        prerequisites = try container.decodeIfPresent([MilestonePrerequisite].self, forKey: .prerequisites) ?? []
+        eloFocus = try container.decodeIfPresent([String].self, forKey: .eloFocus) ?? []
+        resources = try container.decodeIfPresent([String].self, forKey: .resources) ?? []
+        kickoffSteps = try container.decodeIfPresent([String].self, forKey: .kickoffSteps) ?? []
+        coachingPrompts = try container.decodeIfPresent([String].self, forKey: .coachingPrompts) ?? []
+        project = try container.decodeIfPresent(MilestoneProject.self, forKey: .project)
+        requirements = try container.decodeIfPresent([MilestoneRequirement].self, forKey: .requirements) ?? []
+        rationale = try container.decodeIfPresent(String.self, forKey: .rationale)
+        authoredAt = try container.decodeIfPresent(Date.self, forKey: .authoredAt)
+        authoredByModel = try container.decodeIfPresent(String.self, forKey: .authoredByModel)
+        reasoningEffort = try container.decodeIfPresent(String.self, forKey: .reasoningEffort)
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? "template"
+        warnings = try container.decodeIfPresent([String].self, forKey: .warnings) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(headline, forKey: .headline)
+        try container.encodeIfPresent(summary, forKey: .summary)
+        try container.encode(objectives, forKey: .objectives)
+        try container.encode(deliverables, forKey: .deliverables)
+        try container.encode(successCriteria, forKey: .successCriteria)
+        try container.encode(externalWork, forKey: .externalWork)
+        try container.encode(capturePrompts, forKey: .capturePrompts)
+        try container.encode(prerequisites, forKey: .prerequisites)
+        try container.encode(eloFocus, forKey: .eloFocus)
+        try container.encode(resources, forKey: .resources)
+        try container.encode(kickoffSteps, forKey: .kickoffSteps)
+        try container.encode(coachingPrompts, forKey: .coachingPrompts)
+        try container.encodeIfPresent(project, forKey: .project)
+        try container.encode(requirements, forKey: .requirements)
+        try container.encodeIfPresent(rationale, forKey: .rationale)
+        try container.encodeIfPresent(authoredAt, forKey: .authoredAt)
+        try container.encodeIfPresent(authoredByModel, forKey: .authoredByModel)
+        try container.encodeIfPresent(reasoningEffort, forKey: .reasoningEffort)
+        try container.encode(source, forKey: .source)
+        try container.encode(warnings, forKey: .warnings)
+    }
 }
 
 struct MilestoneProgress: Codable, Hashable {
@@ -558,11 +683,147 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var milestoneProgress: MilestoneProgress?
     var milestoneProject: MilestoneProject?
     var milestoneGuidance: MilestoneGuidance?
+    var milestoneRequirements: [MilestoneRequirement] = []
 
     var id: String { itemId }
 
     var formattedDuration: String {
         guard recommendedMinutes > 0 else { return "Flexible" }
         return "~\(recommendedMinutes) min"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case itemId
+        case kind
+        case categoryKey
+        case title
+        case summary
+        case objectives
+        case prerequisites
+        case recommendedMinutes
+        case recommendedDayOffset
+        case effortLevel
+        case focusReason
+        case expectedOutcome
+        case userAdjusted
+        case scheduledFor
+        case launchStatus
+        case lastLaunchedAt
+        case lastCompletedAt
+        case activeSessionId
+        case launchLockedReason
+        case milestoneBrief
+        case milestoneProgress
+        case milestoneProject
+        case milestoneGuidance
+        case milestoneRequirements
+    }
+
+    init(
+        itemId: String,
+        kind: Kind,
+        categoryKey: String,
+        title: String,
+        summary: String? = nil,
+        objectives: [String] = [],
+        prerequisites: [String] = [],
+        recommendedMinutes: Int = 0,
+        recommendedDayOffset: Int = 0,
+        effortLevel: EffortLevel = .moderate,
+        focusReason: String? = nil,
+        expectedOutcome: String? = nil,
+        userAdjusted: Bool = false,
+        scheduledFor: Date? = nil,
+        launchStatus: LaunchStatus = .pending,
+        lastLaunchedAt: Date? = nil,
+        lastCompletedAt: Date? = nil,
+        activeSessionId: String? = nil,
+        launchLockedReason: String? = nil,
+        milestoneBrief: MilestoneBrief? = nil,
+        milestoneProgress: MilestoneProgress? = nil,
+        milestoneProject: MilestoneProject? = nil,
+        milestoneGuidance: MilestoneGuidance? = nil,
+        milestoneRequirements: [MilestoneRequirement] = []
+    ) {
+        self.itemId = itemId
+        self.kind = kind
+        self.categoryKey = categoryKey
+        self.title = title
+        self.summary = summary
+        self.objectives = objectives
+        self.prerequisites = prerequisites
+        self.recommendedMinutes = recommendedMinutes
+        self.recommendedDayOffset = recommendedDayOffset
+        self.effortLevel = effortLevel
+        self.focusReason = focusReason
+        self.expectedOutcome = expectedOutcome
+        self.userAdjusted = userAdjusted
+        self.scheduledFor = scheduledFor
+        self.launchStatus = launchStatus
+        self.lastLaunchedAt = lastLaunchedAt
+        self.lastCompletedAt = lastCompletedAt
+        self.activeSessionId = activeSessionId
+        self.launchLockedReason = launchLockedReason
+        self.milestoneBrief = milestoneBrief
+        self.milestoneProgress = milestoneProgress
+        self.milestoneProject = milestoneProject
+        self.milestoneGuidance = milestoneGuidance
+        self.milestoneRequirements = milestoneRequirements
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        itemId = try container.decode(String.self, forKey: .itemId)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        categoryKey = try container.decode(String.self, forKey: .categoryKey)
+        title = try container.decode(String.self, forKey: .title)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        objectives = try container.decodeIfPresent([String].self, forKey: .objectives) ?? []
+        prerequisites = try container.decodeIfPresent([String].self, forKey: .prerequisites) ?? []
+        recommendedMinutes = try container.decodeIfPresent(Int.self, forKey: .recommendedMinutes) ?? 0
+        recommendedDayOffset = try container.decodeIfPresent(Int.self, forKey: .recommendedDayOffset) ?? 0
+        effortLevel = try container.decodeIfPresent(EffortLevel.self, forKey: .effortLevel) ?? .moderate
+        focusReason = try container.decodeIfPresent(String.self, forKey: .focusReason)
+        expectedOutcome = try container.decodeIfPresent(String.self, forKey: .expectedOutcome)
+        userAdjusted = try container.decodeIfPresent(Bool.self, forKey: .userAdjusted) ?? false
+        scheduledFor = try container.decodeIfPresent(Date.self, forKey: .scheduledFor)
+        launchStatus = try container.decodeIfPresent(LaunchStatus.self, forKey: .launchStatus) ?? .pending
+        lastLaunchedAt = try container.decodeIfPresent(Date.self, forKey: .lastLaunchedAt)
+        lastCompletedAt = try container.decodeIfPresent(Date.self, forKey: .lastCompletedAt)
+        activeSessionId = try container.decodeIfPresent(String.self, forKey: .activeSessionId)
+        launchLockedReason = try container.decodeIfPresent(String.self, forKey: .launchLockedReason)
+        milestoneBrief = try container.decodeIfPresent(MilestoneBrief.self, forKey: .milestoneBrief)
+        milestoneProgress = try container.decodeIfPresent(MilestoneProgress.self, forKey: .milestoneProgress)
+        milestoneProject = try container.decodeIfPresent(MilestoneProject.self, forKey: .milestoneProject)
+        milestoneGuidance = try container.decodeIfPresent(MilestoneGuidance.self, forKey: .milestoneGuidance)
+        milestoneRequirements = try container.decodeIfPresent([MilestoneRequirement].self, forKey: .milestoneRequirements) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(itemId, forKey: .itemId)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(categoryKey, forKey: .categoryKey)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(summary, forKey: .summary)
+        try container.encode(objectives, forKey: .objectives)
+        try container.encode(prerequisites, forKey: .prerequisites)
+        try container.encode(recommendedMinutes, forKey: .recommendedMinutes)
+        try container.encode(recommendedDayOffset, forKey: .recommendedDayOffset)
+        try container.encode(effortLevel, forKey: .effortLevel)
+        try container.encodeIfPresent(focusReason, forKey: .focusReason)
+        try container.encodeIfPresent(expectedOutcome, forKey: .expectedOutcome)
+        try container.encode(userAdjusted, forKey: .userAdjusted)
+        try container.encodeIfPresent(scheduledFor, forKey: .scheduledFor)
+        try container.encode(launchStatus, forKey: .launchStatus)
+        try container.encodeIfPresent(lastLaunchedAt, forKey: .lastLaunchedAt)
+        try container.encodeIfPresent(lastCompletedAt, forKey: .lastCompletedAt)
+        try container.encodeIfPresent(activeSessionId, forKey: .activeSessionId)
+        try container.encodeIfPresent(launchLockedReason, forKey: .launchLockedReason)
+        try container.encodeIfPresent(milestoneBrief, forKey: .milestoneBrief)
+        try container.encodeIfPresent(milestoneProgress, forKey: .milestoneProgress)
+        try container.encodeIfPresent(milestoneProject, forKey: .milestoneProject)
+        try container.encodeIfPresent(milestoneGuidance, forKey: .milestoneGuidance)
+        try container.encode(milestoneRequirements, forKey: .milestoneRequirements)
     }
 }
