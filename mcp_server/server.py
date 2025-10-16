@@ -368,7 +368,6 @@ async def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAu
         run_config=RunConfig(
             model_settings=ModelSettings(
                 reasoning=_author_effort(_MILESTONE_AUTHOR_REASONING),
-                temperature=_MILESTONE_AUTHOR_TEMPERATURE,
             ),
         ),
     )
