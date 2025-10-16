@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
 
 from anyio import ClosedResourceError, BrokenResourceError, EndOfStream
 from fastapi import FastAPI, Request, Response
@@ -19,11 +19,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Message, Scope
-
-try:
-    from openai import OpenAI
-except Exception:  # noqa: BLE001
-    OpenAI = None  # type: ignore[assignment]
+from agents import Agent, ModelSettings, RunConfig, Runner
+from openai.types.shared.reasoning import Reasoning
+from openai.types.shared.reasoning_effort import ReasoningEffort
 
 
 class JSONFormatter(logging.Formatter):
@@ -59,18 +57,7 @@ try:
 except ValueError:
     _MILESTONE_AUTHOR_TEMPERATURE = 0.6
 
-_openai_client: Optional["OpenAI"] = None
-
-
-def _get_openai_client() -> "OpenAI":
-    if OpenAI is None:
-        raise RuntimeError("openai client library is not installed. Install 'openai>=1.40.0'.")
-    if not _OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY is required for milestone authoring.")
-    global _openai_client
-    if _openai_client is None:
-        _openai_client = OpenAI(api_key=_OPENAI_API_KEY, max_retries=2)
-    return _openai_client
+_AUTHOR_AGENT_CACHE: Dict[str, Agent] = {}
 
 
 class ProductionErrorMiddleware(BaseHTTPMiddleware):
@@ -265,6 +252,25 @@ _AUTHOR_INSTRUCTIONS = (
 )
 
 
+def _author_effort(value: str) -> Reasoning:
+    allowed = {"minimal", "low", "medium", "high"}
+    effort = value if value in allowed else "medium"
+    return Reasoning(effort=cast(ReasoningEffort, effort), summary="auto")
+
+
+def _get_milestone_author_agent() -> Agent:
+    model = _MILESTONE_AUTHOR_MODEL or "gpt-5"
+    if model not in _AUTHOR_AGENT_CACHE:
+        _AUTHOR_AGENT_CACHE[model] = Agent(
+            name="Arcadia Milestone Author",
+            instructions=_AUTHOR_INSTRUCTIONS,
+            model=model,
+            tools=[],
+            model_settings=ModelSettings(store=False),
+        )
+    return _AUTHOR_AGENT_CACHE[model]
+
+
 def _trim(text: Optional[str], *, limit: int = 600) -> Optional[str]:
     if not text:
         return None
@@ -311,12 +317,16 @@ def _author_prompt(payload: MilestoneAuthorRequest) -> str:
         "previous_brief": payload.previous_brief,
     }
     serialized = json.dumps(context, ensure_ascii=False, indent=2)
+    schema = json.dumps(MilestoneAuthorBrief.model_json_schema(), ensure_ascii=False, indent=2)
     return (
         "Use the learner context and curriculum details below to author a milestone brief. "
         "Ensure deliverables and evaluation steps map back to the learner's stated goal and current track focus. "
         "Where history shows blockers, propose gentle next steps. "
         "Context:\n"
-        f"{serialized}"
+        f"{serialized}\n\n"
+        "Respond ONLY with JSON matching the MilestoneAuthorBrief schema (no prose, no markdown).\n"
+        "SCHEMA:\n"
+        f"{schema}"
     )
 
 
@@ -348,60 +358,22 @@ def _extract_output_text(response: Any) -> str:
 
 
 def _call_milestone_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
-    client = _get_openai_client()
-    schema = MilestoneAuthorBrief.model_json_schema()
-    request_payload: Dict[str, Any] = {
-        "model": _MILESTONE_AUTHOR_MODEL,
-        "messages": [
-            {"role": "system", "content": _AUTHOR_INSTRUCTIONS},
-            {"role": "user", "content": _author_prompt(payload)},
-        ],
-        "temperature": _MILESTONE_AUTHOR_TEMPERATURE,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "MilestoneAuthorBrief",
-                "schema": schema,
-                "strict": True,
-            },
-        },
-    }
-    if _MILESTONE_AUTHOR_REASONING:
-        request_payload.setdefault("extra_body", {})["reasoning"] = {
-            "effort": _MILESTONE_AUTHOR_REASONING
-        }
+    agent = _get_milestone_author_agent()
+    prompt = _author_prompt(payload)
     start = time.perf_counter()
-    try:
-        response = client.chat.completions.create(**request_payload)
-    except TypeError:
-        # Older SDKs may not support extra_body; retry without reasoning hint.
-        request_payload.pop("extra_body", None)
-        response = client.chat.completions.create(**request_payload)
+    result = Runner.run_sync(
+        agent,
+        prompt,
+        context=None,
+        run_config=RunConfig(
+            model_settings=ModelSettings(
+                reasoning=_author_effort(_MILESTONE_AUTHOR_REASONING),
+                temperature=_MILESTONE_AUTHOR_TEMPERATURE,
+            ),
+        ),
+    )
     latency_ms = int((time.perf_counter() - start) * 1000)
-
-    content: str = ""
-    try:
-        choice = response.choices[0]
-        message = getattr(choice, "message", None)
-        if message is None:
-            message = getattr(choice, "delta", None)
-        data = getattr(message, "content", "") if message is not None else ""
-        if isinstance(data, list):
-            fragments = []
-            for block in data:
-                text = getattr(block, "text", None)
-                if text:
-                    fragments.append(text)
-            content = "".join(fragments)
-        elif isinstance(data, str):
-            content = data
-    except (IndexError, AttributeError):
-        content = ""
-
-    if not content:
-        # Fallback to generic extractor for parity with Responses API.
-        content = _extract_output_text(response)
-
+    content = (result.final_output or "").strip()
     if not content:
         raise RuntimeError("Milestone author agent returned empty content.")
 
@@ -896,8 +868,6 @@ def quiz_results(topic: str, correct: int, total: int) -> WidgetEnvelope:
 def milestone_project_author(payload: MilestoneAuthorRequest) -> MilestoneAuthorResponse:
     """Generate an agent-authored milestone brief tailored to the learner context."""
 
-    if OpenAI is None:
-        raise RuntimeError("Milestone authoring requires the openai python package.")
     if not _OPENAI_API_KEY:
         raise RuntimeError("Milestone authoring requires OPENAI_API_KEY to be set.")
     try:
