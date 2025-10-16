@@ -18,6 +18,7 @@ from .learner_profile import (
     CurriculumPlan,
     CurriculumSchedule,
     LearnerProfile,
+    FoundationTrack,
     ScheduleRationaleEntry,
     SequencedWorkItem,
     MilestoneBrief,
@@ -608,6 +609,89 @@ class CurriculumSequencer:
         if project:
             brief.project = project
         return brief
+
+    def _match_track(
+        self,
+        profile: LearnerProfile,
+        category_key: str,
+        category_label: str,
+    ) -> Optional[FoundationTrack]:
+        inference = getattr(profile, "goal_inference", None)
+        if not inference or not getattr(inference, "tracks", None):
+            return None
+        normalized_key = category_key.lower()
+        label_lower = category_label.lower()
+
+        for track in inference.tracks:
+            if track.track_id == category_key:
+                return track
+            if any(ref.category_key == category_key for ref in track.recommended_modules):
+                return track
+            if track.label.lower() == label_lower:
+                return track
+
+        for track in inference.tracks:
+            combined_focus = " ".join(track.focus_areas).lower()
+            combined_tech = " ".join(track.technologies).lower()
+            if normalized_key and (normalized_key in combined_focus or normalized_key in combined_tech):
+                return track
+            if label_lower and (label_lower in combined_focus or label_lower in combined_tech):
+                return track
+
+        return inference.tracks[0] if inference.tracks else None
+
+    def _milestone_format_context(
+        self,
+        profile: LearnerProfile,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        track: Optional[FoundationTrack],
+    ) -> dict[str, str]:
+        inference = getattr(profile, "goal_inference", None)
+        target_outcome = ""
+        if inference and getattr(inference, "target_outcomes", None):
+            target_outcome = inference.target_outcomes[0]
+
+        primary_focus = context.label
+        if track and track.focus_areas:
+            primary_focus = track.focus_areas[0]
+
+        primary_technology = context.label
+        if track and track.technologies:
+            primary_technology = track.technologies[0]
+
+        return {
+            "goal": profile.goal or "",
+            "goal_summary": getattr(inference, "summary", "") if inference else "",
+            "use_case": profile.use_case or "",
+            "strengths": profile.strengths or "",
+            "module_title": module.title,
+            "module_summary": module.summary or "",
+            "module_objectives": "; ".join(module.objectives) if module.objectives else "",
+            "category_label": context.label,
+            "category_key": module.category_key,
+            "track_label": track.label if track else context.label,
+            "track_focus": ", ".join(track.focus_areas) if track and track.focus_areas else "",
+            "primary_focus": primary_focus,
+            "track_technologies": ", ".join(track.technologies) if track and track.technologies else "",
+            "primary_technology": primary_technology,
+            "target_outcome": target_outcome or (profile.goal or ""),
+        }
+
+    @staticmethod
+    def _merge_unique(*iterables: Iterable[str]) -> List[str]:
+        merged: List[str] = []
+        seen: set[str] = set()
+        for collection in iterables:
+            if not collection:
+                continue
+            for item in collection:
+                if not item:
+                    continue
+                if item not in seen:
+                    seen.add(item)
+                    merged.append(item)
+        return merged
 
     def _balance_module_chunks(
         self,

@@ -865,6 +865,8 @@ private var loadMoreSection: some View {
 
     private func projectStatusLabel(_ rawValue: String) -> String {
         switch rawValue {
+        case "":
+            return "Not set"
         case "not_started":
             return "Not started"
         case "building":

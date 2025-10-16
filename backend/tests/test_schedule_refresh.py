@@ -151,6 +151,7 @@ def test_milestone_brief_attached_to_schedule() -> None:
     assert milestone.milestone_brief.prerequisites, "Milestone brief should list prerequisites."
     assert milestone.milestone_brief.elo_focus, "Milestone brief should surface ELO focus categories."
     assert milestone.milestone_project is not None, "Milestone brief should surface a project blueprint."
+    assert milestone.milestone_project.goal_alignment
 
     profile_store.delete(username)
 
@@ -192,6 +193,7 @@ def test_schedule_completion_records_milestone_progress() -> None:
     assert milestone_payload["milestone_progress"]["project_status"] == "ready_for_review"
     assert milestone_payload["milestone_progress"]["next_steps"] == ["Add tracing docs", "Record demo video"]
     assert milestone_payload["milestone_project"]["title"]
+    assert milestone_payload["milestone_project"].get("goal_alignment")
 
     progress_events = [
         event
