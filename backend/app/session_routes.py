@@ -29,7 +29,7 @@ from .agent_models import (
     Widget,
     WidgetEnvelope,
 )
-from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
+from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent, refresh_mcp_tool
 from .config import Settings, get_settings
 from .learner_profile import (
     LearnerProfile,
@@ -58,6 +58,28 @@ MODEL_FOR_LEVEL: Dict[str, str] = {
     "medium": "gpt-5",
     "high": "gpt-5-codex",
 }
+
+
+def _is_mcp_tool_error(exc: OpenAIError) -> bool:
+    message = str(exc)
+    if "Error retrieving tool list from MCP server" in message:
+        return True
+    status_code = getattr(exc, "status_code", None)
+    if status_code == 424:
+        return True
+    return False
+
+
+def _is_mcp_http_detail(detail: Any) -> bool:
+    if isinstance(detail, dict):
+        text = json.dumps(detail)
+    else:
+        text = str(detail)
+    if "Error retrieving tool list from MCP server" in text:
+        return True
+    if "Arcadia_Coach_Widgets" in text:
+        return True
+    return False
 
 ATTACHMENT_POLICY: Dict[str, str] = {
     "gpt-5": "any",
@@ -340,7 +362,6 @@ async def _run_structured(
         model_choice = model_override
     else:
         model_choice = MODEL_FOR_LEVEL.get(reasoning_level, selected_model)
-    agent = get_arcadia_agent(model_choice, web_enabled)
     logger.debug(
         "Resolved chat session settings (model=%s, web_enabled=%s, reasoning=%s)",
         model_choice,
@@ -437,33 +458,57 @@ async def _run_structured(
         reasoning_level=reasoning_level,
         attachments=attachments_payload,
     )
-    try:
-        result = await Runner.run(
-            agent,
-            message,
-            context=context,
-            run_config=RunConfig(
-                model_settings=ModelSettings(
-                    reasoning=Reasoning(
-                        effort=cast(ReasoningEffort, reasoning_level),
-                        summary="auto",
-                    ),
+    result: Any = None
+    last_error: OpenAIError | None = None
+    for attempt in range(2):
+        agent = get_arcadia_agent(model_choice, web_enabled)
+        try:
+            result = await Runner.run(
+                agent,
+                message,
+                context=context,
+                run_config=RunConfig(
+                    model_settings=ModelSettings(
+                        reasoning=Reasoning(
+                            effort=cast(ReasoningEffort, reasoning_level),
+                            summary="auto",
+                        ),
+                    )
+                ),
+            )
+            break
+        except AuthenticationError as exc:
+            logger.error(
+                "OpenAI authentication error while running agent: %s", exc
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Arcadia backend is not authorized with OpenAI. Update OPENAI_API_KEY and try again.",
+            ) from exc
+        except OpenAIError as exc:
+            last_error = exc
+            if attempt == 0 and _is_mcp_tool_error(exc):
+                logger.warning(
+                    "MCP tool retrieval failed (attempt=%s); refreshing tool configuration and retrying once.",
+                    attempt + 1,
                 )
-            ),
+                refresh_mcp_tool()
+                continue
+            logger.error("OpenAI error while running agent: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Upstream OpenAI request failed: {exc}",
+            ) from exc
+    else:  # pragma: no cover - defensive guard
+        if last_error is not None:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Upstream OpenAI request failed: {last_error}",
+            ) from last_error
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Upstream OpenAI request failed: unknown error",
         )
-    except AuthenticationError as exc:
-        logger.error(
-            "OpenAI authentication error while running agent: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Arcadia backend is not authorized with OpenAI. Update OPENAI_API_KEY and try again.",
-        ) from exc
-    except OpenAIError as exc:
-        logger.error("OpenAI error while running agent: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Upstream OpenAI request failed: {exc}",
-        ) from exc
     logger.debug(
         "Agent run complete (session_id=%s, message=%s, output_type=%s)",
         session_id or "default",
@@ -787,8 +832,8 @@ async def launch_schedule_item(
             metadata=metadata,
             augment_with_preferences=True,
         )
-    except (OpenAIError, AuthenticationError, ValidationError) as exc:
-        profile_store.update_schedule_item(
+    except (OpenAIError, AuthenticationError, ValidationError, HTTPException) as exc:
+        reverted_profile = profile_store.update_schedule_item(
             username,
             item_id,
             status=previous_status,
@@ -804,6 +849,59 @@ async def launch_schedule_item(
             session_id=session_id,
             error=str(exc),
         )
+        if (
+            isinstance(exc, HTTPException)
+            and exc.status_code == status.HTTP_502_BAD_GATEWAY
+            and item.kind == "milestone"
+            and _is_mcp_http_detail(exc.detail)
+        ):
+            fallback_profile = reverted_profile or profile_store.get(username)
+            if fallback_profile and fallback_profile.curriculum_schedule:
+                fallback_schedule_payload = _schedule_payload(
+                    fallback_profile.curriculum_schedule,
+                    elo_snapshot=getattr(fallback_profile, "elo_snapshot", {}),
+                    elo_plan=getattr(fallback_profile, "elo_category_plan", None),
+                )
+                if fallback_schedule_payload:
+                    fallback_schedule_payload.milestone_completions = _milestone_completion_payloads(fallback_profile)
+                    item_payload = next(
+                        (
+                            entry
+                            for entry in fallback_schedule_payload.items
+                            if entry.item_id == item_id
+                        ),
+                        None,
+                    )
+                    if item_payload is not None:
+                        fallback_content = _render_milestone_envelope(
+                            item,
+                            EndMilestone(
+                                intent="milestone",
+                                display=item.summary or item.title,
+                                widgets=[],
+                            ),
+                        )
+                        emit_event(
+                            "schedule_launch_completed",
+                            username=username,
+                            item_id=item_id,
+                            kind=item.kind,
+                            status="fallback",
+                            session_id=session_id,
+                            error="mcp_tool_unavailable",
+                        )
+                        content_payload = ScheduleLaunchContentPayload(
+                            kind="milestone",
+                            session_id=session_id,
+                            milestone=fallback_content,
+                        )
+                        return ScheduleLaunchResponsePayload(
+                            schedule=fallback_schedule_payload,
+                            item=item_payload,
+                            content=content_payload,
+                        )
+        if isinstance(exc, HTTPException):
+            raise exc
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to generate the scheduled content. Try again shortly.",

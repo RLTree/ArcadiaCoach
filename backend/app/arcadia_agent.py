@@ -25,27 +25,30 @@ web_search = WebSearchTool(
 )
 
 settings = get_settings()
-_mcp_url = settings.arcadia_mcp_url
-_mcp_label = settings.arcadia_mcp_label
-_require_approval = settings.arcadia_mcp_require_approval
 
-mcp_widgets = HostedMCPTool(
-    tool_config={
-        "type": "mcp",
-        "server_label": _mcp_label,
-        "server_url": _mcp_url,
-        "server_description": (
-            "Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach."
-        ),
-        "allowed_tools": [
-            "lesson_catalog",
-            "quiz_results",
-            "milestone_update",
-            "focus_sprint",
-        ],
-        "require_approval": _require_approval,
-    }
-)
+
+def _build_mcp_tool() -> HostedMCPTool:
+    refreshed = get_settings()
+    return HostedMCPTool(
+        tool_config={
+            "type": "mcp",
+            "server_label": refreshed.arcadia_mcp_label,
+            "server_url": refreshed.arcadia_mcp_url,
+            "server_description": (
+                "Provides lesson, quiz, milestone, and focus sprint widget envelopes for Arcadia Coach."
+            ),
+            "allowed_tools": [
+                "lesson_catalog",
+                "quiz_results",
+                "milestone_update",
+                "focus_sprint",
+            ],
+            "require_approval": refreshed.arcadia_mcp_require_approval,
+        }
+    )
+
+
+mcp_widgets = _build_mcp_tool()
 
 
 class ArcadiaAgentContext(AgentContext):
@@ -98,3 +101,15 @@ def get_arcadia_agent(model: str | None, web_enabled: bool) -> Agent[ArcadiaAgen
     if cache_key not in _AGENT_CACHE:
         _AGENT_CACHE[cache_key] = _build_agent(selected, web_enabled)
     return _AGENT_CACHE[cache_key]
+
+
+def reset_agent_cache() -> None:
+    """Clear cached agent instances."""
+    _AGENT_CACHE.clear()
+
+
+def refresh_mcp_tool() -> None:
+    """Recreate the Hosted MCP tool and flush agent caches."""
+    global mcp_widgets
+    mcp_widgets = _build_mcp_tool()
+    reset_agent_cache()
