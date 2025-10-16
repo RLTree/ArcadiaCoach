@@ -9,6 +9,22 @@
 /* Begin PBXBuildFile section */
 		67791DC4B074DCF6C16B5E23 /* EloPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B27837E18E79D5DF33F3BC /* EloPlan.swift */; };
 		717F628D2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon in Resources */ = {isa = PBXBuildFile; fileRef = 717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */; };
+		717F629F2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62982EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@2x.png */; };
+		717F62A02EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62972EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@3x.png */; };
+		717F62A12EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62992EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@3x.png */; };
+		717F62A22EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F628F2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@3x.png */; };
+		717F62A32EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F628E2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@2x.png */; };
+		717F62A42EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-1024x1024@1x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F629D2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-1024x1024@1x.png */; };
+		717F62A52EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F629C2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png */; };
+		717F62A62EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62902EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@2x.png */; };
+		717F62A72EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62912EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@3x.png */; };
+		717F62A82EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62922EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@2x.png */; };
+		717F62A92EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-68x68@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F629A2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-68x68@2x.png */; };
+		717F62AA2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62962EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@2x.png */; };
+		717F62AB2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62942EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@2x.png */; };
+		717F62AC2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62932EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@3x.png */; };
+		717F62AD2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F62952EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@3x.png */; };
+		717F62AE2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-76x76@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 717F629B2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-76x76@2x.png */; };
 		AA0010002924F80B00B8BEA0 /* ArcadiaCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */; };
 		AA0010012924F97A00B8BEA0 /* EloEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F012924F97A00B8BEA0 /* EloEngine.swift */; };
 		AA0010022924F97A00B8BEA0 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA001F022924F97A00B8BEA0 /* AgentModels.swift */; };
@@ -82,6 +98,22 @@
 /* Begin PBXFileReference section */
 		703E2C3824ECF0FD7A62D88D /* EloPlanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlanSummaryView.swift; sourceTree = "<group>"; };
 		717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = ArcadiaCoach.icon; sourceTree = "<group>"; };
+		717F628E2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-20x20@2x.png"; sourceTree = "<group>"; };
+		717F628F2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-20x20@3x.png"; sourceTree = "<group>"; };
+		717F62902EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-29x29@2x.png"; sourceTree = "<group>"; };
+		717F62912EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-29x29@3x.png"; sourceTree = "<group>"; };
+		717F62922EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-38x38@2x.png"; sourceTree = "<group>"; };
+		717F62932EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-38x38@3x.png"; sourceTree = "<group>"; };
+		717F62942EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-40x40@2x.png"; sourceTree = "<group>"; };
+		717F62952EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-40x40@3x.png"; sourceTree = "<group>"; };
+		717F62962EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-60x60@2x.png"; sourceTree = "<group>"; };
+		717F62972EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-60x60@3x.png"; sourceTree = "<group>"; };
+		717F62982EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-64x64@2x.png"; sourceTree = "<group>"; };
+		717F62992EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-64x64@3x.png"; sourceTree = "<group>"; };
+		717F629A2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-68x68@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-68x68@2x.png"; sourceTree = "<group>"; };
+		717F629B2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-76x76@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-76x76@2x.png"; sourceTree = "<group>"; };
+		717F629C2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png"; sourceTree = "<group>"; };
+		717F629D2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-1024x1024@1x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ArcadiaCoach-iOS-Dark-1024x1024@1x.png"; sourceTree = "<group>"; };
 		76B27837E18E79D5DF33F3BC /* EloPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloPlan.swift; sourceTree = "<group>"; };
 		AA00103729250F8000B8BEA0 /* WidgetArcadiaChatbotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArcadiaChatbotView.swift; sourceTree = "<group>"; };
 		AA001F002924F80B00B8BEA0 /* ArcadiaCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcadiaCoachApp.swift; sourceTree = "<group>"; };
@@ -165,6 +197,29 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		717F629E2EA0BBB000AA8DD0 /* ArcadiaCoach Exports */ = {
+			isa = PBXGroup;
+			children = (
+				717F628E2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@2x.png */,
+				717F628F2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@3x.png */,
+				717F62902EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@2x.png */,
+				717F62912EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@3x.png */,
+				717F62922EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@2x.png */,
+				717F62932EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@3x.png */,
+				717F62942EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@2x.png */,
+				717F62952EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@3x.png */,
+				717F62962EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@2x.png */,
+				717F62972EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@3x.png */,
+				717F62982EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@2x.png */,
+				717F62992EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@3x.png */,
+				717F629A2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-68x68@2x.png */,
+				717F629B2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-76x76@2x.png */,
+				717F629C2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png */,
+				717F629D2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-1024x1024@1x.png */,
+			);
+			path = "ArcadiaCoach Exports";
+			sourceTree = "<group>";
+		};
 		AA000FEF2924F7D200B8BEA0 = {
 			isa = PBXGroup;
 			children = (
@@ -180,6 +235,7 @@
 				AA001F232924FB5F00B8BEA0 /* Tests */,
 				AA001F252924FBE600B8BEA0 /* Products */,
 				717F628C2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon */,
+				717F629E2EA0BBB000AA8DD0 /* ArcadiaCoach Exports */,
 			);
 			sourceTree = "<group>";
 		};
@@ -405,6 +461,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0010182924F9F600B8BEA0 /* Assets.xcassets in Resources */,
+				717F629F2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@2x.png in Resources */,
+				717F62A02EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@3x.png in Resources */,
+				717F62A12EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-64x64@3x.png in Resources */,
+				717F62A22EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@3x.png in Resources */,
+				717F62A32EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-20x20@2x.png in Resources */,
+				717F62A42EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-1024x1024@1x.png in Resources */,
+				717F62A52EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-83.5x83.5@2x.png in Resources */,
+				717F62A62EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@2x.png in Resources */,
+				717F62A72EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-29x29@3x.png in Resources */,
+				717F62A82EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@2x.png in Resources */,
+				717F62A92EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-68x68@2x.png in Resources */,
+				717F62AA2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-60x60@2x.png in Resources */,
+				717F62AB2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@2x.png in Resources */,
+				717F62AC2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-38x38@3x.png in Resources */,
+				717F62AD2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-40x40@3x.png in Resources */,
+				717F62AE2EA0BBB000AA8DD0 /* ArcadiaCoach-iOS-Dark-76x76@2x.png in Resources */,
 				AA00102229250AF500B8BEA0 /* advanced_chatkit.html in Resources */,
 				AA00C0042A3B12E300B8BEA0 /* chatkit.inline.mjs in Resources */,
 				717F628D2EA0B4DF00AA8DD0 /* ArcadiaCoach.icon in Resources */,
