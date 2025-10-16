@@ -26,13 +26,16 @@ from .agent_models import (
     MilestoneCompletionPayload,
     ScheduleLaunchContentPayload,
     ScheduleLaunchResponsePayload,
+    Widget,
     WidgetEnvelope,
 )
 from .arcadia_agent import ArcadiaAgentContext, get_arcadia_agent
 from .config import Settings, get_settings
 from .learner_profile import (
     LearnerProfile,
+    MilestoneBrief,
     MilestoneCompletion,
+    MilestoneGuidance,
     MilestoneProgress,
     SequencedWorkItem,
     profile_store,
@@ -167,6 +170,14 @@ def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProf
                 lines.append(
                     "Capture prompts:\n" + "\n".join(f"- {prompt}" for prompt in brief.capture_prompts)
                 )
+            if brief.kickoff_steps:
+                lines.append(
+                    "Kickoff steps:\n" + "\n".join(f"- {step}" for step in brief.kickoff_steps)
+                )
+            if brief.coaching_prompts:
+                lines.append(
+                    "Coaching prompts:\n" + "\n".join(f"- {prompt}" for prompt in brief.coaching_prompts)
+                )
     if profile.goal:
         lines.append(f"Learner goal: {profile.goal}")
     if profile.strengths:
@@ -174,6 +185,97 @@ def _build_schedule_launch_message(item: SequencedWorkItem, profile: LearnerProf
     if profile.use_case:
         lines.append(f"Learner use case: {profile.use_case}")
     return "\n\n".join(lines)
+
+
+def _render_milestone_envelope(
+    item: SequencedWorkItem,
+    base: EndMilestone,
+) -> EndMilestone:
+    brief: MilestoneBrief | None = getattr(item, "milestone_brief", None)
+    if brief is None:
+        return base
+
+    guidance: MilestoneGuidance | None = getattr(item, "milestone_guidance", None)
+    summary_text = (
+        base.display
+        or brief.summary
+        or item.summary
+        or f"Milestone: {item.title}"
+    )
+    sections: List[Dict[str, Any]] = []
+    if brief.objectives:
+        sections.append({"heading": "Objectives", "items": list(brief.objectives)})
+    if brief.deliverables:
+        sections.append({"heading": "Deliverables", "items": list(brief.deliverables)})
+    if brief.success_criteria:
+        sections.append({"heading": "Success criteria", "items": list(brief.success_criteria)})
+    if brief.kickoff_steps:
+        sections.append({"heading": "Kickoff steps", "items": list(brief.kickoff_steps)})
+    if brief.coaching_prompts:
+        sections.append({"heading": "Coaching prompts", "items": list(brief.coaching_prompts)})
+    if not sections:
+        sections.append({"heading": None, "items": [summary_text]})
+
+    overview_card = Widget(
+        type="Card",
+        props={
+            "title": brief.headline or item.title,
+            "sections": sections,
+        },
+    )
+
+    rows: List[Dict[str, Any]] = []
+    for entry in brief.external_work:
+        rows.append({"label": entry, "meta": "External work"})
+    for prompt in brief.capture_prompts:
+        rows.append({"label": prompt, "meta": "Capture prompt"})
+    for prompt in brief.coaching_prompts:
+        rows.append({"label": prompt, "meta": "Coaching prompt"})
+    for resource in brief.resources:
+        rows.append({"label": resource, "meta": "Reference"})
+    if guidance:
+        for action in guidance.next_actions:
+            rows.append({"label": action, "meta": "Next action"})
+        for warning in guidance.warnings:
+            rows.append({"label": warning, "meta": "Warning"})
+
+    list_widget: List[Widget] = []
+    if rows:
+        list_widget.append(
+            Widget(
+                type="List",
+                props={
+                    "title": "Milestone checklist",
+                    "rows": rows,
+                },
+            )
+        )
+
+    stat_items: List[Dict[str, Any]] = []
+    if brief.elo_focus:
+        stat_items.append({"label": "Focus", "value": ", ".join(brief.elo_focus)})
+    if guidance and guidance.badges:
+        stat_items.append({"label": "Status", "value": ", ".join(guidance.badges)})
+    if guidance and guidance.state:
+        stat_items.append({"label": "State", "value": guidance.state.replace("_", " ").title()})
+    if guidance and guidance.last_update_at:
+        stat_items.append({"label": "Updated", "value": guidance.last_update_at.isoformat()})
+
+    stat_widget: List[Widget] = []
+    if stat_items:
+        stat_widget.append(
+            Widget(
+                type="StatRow",
+                props={"items": stat_items},
+            )
+        )
+
+    widgets = [overview_card, *list_widget, *stat_widget]
+    return EndMilestone(
+        intent=base.intent,
+        display=summary_text,
+        widgets=widgets,
+    )
 
 
 async def _run_structured(
@@ -615,6 +717,15 @@ async def launch_schedule_item(
         metadata["strengths"] = profile.strengths
     if profile.timezone:
         metadata["timezone"] = profile.timezone
+    brief_payload = getattr(item, "milestone_brief", None)
+    if brief_payload is not None:
+        metadata["milestone_brief"] = brief_payload.model_dump(mode="json")
+    progress_payload = getattr(item, "milestone_progress", None)
+    if progress_payload is not None:
+        metadata["milestone_progress"] = progress_payload.model_dump(mode="json")
+    guidance_payload = getattr(item, "milestone_guidance", None)
+    if guidance_payload is not None:
+        metadata["milestone_guidance"] = guidance_payload.model_dump(mode="json")
     message = _build_schedule_launch_message(item, profile)
     expecting_map: Dict[str, Type[BaseModel]] = {
         "lesson": EndLearn,
@@ -657,6 +768,8 @@ async def launch_schedule_item(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to generate the scheduled content. Try again shortly.",
         ) from exc
+    if item.kind == "milestone":
+        result = _render_milestone_envelope(item, result)
     duration_ms = int((perf_counter() - started_at) * 1000)
     refreshed_profile = profile_store.get(username)
     if refreshed_profile is None or refreshed_profile.curriculum_schedule is None:

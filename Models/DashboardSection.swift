@@ -3,6 +3,7 @@ import SwiftUI
 enum DashboardSection: String, CaseIterable, Identifiable {
     case elo
     case schedule
+    case sessions
     case assessments
     case resources
 
@@ -14,6 +15,8 @@ enum DashboardSection: String, CaseIterable, Identifiable {
             return "ELO"
         case .schedule:
             return "Schedule"
+        case .sessions:
+            return "Sessions"
         case .assessments:
             return "Assessments"
         case .resources:
@@ -27,6 +30,8 @@ enum DashboardSection: String, CaseIterable, Identifiable {
             return "chart.bar.xaxis"
         case .schedule:
             return "calendar"
+        case .sessions:
+            return "sparkles"
         case .assessments:
             return "checklist"
         case .resources:

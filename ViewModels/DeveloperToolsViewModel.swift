@@ -120,7 +120,7 @@ final class DeveloperToolsViewModel: ObservableObject {
                 baseURL: trimmedBase,
                 username: trimmedUsername
             )
-            await appVM.applyDeveloperScheduleOverride(schedule)
+            appVM.applyDeveloperScheduleOverride(schedule)
             await appVM.refreshTelemetry(baseURL: trimmedBase, username: trimmedUsername)
             autoCompleteMessage = "Completed lessons/quizzes on \(Date().formatted(date: .numeric, time: .standard))."
             lastError = nil

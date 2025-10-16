@@ -419,6 +419,17 @@ struct HomeView: View {
                 completeAction: { item in completeSchedule(item: item) }
             )
             .transition(.opacity)
+        case .sessions:
+            DashboardSessionsSection(
+                session: session,
+                needsOnboarding: needsOnboarding,
+                sessionContentExpanded: $sessionContentExpanded,
+                onRunOnboarding: { showOnboarding = true },
+                onClearSessionContent: {
+                    appVM.clearSessionContent()
+                }
+            )
+            .transition(.opacity)
         case .assessments:
             DashboardAssessmentsSection(
                 awaitingAssessmentResults: appVM.awaitingAssessmentResults,
@@ -431,13 +442,8 @@ struct HomeView: View {
             .transition(.opacity)
         case .resources:
             DashboardResourcesSection(
-                session: session,
                 needsOnboarding: needsOnboarding,
-                sessionContentExpanded: $sessionContentExpanded,
                 onRunOnboarding: { showOnboarding = true },
-                onClearSessionContent: {
-                    appVM.clearSessionContent()
-                }
             )
             .transition(.opacity)
         }
