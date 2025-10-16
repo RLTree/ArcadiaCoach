@@ -443,7 +443,7 @@ struct HomeView: View {
         case .resources:
             DashboardResourcesSection(
                 needsOnboarding: needsOnboarding,
-                onRunOnboarding: { showOnboarding = true },
+                onRunOnboarding: { showOnboarding = true }
             )
             .transition(.opacity)
         }
