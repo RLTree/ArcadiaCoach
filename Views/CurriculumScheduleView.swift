@@ -789,6 +789,85 @@ private var loadMoreSection: some View {
     private func milestonePreview(for item: SequencedWorkItem, isExpanded: Bool, binding: Binding<Bool>) -> some View {
         let brief = item.milestoneBrief
         let project = item.milestoneProject ?? brief?.project
+        let summaryText = project?.summary ?? brief?.summary ?? item.summary
+
+        if let summary = summaryText, !summary.isEmpty {
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(isExpanded ? nil : 3)
+        }
+
+        if let project, !project.deliverables.isEmpty {
+            let (preview, remaining) = truncatedItems(project.deliverables, limitWhenCollapsed: 2, isExpanded: isExpanded)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Deliverables")
+                    .font(.caption.bold())
+                ForEach(preview, id: \.self) { deliverable in
+                    Text("• \(deliverable)")
+                        .font(.caption)
+                }
+                if !isExpanded, remaining > 0 {
+                    Text("• +\(remaining) more")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let success = brief?.successCriteria, !success.isEmpty {
+            let (preview, remaining) = truncatedItems(success, limitWhenCollapsed: 2, isExpanded: isExpanded)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Success criteria")
+                    .font(.caption.bold())
+                ForEach(preview, id: \.self) { item in
+                    Text("• \(item)")
+                        .font(.caption)
+                }
+                if !isExpanded, remaining > 0 {
+                    Text("• +\(remaining) more")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let brief, !brief.eloFocus.isEmpty {
+            HStack(spacing: 6) {
+                let focuses = isExpanded ? brief.eloFocus : Array(brief.eloFocus.prefix(3))
+                ForEach(focuses, id: \.self) { focus in
+                    Text(focus)
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                if !isExpanded, brief.eloFocus.count > 3 {
+                    Text("+\(brief.eloFocus.count - 3)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        if let project, !project.recommendedTools.isEmpty {
+            HStack(spacing: 6) {
+                let tools = isExpanded ? project.recommendedTools : Array(project.recommendedTools.prefix(3))
+                        ForEach(tools, id: \.self) { tool in
+                            Text(tool)
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                if !isExpanded, project.recommendedTools.count > 3 {
+                    Text("+\(project.recommendedTools.count - 3)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
 
         if let brief, let rationale = brief.rationale, !rationale.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
@@ -798,7 +877,7 @@ private var loadMoreSection: some View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(isExpanded ? nil : 3)
+                    .lineLimit(isExpanded ? nil : 2)
             }
         }
 
@@ -839,17 +918,66 @@ private var loadMoreSection: some View {
             }
         }
 
-        if let project {
-            projectSection(for: project, isExpanded: isExpanded)
-        }
+        let additionalProjectItems: Bool = {
+            guard let project else { return false }
+            if isExpanded { return false }
+            return project.deliverables.count > 2
+                || project.evidenceChecklist.count > 3
+                || project.recommendedTools.count > 3
+                || project.evaluationFocus.count > 3
+                || project.evaluationSteps.count > 3
+        }()
 
-        if let brief {
-            if !brief.prerequisites.isEmpty {
-                let (previewPrereqs, remaining) = truncatedPrerequisites(brief.prerequisites, limitWhenCollapsed: 3, isExpanded: isExpanded)
+        let successHasMore = {
+            guard let success = brief?.successCriteria else { return false }
+            return !isExpanded && success.count > 2
+        }()
+
+        let detailSectionsAvailable = {
+            guard let brief else { return false }
+            return !brief.externalWork.isEmpty
+                || !brief.capturePrompts.isEmpty
+                || !brief.resources.isEmpty
+                || !brief.prerequisites.isEmpty
+        }()
+
+        if isExpanded {
+            if let project {
+                projectSection(for: project, isExpanded: true)
+            }
+            milestoneDetailSections(
+                brief: brief,
+                prerequisites: brief?.prerequisites ?? []
+            )
+            Button {
+                withAnimation { binding.wrappedValue = false }
+            } label: {
+                Label("Hide milestone brief", systemImage: "chevron.up.circle.fill")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.plain)
+        } else if additionalProjectItems || successHasMore || detailSectionsAvailable {
+            Button {
+                withAnimation { binding.wrappedValue = true }
+            } label: {
+                Label("Show full milestone brief", systemImage: "chevron.down.circle")
+                    .font(.caption.bold())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func milestoneDetailSections(
+        brief: MilestoneBrief?,
+        prerequisites: [MilestonePrerequisite]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !prerequisites.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Prerequisites")
                         .font(.caption.bold())
-                    ForEach(previewPrereqs) { prerequisite in
+                    ForEach(prerequisites) { prerequisite in
                         let status = SequencedWorkItem.LaunchStatus(rawValue: prerequisite.status) ?? .pending
                         HStack(spacing: 8) {
                             Image(systemName: statusIcon(for: status))
@@ -862,105 +990,8 @@ private var loadMoreSection: some View {
                                 .foregroundStyle(statusColor(for: status))
                         }
                     }
-                    if !isExpanded, remaining > 0 {
-                        Text("• +\(remaining) more")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
-
-            if !brief.kickoffSteps.isEmpty {
-                let (preview, remaining) = truncatedItems(brief.kickoffSteps, limitWhenCollapsed: 3, isExpanded: isExpanded)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Kickoff steps")
-                        .font(.caption.bold())
-                    ForEach(preview, id: \.self) { step in
-                        Text("• \(step)")
-                            .font(.caption)
-                    }
-                    if !isExpanded, remaining > 0 {
-                        Text("• +\(remaining) more")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            if !brief.successCriteria.isEmpty {
-                let (preview, remaining) = truncatedItems(brief.successCriteria, limitWhenCollapsed: 3, isExpanded: isExpanded)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Success criteria")
-                        .font(.caption.bold())
-                    ForEach(preview, id: \.self) { criterion in
-                        Text("• \(criterion)")
-                            .font(.caption)
-                    }
-                    if !isExpanded, remaining > 0 {
-                        Text("• +\(remaining) more")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            if !brief.eloFocus.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(brief.eloFocus, id: \.self) { focus in
-                        Text(focus)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.12), in: Capsule())
-                    }
-                }
-            }
-        }
-
-        let additionalProjectItems: Bool = {
-            guard let project else { return false }
-            if isExpanded { return false }
-            return project.deliverables.count > 3
-                || project.evidenceChecklist.count > 3
-                || project.recommendedTools.count > 4
-                || project.evaluationFocus.count > 3
-                || project.evaluationSteps.count > 3
-        }()
-
-        let detailSectionsAvailable = {
-            guard let brief else { return false }
-            return !brief.externalWork.isEmpty || !brief.capturePrompts.isEmpty || !brief.resources.isEmpty
-        }()
-
-        let hasMore = additionalProjectItems || detailSectionsAvailable
-
-        if hasMore {
-            DisclosureGroup(isExpanded: binding) {
-                milestoneDetailSections(
-                    brief: brief,
-                    project: project,
-                    showProjectNotice: additionalProjectItems && !detailSectionsAvailable
-                )
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: binding.wrappedValue ? "chevron.up.circle.fill" : "chevron.down.circle")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(binding.wrappedValue ? "Hide milestone details" : "Show full milestone brief")
-                        .font(.caption.bold())
-                }
-            }
-            .tint(.accentColor)
-        }
-    }
-
-    @ViewBuilder
-    private func milestoneDetailSections(
-        brief: MilestoneBrief?,
-        project _: MilestoneProject?,
-        showProjectNotice: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
             if let brief, !brief.externalWork.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("External work")
@@ -992,29 +1023,11 @@ private var loadMoreSection: some View {
                     }
                 }
             }
-            if showProjectNotice {
-                Text("Expanded view shows all project deliverables, evidence, and evaluation details above.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(.top, 4)
     }
 
     private func truncatedItems(_ items: [String], limitWhenCollapsed: Int, isExpanded: Bool) -> ([String], Int) {
-        guard !items.isEmpty else { return ([], 0) }
-        if isExpanded || items.count <= limitWhenCollapsed {
-            return (items, 0)
-        }
-        let display = Array(items.prefix(limitWhenCollapsed))
-        return (display, items.count - display.count)
-    }
-
-    private func truncatedPrerequisites(
-        _ items: [MilestonePrerequisite],
-        limitWhenCollapsed: Int,
-        isExpanded: Bool
-    ) -> ([MilestonePrerequisite], Int) {
         guard !items.isEmpty else { return ([], 0) }
         if isExpanded || items.count <= limitWhenCollapsed {
             return (items, 0)

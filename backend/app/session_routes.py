@@ -231,10 +231,11 @@ def _render_milestone_envelope(
         return base
 
     guidance: MilestoneGuidance | None = getattr(item, "milestone_guidance", None)
+    project = getattr(item, "milestone_project", None) or (brief.project if brief else None)
     summary_text = (
-        base.display
-        or brief.summary
+        (brief.summary or project.summary)
         or item.summary
+        or base.display
         or f"Milestone: {item.title}"
     )
     sections: List[Dict[str, Any]] = []
