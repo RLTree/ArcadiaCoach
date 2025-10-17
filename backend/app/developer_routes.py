@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -61,6 +61,7 @@ class DeveloperEloBoostRequest(BaseModel):
     username: str = Field(..., min_length=1)
     category_key: Optional[str] = Field(default=None, description="Restrict boost to a single category key")
     target_rating: int = Field(default=1400, ge=0, le=5000)
+    preserve_requirements: bool = Field(default=True, description="Keep milestone requirements at or below their previous thresholds")
 
 
 @router.post(
@@ -183,6 +184,23 @@ def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedule
         )
     target = max(int(payload.target_rating), 1100)
     metadata = {"elo": {key: target for key in categories}}
+
+    original_requirements: Dict[str, Dict[str, int]] = {}
+    original_queue: Dict[str, Dict[str, int]] = {}
+    if payload.preserve_requirements and getattr(profile, "curriculum_schedule", None):
+        for item in profile.curriculum_schedule.items:
+            if getattr(item, "milestone_requirements", None):
+                original_requirements[item.item_id] = {
+                    req.category_key: int(req.minimum_rating)
+                    for req in item.milestone_requirements
+                }
+        for entry in getattr(profile.curriculum_schedule, "milestone_queue", []) or []:
+            if getattr(entry, "requirements", None):
+                original_queue[entry.item_id] = {
+                    req.category_key: int(req.minimum_rating)
+                    for req in entry.requirements
+                }
+
     profile_store.apply_metadata(username, metadata)
     boosted = generate_schedule_for_user(username)
     schedule = boosted.curriculum_schedule
@@ -191,6 +209,49 @@ def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedule
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No curriculum schedule configured for '{username}'.",
         )
+
+    if payload.preserve_requirements and (original_requirements or original_queue):
+        for item in schedule.items:
+            if item.kind != "milestone":
+                continue
+            preserved = original_requirements.get(item.item_id)
+            if not preserved:
+                continue
+            for requirement in getattr(item, "milestone_requirements", []) or []:
+                old_min = preserved.get(requirement.category_key)
+                if old_min is not None and requirement.minimum_rating > old_min:
+                    requirement.minimum_rating = old_min
+                if getattr(requirement, "current_rating", 0) < requirement.minimum_rating:
+                    requirement.current_rating = requirement.minimum_rating
+            if getattr(item, "requirement_progress_snapshot", None):
+                for snapshot_req in item.requirement_progress_snapshot:
+                    old_min = preserved.get(snapshot_req.category_key)
+                    if old_min is not None and snapshot_req.minimum_rating > old_min:
+                        snapshot_req.minimum_rating = old_min
+                    if snapshot_req.current_rating < snapshot_req.minimum_rating:
+                        snapshot_req.current_rating = snapshot_req.minimum_rating
+
+        if getattr(schedule, "milestone_queue", None):
+            for entry in schedule.milestone_queue:
+                preserved = original_queue.get(entry.item_id)
+                if not preserved:
+                    continue
+                for requirement in getattr(entry, "requirements", []) or []:
+                    old_min = preserved.get(requirement.category_key)
+                    if old_min is not None and requirement.minimum_rating > old_min:
+                        requirement.minimum_rating = old_min
+                    if requirement.current_rating < requirement.minimum_rating:
+                        requirement.current_rating = requirement.minimum_rating
+
+        profile_store.set_curriculum_schedule(username, schedule)
+        boosted = profile_store.get(username)
+        if boosted is None or boosted.curriculum_schedule is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No curriculum schedule configured for '{username}'.",
+            )
+        schedule = boosted.curriculum_schedule
+
     schedule_payload = _schedule_payload(
         schedule,
         elo_snapshot=getattr(boosted, "elo_snapshot", {}),
