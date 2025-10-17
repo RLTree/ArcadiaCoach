@@ -234,6 +234,9 @@ class LearnerProfileRepository:
         schedule_model.long_range_item_count = schedule.long_range_item_count
         schedule_model.extended_weeks = schedule.extended_weeks
         schedule_model.long_range_category_keys = list(schedule.long_range_category_keys)
+        schedule_model.milestone_queue = [
+            entry.model_dump(mode="json") for entry in schedule.milestone_queue
+        ]
 
         self._replace_schedule_items(session, schedule_model, schedule.items)
 
@@ -679,6 +682,10 @@ class LearnerProfileRepository:
                 recommended_day_offset=record.recommended_day_offset,
                 session_id=record.session_id,
                 recorded_at=record.recorded_at,
+                project_status=getattr(record, "project_status", "completed"),
+                evaluation_outcome=getattr(record, "evaluation_outcome", None),
+                evaluation_notes=getattr(record, "evaluation_notes", None),
+                elo_delta=getattr(record, "elo_delta", 12),
             )
             for record in records
         ]
@@ -721,6 +728,9 @@ class LearnerProfileRepository:
                     "milestone_progress": item.milestone_progress,
                     "milestone_project": item.milestone_project,
                     "milestone_requirements": item.milestone_requirements or [],
+                    "requirement_advisor_version": item.requirement_advisor_version,
+                    "requirement_progress_snapshot": item.requirement_progress or [],
+                    "unlock_notified_at": item.unlock_notified_at,
                 }
                 for item in items
             ],
@@ -734,6 +744,7 @@ class LearnerProfileRepository:
             "long_range_item_count": schedule_model.long_range_item_count,
             "extended_weeks": schedule_model.extended_weeks,
             "long_range_category_keys": schedule_model.long_range_category_keys or [],
+            "milestone_queue": schedule_model.milestone_queue or [],
         }
         return CurriculumSchedule.model_validate(schedule_payload)
 
@@ -790,6 +801,12 @@ class LearnerProfileRepository:
                         requirement.model_dump(mode="json")
                         for requirement in getattr(work_item, "milestone_requirements", []) or []
                     ],
+                    requirement_advisor_version=getattr(work_item, "requirement_advisor_version", None),
+                    requirement_progress=[
+                        requirement.model_dump(mode="json")
+                        for requirement in getattr(work_item, "requirement_progress_snapshot", []) or []
+                    ],
+                    unlock_notified_at=getattr(work_item, "unlock_notified_at", None),
                 )
             )
 

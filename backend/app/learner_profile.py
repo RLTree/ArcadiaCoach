@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, ValidationInfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .assessment_result import AssessmentGradingResult
@@ -160,6 +160,25 @@ class MilestoneRequirement(BaseModel):
     category_label: str
     minimum_rating: int = Field(default=1200, ge=0)
     rationale: Optional[str] = None
+    current_rating: int = Field(default=0, ge=0)
+    progress_percent: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_met_at: Optional[datetime] = None
+
+
+class MilestoneQueueEntry(BaseModel):
+    """Aggregated milestone entry rendered in the dedicated dashboard queue."""
+
+    item_id: str
+    title: str
+    summary: Optional[str] = None
+    category_key: str
+    readiness_state: Literal["locked", "ready", "in_progress", "completed"] = "locked"
+    badges: List[str] = Field(default_factory=list)
+    next_actions: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    launch_locked_reason: Optional[str] = None
+    last_updated_at: Optional[datetime] = None
+    requirements: List[MilestoneRequirement] = Field(default_factory=list)
 
 
 class MilestoneBrief(BaseModel):
@@ -185,6 +204,8 @@ class MilestoneBrief(BaseModel):
     reasoning_effort: Optional[str] = None
     source: Literal["agent", "template"] = "template"
     warnings: List[str] = Field(default_factory=list)
+    advisor_version: Optional[str] = None
+    advisor_warnings: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgress(BaseModel):
@@ -230,6 +251,17 @@ class MilestoneCompletion(BaseModel):
     evaluation_notes: Optional[str] = None
     elo_delta: int = 12
 
+    @model_validator(mode="before")
+    def _normalize_project_status(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(data, dict):
+            status = data.get("project_status")
+            outcome = data.get("evaluation_outcome")
+            if outcome == "needs_revision" and status in {None, "", "completed"}:
+                data["project_status"] = "ready_for_review"
+            elif outcome == "failed" and status in {None, "", "completed"}:
+                data["project_status"] = "blocked"
+        return data
+
 
 class SequencedWorkItem(BaseModel):
     """Single learning activity emitted by the curriculum sequencer (Phase 11)."""
@@ -255,6 +287,9 @@ class SequencedWorkItem(BaseModel):
     milestone_progress: Optional[MilestoneProgress] = None
     milestone_project: Optional[MilestoneProject] = None
     milestone_requirements: List[MilestoneRequirement] = Field(default_factory=list)
+    requirement_advisor_version: Optional[str] = None
+    requirement_progress_snapshot: List[MilestoneRequirement] = Field(default_factory=list)
+    unlock_notified_at: Optional[datetime] = None
 
 
 class ScheduleWarning(BaseModel):
@@ -319,6 +354,7 @@ class CurriculumSchedule(BaseModel):
     extended_weeks: int = Field(default=0, ge=0)
     long_range_category_keys: List[str] = Field(default_factory=list)
     slice: Optional[ScheduleSliceMetadata] = None
+    milestone_queue: List[MilestoneQueueEntry] = Field(default_factory=list)
 
 
 def _now() -> datetime:

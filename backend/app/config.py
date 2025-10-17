@@ -27,6 +27,18 @@ class Settings(BaseSettings):
         12000,
         alias="ARCADIA_MILESTONE_AUTHOR_TIMEOUT_MS",
     )
+    arcadia_requirement_advisor_mode: Literal["off", "fallback", "primary"] = Field(
+        "fallback",
+        alias="ARCADIA_REQUIREMENT_ADVISOR_MODE",
+    )
+    arcadia_requirement_advisor_timeout_ms: int = Field(
+        8000,
+        alias="ARCADIA_REQUIREMENT_ADVISOR_TIMEOUT_MS",
+    )
+    arcadia_requirement_advisor_model: Optional[str] = Field(
+        None,
+        alias="ARCADIA_REQUIREMENT_ADVISOR_MODEL",
+    )
     arcadia_persistence_mode: Literal["database", "legacy", "hybrid"] = Field(
         "database",
         alias="ARCADIA_PERSISTENCE_MODE",

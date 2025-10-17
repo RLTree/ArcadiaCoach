@@ -1020,11 +1020,12 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
                 inferred_status = "ready_for_review"
             else:
                 inferred_status = "completed"
+        completion_project_status = inferred_status
         progress_entry = MilestoneProgress(
             notes=notes,
             external_links=links,
             attachment_ids=attachment_ids,
-            project_status=inferred_status,
+            project_status=completion_project_status,
             next_steps=next_steps,
         )
     try:
@@ -1057,7 +1058,7 @@ def complete_schedule_item(payload: ScheduleCompleteRequest) -> CurriculumSchedu
             recommended_day_offset=item.recommended_day_offset,
             session_id=payload.session_id or item.active_session_id,
             recorded_at=progress_entry.recorded_at if progress_entry is not None else now,
-            project_status=progress_entry.project_status if progress_entry else "completed",
+            project_status=completion_project_status or "completed",
             evaluation_outcome=evaluation_outcome,
             evaluation_notes=evaluation_notes,
             elo_delta=elo_delta,

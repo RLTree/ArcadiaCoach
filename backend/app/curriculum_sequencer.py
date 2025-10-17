@@ -24,6 +24,7 @@ from .learner_profile import (
     MilestoneBrief,
     MilestoneRequirement,
     MilestonePrerequisite,
+    MilestoneQueueEntry,
     profile_store,
 )
 from .milestone_projects import select_milestone_project
@@ -33,6 +34,15 @@ from .milestone_author import (
     author_milestone_brief,
     resolve_mode,
     should_author,
+)
+from .requirement_advisor import (
+    RequirementAdvisorError,
+    RequirementAdvisorRequestPayload,
+    RequirementAdvisorRequirementPayload,
+    RequirementAdvisorResult,
+    advise_requirements,
+    resolve_mode as resolve_requirement_mode,
+    should_advise as should_advise_requirements,
 )
 from .config import get_settings
 from .telemetry import emit_event
@@ -188,6 +198,13 @@ class CurriculumSequencer:
                     milestone_item.milestone_requirements = list(
                         milestone_item.milestone_brief.requirements or []
                     )
+                    milestone_item.requirement_advisor_version = getattr(
+                        milestone_item.milestone_brief, "advisor_version", None
+                    )
+                    milestone_item.requirement_progress_snapshot = [
+                        requirement.model_copy(deep=True)
+                        for requirement in milestone_item.milestone_requirements
+                    ]
                 if milestone_item.milestone_brief and milestone_item.milestone_brief.project:
                     milestone_item.milestone_project = milestone_item.milestone_brief.project
                 milestone_parts = self._split_work_item(milestone_item)
@@ -282,6 +299,14 @@ class CurriculumSequencer:
             pacing_sessions,
             horizon,
         )
+        for item in scheduled_items:
+            if item.kind == "milestone":
+                self._apply_requirement_progress(item, profile)
+        milestone_queue = self._build_milestone_queue(
+            scheduled_items=scheduled_items,
+            profile=profile,
+            categories=categories,
+        )
 
         return CurriculumSchedule(
             generated_at=datetime.now(timezone.utc),
@@ -297,6 +322,7 @@ class CurriculumSequencer:
             long_range_item_count=len(long_range_items),
             extended_weeks=extended_weeks,
             long_range_category_keys=long_range_category_keys,
+            milestone_queue=milestone_queue,
         )
 
     def _build_category_context(self, profile: LearnerProfile) -> Dict[str, _CategoryContext]:
@@ -501,6 +527,12 @@ class CurriculumSequencer:
             clone.milestone_requirements = [
                 requirement.model_copy(deep=True) for requirement in item.milestone_requirements
             ]
+            clone.requirement_advisor_version = getattr(item, "requirement_advisor_version", None)
+            clone.requirement_progress_snapshot = [
+                requirement.model_copy(deep=True)
+                for requirement in getattr(item, "requirement_progress_snapshot", []) or []
+            ]
+            clone.unlock_notified_at = getattr(item, "unlock_notified_at", None)
             return [clone]
 
         minutes = max(int(item.recommended_minutes or MIN_SESSION_MINUTES), MIN_SESSION_MINUTES)
@@ -519,6 +551,12 @@ class CurriculumSequencer:
             cloned.milestone_requirements = [
                 requirement.model_copy(deep=True) for requirement in item.milestone_requirements
             ]
+            cloned.requirement_advisor_version = getattr(item, "requirement_advisor_version", None)
+            cloned.requirement_progress_snapshot = [
+                requirement.model_copy(deep=True)
+                for requirement in getattr(item, "requirement_progress_snapshot", []) or []
+            ]
+            cloned.unlock_notified_at = getattr(item, "unlock_notified_at", None)
             return [cloned]
 
         parts = math.ceil(minutes / MAX_SESSION_MINUTES)
@@ -552,6 +590,12 @@ class CurriculumSequencer:
             part.milestone_requirements = [
                 requirement.model_copy(deep=True) for requirement in item.milestone_requirements
             ]
+            part.requirement_advisor_version = getattr(item, "requirement_advisor_version", None)
+            part.requirement_progress_snapshot = [
+                requirement.model_copy(deep=True)
+                for requirement in getattr(item, "requirement_progress_snapshot", []) or []
+            ]
+            part.unlock_notified_at = getattr(item, "unlock_notified_at", None)
             results.append(part)
 
         total_minutes = sum(part.recommended_minutes for part in results)
@@ -652,6 +696,20 @@ class CurriculumSequencer:
             fallback_requirements,
             categories,
         )
+        advisor_result = self._run_requirement_advisor(
+            profile=profile,
+            module=module,
+            context=context,
+            brief=brief,
+            fallback_requirements=fallback_requirements,
+        )
+        if advisor_result:
+            brief.requirements = advisor_result.requirements
+            brief.advisor_version = advisor_result.version
+            brief.advisor_warnings = advisor_result.warnings
+            if advisor_result.warnings:
+                merged_warning_set = dict.fromkeys(brief.warnings + advisor_result.warnings)
+                brief.warnings = list(merged_warning_set.keys())
         brief.source = "agent"
         combined_warnings = list(
             dict.fromkeys(fallback_brief.warnings + brief.warnings + result.warnings)
@@ -924,6 +982,225 @@ class CurriculumSequencer:
         if not merged:
             return [entry.model_copy(deep=True) for entry in fallback]
         return merged
+
+    def _run_requirement_advisor(
+        self,
+        *,
+        profile: LearnerProfile,
+        module: CurriculumModule,
+        context: _CategoryContext,
+        brief: MilestoneBrief,
+        fallback_requirements: List[MilestoneRequirement],
+    ) -> Optional[RequirementAdvisorResult]:
+        settings = get_settings()
+        if not should_advise_requirements(settings):
+            return None
+        baseline_requirements = list(brief.requirements or fallback_requirements or [])
+        if not baseline_requirements:
+            return None
+        mode = resolve_requirement_mode(settings)
+        emit_event(
+            "requirement_advisor_invoked",
+            username=profile.username,
+            module_id=module.module_id,
+            category_key=module.category_key,
+            mode=mode,
+        )
+        payload = RequirementAdvisorRequestPayload(
+            username=profile.username,
+            category_key=module.category_key,
+            category_label=context.label or module.category_key,
+            baseline_requirements=[
+                RequirementAdvisorRequirementPayload(
+                    category_key=req.category_key,
+                    minimum_rating=req.minimum_rating,
+                    rationale=req.rationale,
+                )
+                for req in baseline_requirements
+            ],
+            elo_snapshot=dict(getattr(profile, "elo_snapshot", {}) or {}),
+            recent_rating_changes=(
+                {module.category_key: int(context.rating_delta)}
+                if context.rating_delta is not None
+                else {}
+            ),
+            goal_summary=getattr(getattr(profile, "goal_inference", None), "summary", None)
+            or (profile.goal or None),
+            schedule_notes=brief.rationale
+            or getattr(getattr(profile, "curriculum_plan", None), "overview", None),
+            outstanding_prereqs=[
+                prereq.title
+                for prereq in getattr(brief, "prerequisites", []) or []
+                if getattr(prereq, "required", True)
+            ],
+        )
+        try:
+            result = advise_requirements(payload, settings=settings)
+        except RequirementAdvisorError as exc:
+            emit_event(
+                "requirement_advisor_fallback",
+                username=profile.username,
+                module_id=module.module_id,
+                category_key=module.category_key,
+                mode=mode,
+                reason=str(exc),
+            )
+            return None
+        emit_event(
+            "requirement_advisor_latency",
+            username=profile.username,
+            module_id=module.module_id,
+            category_key=module.category_key,
+            mode=mode,
+            latency_ms=result.latency_ms,
+            requirement_count=len(result.requirements),
+            version=result.version,
+        )
+        return result
+
+    def _apply_requirement_progress(self, item: SequencedWorkItem, profile: LearnerProfile) -> None:
+        snapshot = dict(getattr(profile, "elo_snapshot", {}) or {})
+        requirements = getattr(item, "milestone_requirements", []) or []
+        for requirement in requirements:
+            current = int(snapshot.get(requirement.category_key, 0) or 0)
+            requirement.current_rating = current
+            requirement.progress_percent = _clamp_progress(current, requirement.minimum_rating)
+            if current >= requirement.minimum_rating and getattr(requirement, "last_met_at", None) is None:
+                requirement.last_met_at = datetime.now(timezone.utc)
+                emit_event(
+                    "milestone_requirement_met",
+                    username=profile.username,
+                    category_key=requirement.category_key,
+                    item_id=item.item_id,
+                    current_rating=current,
+                    minimum_rating=requirement.minimum_rating,
+                )
+        item.requirement_progress_snapshot = [
+            requirement.model_copy(deep=True) for requirement in requirements
+        ]
+
+    def _build_milestone_queue(
+        self,
+        *,
+        scheduled_items: Sequence[SequencedWorkItem],
+        profile: LearnerProfile,
+        categories: Dict[str, _CategoryContext],
+    ) -> List[MilestoneQueueEntry]:
+        queue: List[MilestoneQueueEntry] = []
+        for item in scheduled_items:
+            if item.kind != "milestone":
+                continue
+            requirements = [
+                requirement.model_copy(deep=True)
+                for requirement in getattr(item, "milestone_requirements", []) or []
+            ]
+            lock_reason = self._milestone_lock_reason(item, scheduled_items)
+            unmet = [
+                requirement
+                for requirement in requirements
+                if requirement.current_rating < requirement.minimum_rating
+            ]
+            if item.launch_status == "completed":
+                state: Literal["locked", "ready", "in_progress", "completed"] = "completed"
+            elif item.launch_status == "in_progress":
+                state = "in_progress"
+            elif not unmet and not lock_reason:
+                state = "ready"
+            else:
+                state = "locked"
+            badges: List[str] = []
+            if state == "completed":
+                badges.append("Completed")
+            elif state == "in_progress":
+                badges.append("In progress")
+            elif state == "ready":
+                badges.append("Ready")
+            else:
+                badges.append("Locked")
+            next_actions: List[str] = []
+            warnings: List[str] = []
+            for requirement in unmet:
+                next_actions.append(
+                    f"Reach {requirement.minimum_rating} in {requirement.category_label} "
+                    f"(current {requirement.current_rating})."
+                )
+                if requirement.rationale:
+                    warnings.append(requirement.rationale)
+            if lock_reason:
+                warnings.append(lock_reason)
+            if state == "ready":
+                next_actions.append("Launch the milestone when you can focus for 60–90 minutes.")
+                if getattr(item, "unlock_notified_at", None) is None:
+                    timestamp = datetime.now(timezone.utc)
+                    item.unlock_notified_at = timestamp
+                    emit_event(
+                        "milestone_unlock_ready",
+                        username=profile.username,
+                        item_id=item.item_id,
+                        category_key=item.category_key,
+                        advisor_version=getattr(item, "requirement_advisor_version", None),
+                    )
+            elif state == "in_progress":
+                next_actions.append("Capture blockers and artefacts before marking complete.")
+            elif state == "completed":
+                next_actions.append("Review feedback and celebrate the milestone win.")
+            summary = item.summary
+            if not summary and item.milestone_brief and item.milestone_brief.summary:
+                summary = item.milestone_brief.summary
+            queue.append(
+                MilestoneQueueEntry(
+                    item_id=item.item_id,
+                    title=item.title,
+                    summary=summary,
+                    category_key=item.category_key,
+                    readiness_state=state,
+                    badges=list(dict.fromkeys(badges)),
+                    next_actions=list(dict.fromkeys([action for action in next_actions if action])),
+                    warnings=list(dict.fromkeys([warning for warning in warnings if warning])),
+                    launch_locked_reason=lock_reason,
+                    last_updated_at=self._milestone_last_updated(item),
+                    requirements=requirements,
+                )
+            )
+        queue.sort(
+            key=lambda entry: (
+                {"ready": 3, "in_progress": 2, "locked": 1, "completed": 0}.get(entry.readiness_state, 0),
+                max((req.progress_percent for req in entry.requirements), default=0.0),
+            ),
+            reverse=True,
+        )
+        return queue
+
+    def _milestone_last_updated(self, item: SequencedWorkItem) -> Optional[datetime]:
+        candidates: List[datetime] = []
+        if getattr(item, "milestone_progress", None) and getattr(item.milestone_progress, "recorded_at", None):
+            candidates.append(item.milestone_progress.recorded_at)
+        if getattr(item, "last_completed_at", None):
+            candidates.append(item.last_completed_at)
+        if getattr(item, "last_launched_at", None):
+            candidates.append(item.last_launched_at)
+        if not candidates:
+            return None
+        return max(candidates)
+
+    def _milestone_lock_reason(
+        self,
+        item: SequencedWorkItem,
+        scheduled_items: Sequence[SequencedWorkItem],
+    ) -> Optional[str]:
+        if item.launch_status == "completed":
+            return None
+        incomplete_prereqs = [
+            other
+            for other in scheduled_items
+            if other.item_id != item.item_id
+            and other.kind != "milestone"
+            and other.recommended_day_offset <= item.recommended_day_offset
+            and getattr(other, "launch_status", "pending") != "completed"
+        ]
+        if incomplete_prereqs:
+            return "Complete earlier lessons and quizzes before unlocking this milestone."
+        return None
 
     def _match_track(
         self,
@@ -1714,6 +1991,15 @@ class CurriculumSequencer:
         elif focus_categories:
             summary += f" Emphasis on {', '.join(sorted(focus_categories))}."
         return summary
+
+
+def _clamp_progress(current: int, minimum: int) -> float:
+    if minimum <= 0:
+        return 1.0
+    try:
+        return max(0.0, min(float(current) / float(minimum), 1.0))
+    except ZeroDivisionError:
+        return 1.0
 
 
 sequencer = CurriculumSequencer()

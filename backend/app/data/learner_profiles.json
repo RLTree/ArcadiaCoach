@@ -156,7 +156,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "quiz-m1",
@@ -183,7 +187,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "milestone-backend",
@@ -211,7 +219,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "lesson-m2",
@@ -235,7 +247,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "quiz-m2",
@@ -262,7 +278,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "lesson-m3",
@@ -286,7 +306,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "quiz-m3",
@@ -313,7 +337,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "lesson-m4",
@@ -337,7 +365,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "quiz-m4",
@@ -364,7 +396,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "lesson-m5",
@@ -388,7 +424,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         },
         {
           "item_id": "quiz-m5",
@@ -415,7 +455,11 @@
           "active_session_id": null,
           "milestone_brief": null,
           "milestone_progress": null,
-          "milestone_project": null
+          "milestone_project": null,
+          "milestone_requirements": [],
+          "requirement_advisor_version": null,
+          "requirement_progress_snapshot": [],
+          "unlock_notified_at": null
         }
       ],
       "is_stale": false,
@@ -428,7 +472,8 @@
       "long_range_item_count": 0,
       "extended_weeks": 0,
       "long_range_category_keys": [],
-      "slice": null
+      "slice": null,
+      "milestone_queue": []
     },
     "schedule_adjustments": {},
     "onboarding_assessment": null,

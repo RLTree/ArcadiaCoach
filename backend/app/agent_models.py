@@ -126,6 +126,9 @@ class MilestoneRequirementPayload(BaseModel):
     category_label: str
     minimum_rating: int = Field(default=1200, ge=0)
     rationale: Optional[str] = None
+    current_rating: int = Field(default=0, ge=0)
+    progress_percent: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_met_at: Optional[datetime] = None
 
 
 class MilestoneBriefPayload(BaseModel):
@@ -149,6 +152,8 @@ class MilestoneBriefPayload(BaseModel):
     reasoning_effort: Optional[str] = None
     source: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
+    advisor_version: Optional[str] = None
+    advisor_warnings: List[str] = Field(default_factory=list)
 
 
 class MilestoneProgressPayload(BaseModel):
@@ -194,6 +199,23 @@ class SequencedWorkItemPayload(BaseModel):
     milestone_guidance: Optional[MilestoneGuidancePayload] = None
     milestone_project: Optional[MilestoneProjectPayload] = None
     milestone_requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
+    requirement_advisor_version: Optional[str] = None
+    requirement_progress_snapshot: List[MilestoneRequirementPayload] = Field(default_factory=list)
+    unlock_notified_at: Optional[datetime] = None
+
+
+class MilestoneQueueEntryPayload(BaseModel):
+    item_id: str
+    title: str
+    summary: Optional[str] = None
+    category_key: str
+    readiness_state: Literal["locked", "ready", "in_progress", "completed"]
+    badges: List[str] = Field(default_factory=list)
+    next_actions: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    launch_locked_reason: Optional[str] = None
+    last_updated_at: Optional[datetime] = None
+    requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
 
 
 class MilestoneCompletionPayload(BaseModel):
@@ -270,6 +292,7 @@ class CurriculumSchedulePayload(BaseModel):
     long_range_category_keys: List[str] = Field(default_factory=list)
     slice: Optional[ScheduleSlicePayload] = None
     milestone_completions: List[MilestoneCompletionPayload] = Field(default_factory=list)
+    milestone_queue: List[MilestoneQueueEntryPayload] = Field(default_factory=list)
 
 
 class ScheduleLaunchContentPayload(BaseModel):

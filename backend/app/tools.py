@@ -58,6 +58,7 @@ from .agent_models import (
     MilestoneRequirementPayload,
     MilestoneProgressPayload,
     MilestoneGuidancePayload,
+    MilestoneQueueEntryPayload,
     SequencedWorkItemPayload,
     SkillRatingPayload,
 )
@@ -160,6 +161,42 @@ def _schedule_payload(
         if key and key in plan_labels:
             return plan_labels[key]
         return key or "Milestone prerequisite"
+
+    def _progress_value(current: int, minimum: int) -> float:
+        if minimum <= 0:
+            return 1.0
+        return max(0.0, min(float(current) / float(minimum), 1.0))
+
+    def _payloads_for_requirements(entries: Iterable[Any]) -> List[MilestoneRequirementPayload]:
+        payloads: List[MilestoneRequirementPayload] = []
+        for requirement in entries or []:
+            key = getattr(requirement, "category_key", None)
+            if not key:
+                continue
+            try:
+                minimum = int(getattr(requirement, "minimum_rating", 0) or 0)
+            except (TypeError, ValueError):
+                minimum = 0
+            current = int(
+                getattr(requirement, "current_rating", snapshot.get(key, 0))
+                or snapshot.get(key, 0)
+                or 0
+            )
+            progress = getattr(requirement, "progress_percent", None)
+            if progress is None:
+                progress = _progress_value(current, minimum)
+            payloads.append(
+                MilestoneRequirementPayload(
+                    category_key=key,
+                    category_label=_requirement_label(requirement),
+                    minimum_rating=minimum,
+                    rationale=getattr(requirement, "rationale", None),
+                    current_rating=current,
+                    progress_percent=progress,
+                    last_met_at=getattr(requirement, "last_met_at", None),
+                )
+            )
+        return payloads
 
     def _locked_reason(
         target: Any,
@@ -395,6 +432,7 @@ def _schedule_payload(
         return payload
 
     dynamic_warning_entries: List[ScheduleWarningPayload] = []
+    fallback_queue_entries: List[MilestoneQueueEntryPayload] = []
 
     for item in schedule.items:
         local_date = anchor_date + timedelta(days=item.recommended_day_offset)
@@ -407,16 +445,12 @@ def _schedule_payload(
         if milestone_brief and requirements:
             milestone_brief.requirements = list(requirements)
         locked_reason, unmet_requirements = _locked_reason(item, schedule.items, requirements)
-        requirement_payloads = [
-            MilestoneRequirementPayload(
-                category_key=getattr(requirement, "category_key", ""),
-                category_label=_requirement_label(requirement),
-                minimum_rating=int(getattr(requirement, "minimum_rating", 0) or 0),
-                rationale=getattr(requirement, "rationale", None),
-            )
-            for requirement in requirements
-            if getattr(requirement, "category_key", None)
-        ]
+        requirement_payloads = _payloads_for_requirements(requirements)
+        progress_snapshot_payloads = _payloads_for_requirements(
+            getattr(item, "requirement_progress_snapshot", []) or []
+        )
+        if not progress_snapshot_payloads:
+            progress_snapshot_payloads = list(requirement_payloads)
         brief_payload: MilestoneBriefPayload | None = None
         progress_payload: MilestoneProgressPayload | None = None
         milestone_progress = getattr(item, "milestone_progress", None)
@@ -442,6 +476,8 @@ def _schedule_payload(
                 reasoning_effort=getattr(milestone_brief, "reasoning_effort", None),
                 source=getattr(milestone_brief, "source", None),
                 warnings=list(getattr(milestone_brief, "warnings", []) or []),
+                advisor_version=getattr(milestone_brief, "advisor_version", None),
+                advisor_warnings=list(getattr(milestone_brief, "advisor_warnings", []) or []),
             )
             project = getattr(milestone_brief, "project", None)
             if project:
@@ -532,8 +568,41 @@ def _schedule_payload(
                 milestone_guidance=guidance_payload,
                 milestone_project=project_payload,
                 milestone_requirements=requirement_payloads,
+                requirement_advisor_version=getattr(item, "requirement_advisor_version", None),
+                requirement_progress_snapshot=progress_snapshot_payloads,
+                unlock_notified_at=getattr(item, "unlock_notified_at", None),
             )
         )
+        if getattr(item, "kind", None) == "milestone":
+            raw_state = getattr(guidance_payload, "state", None)
+            if raw_state == "awaiting_submission":
+                readiness_state = "in_progress"
+            elif raw_state in {"locked", "ready", "in_progress", "completed"}:
+                readiness_state = raw_state
+            else:
+                readiness_state = (
+                    "completed"
+                    if getattr(item, "launch_status", "pending") == "completed"
+                    else "locked"
+                )
+            fallback_queue_entries.append(
+                MilestoneQueueEntryPayload(
+                    item_id=item.item_id,
+                    title=item.title,
+                    summary=item.summary,
+                    category_key=item.category_key,
+                    readiness_state=readiness_state,
+                    badges=list(getattr(guidance_payload, "badges", []) or []),
+                    next_actions=list(getattr(guidance_payload, "next_actions", []) or []),
+                    warnings=list(getattr(guidance_payload, "warnings", []) or ([] if not locked_reason else [locked_reason])),
+                    launch_locked_reason=locked_reason,
+                    last_updated_at=(
+                        getattr(item, "last_completed_at", None)
+                        or getattr(item, "last_launched_at", None)
+                    ),
+                    requirements=requirement_payloads,
+                )
+            )
     if dynamic_warning_entries:
         existing_messages = {warning.message for warning in warnings}
         for entry in dynamic_warning_entries:
@@ -574,6 +643,27 @@ def _schedule_payload(
             has_more=slice_meta.has_more,
             next_start_day=slice_meta.next_start_day,
         )
+    raw_queue_entries = getattr(schedule, "milestone_queue", []) or []
+    if raw_queue_entries:
+        milestone_queue_payloads = [
+            MilestoneQueueEntryPayload(
+                item_id=entry.item_id,
+                title=entry.title,
+                summary=entry.summary,
+                category_key=entry.category_key,
+                readiness_state=entry.readiness_state,
+                badges=list(dict.fromkeys(entry.badges)),
+                next_actions=list(dict.fromkeys(entry.next_actions)),
+                warnings=list(dict.fromkeys(entry.warnings)),
+                launch_locked_reason=entry.launch_locked_reason,
+                last_updated_at=entry.last_updated_at,
+                requirements=_payloads_for_requirements(entry.requirements),
+            )
+            for entry in raw_queue_entries
+        ]
+    else:
+        milestone_queue_payloads = fallback_queue_entries
+
     return CurriculumSchedulePayload(
         generated_at=schedule.generated_at,
         time_horizon_days=schedule.time_horizon_days,
@@ -592,6 +682,7 @@ def _schedule_payload(
         extended_weeks=getattr(schedule, "extended_weeks", 0),
         long_range_category_keys=list(getattr(schedule, "long_range_category_keys", [])),
         slice=slice_payload,
+        milestone_queue=milestone_queue_payloads,
     )
 
 

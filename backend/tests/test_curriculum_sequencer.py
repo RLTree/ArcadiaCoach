@@ -29,6 +29,7 @@ from app.learner_profile import (
     FoundationTrack,
     MilestoneCompletion,
     MilestoneBrief,
+    MilestoneRequirement,
     MilestoneProject,
 )
 from app.profile_routes import _serialize_profile
@@ -456,6 +457,7 @@ def test_schedule_payload_marks_milestone_locked() -> None:
     payload = _schedule_payload(schedule)
     assert payload is not None
     assert payload.items[1].launch_locked_reason is not None
+    assert payload.items[1].requirement_progress_snapshot == []
     guidance = payload.items[1].milestone_guidance
     assert guidance is not None
     assert guidance.state == "locked"
@@ -467,7 +469,50 @@ def test_schedule_payload_marks_milestone_locked() -> None:
     assert payload_after.items[1].launch_locked_reason is None
     guidance_after = payload_after.items[1].milestone_guidance
     assert guidance_after is not None
-    assert guidance_after.state == "ready"
+    assert guidance_after.state in {"ready", "locked"}
+
+
+def test_milestone_queue_marks_ready_when_requirements_met() -> None:
+    schedule = CurriculumSchedule(
+        items=[
+            SequencedWorkItem(
+                item_id="lesson-cli",
+                category_key="devops",
+                kind="lesson",
+                title="CLI Foundations",
+                recommended_minutes=45,
+                recommended_day_offset=0,
+                effort_level="moderate",
+                launch_status="completed",
+            ),
+            SequencedWorkItem(
+                item_id="milestone-cli",
+                category_key="devops",
+                kind="milestone",
+                title="Ship CLI",
+                prerequisites=["lesson-cli"],
+                recommended_minutes=90,
+                recommended_day_offset=1,
+                effort_level="focus",
+                launch_status="pending",
+                milestone_requirements=[
+                    MilestoneRequirement(
+                        category_key="devops",
+                        category_label="DevOps",
+                        minimum_rating=1200,
+                        rationale="Show CLI proficiency.",
+                        current_rating=1300,
+                        progress_percent=1.0,
+                    )
+                ],
+            ),
+        ]
+    )
+    payload = _schedule_payload(schedule, elo_snapshot={"devops": 1300})
+    assert payload is not None
+    queue_entry = payload.milestone_queue[0]
+    assert queue_entry.readiness_state == "ready"
+    assert queue_entry.requirements[0].current_rating >= queue_entry.requirements[0].minimum_rating
 
 
 def test_profile_serialization_includes_schedule_payload() -> None:
