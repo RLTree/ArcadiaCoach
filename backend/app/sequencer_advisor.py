@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import List, Optional
 
-from openai import OpenAI
+from agents import Agent, ModelSettings, Runner
 from pydantic import BaseModel, Field, ValidationError
 
+from .arcadia_agent import ArcadiaAgentContext
 from .config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -98,19 +99,25 @@ def _advisor_model(settings: Settings) -> str:
         return explicit
     return settings.arcadia_agent_model or "gpt-5"
 
-_CLIENT: OpenAI | None = None
+
+_ADVISOR_CACHE: dict[str, Agent[ArcadiaAgentContext]] = {}
 
 
-def _advisor_client() -> OpenAI:
-    global _CLIENT
-    if _CLIENT is None:
-        _CLIENT = OpenAI()
-    return _CLIENT
-
-
-def _advisor_effort(value: str) -> str:
-    allowed = {"minimal", "low", "medium", "high"}
-    return value if value in allowed else "medium"
+def _advisor_agent(model: str) -> Agent[ArcadiaAgentContext]:
+    if model not in _ADVISOR_CACHE:
+        instructions = (
+            "You are Arcadia Coach's Sequencer Advisor. Given curriculum context, recommend the ordering of modules "
+            "that will unlock upcoming milestones. Always respond with JSON that matches the provided schema. "
+            "Focus on modules that close requirement deficits first, while respecting prerequisite logic."
+        )
+        _ADVISOR_CACHE[model] = Agent[ArcadiaAgentContext](
+            name="Arcadia Sequencer Advisor",
+            instructions=instructions,
+            model=model,
+            tools=[],
+            model_settings=ModelSettings(store=False),
+        )
+    return _ADVISOR_CACHE[model]
 
 
 def advise_sequence(
@@ -123,7 +130,7 @@ def advise_sequence(
     if mode == "off":
         raise SequencerAdvisorError("Sequencer advisor is disabled.")
 
-    model = _advisor_model(resolved_settings)
+    agent = _advisor_agent(_advisor_model(resolved_settings))
     schema = SequencerAdvisorResponsePayload.model_json_schema()
     message = payload.model_dump(mode="json")
     prompt = (
@@ -132,32 +139,16 @@ def advise_sequence(
         "CONTEXT:\n"
         f"{json.dumps(message, ensure_ascii=False, indent=2)}"
     )
-    system_instructions = (
-        "You are Arcadia Coach's Sequencer Advisor. Given curriculum context, recommend the ordering of modules "
-        "that will unlock upcoming milestones. Always respond with JSON that matches the provided schema. "
-        "Focus on modules that close requirement deficits first, while respecting prerequisite logic."
-    )
 
     started = perf_counter()
     try:
-        client = _advisor_client()
-        response = client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": system_instructions},
-                {"role": "user", "content": prompt},
-            ],
-            reasoning={"effort": _advisor_effort(resolved_settings.arcadia_agent_reasoning)},
-        )
+        result = Runner.run_sync(agent, prompt, context=None)
     except Exception as exc:  # noqa: BLE001
         raise SequencerAdvisorError(f"Sequencer advisor call failed: {exc}") from exc
 
     latency_ms = round((perf_counter() - started) * 1000.0, 2)
-    output_text = getattr(response, "output_text", None)
-    if not output_text:
-        raise SequencerAdvisorError("Sequencer advisor returned empty response.")
     try:
-        payload_obj = SequencerAdvisorResponsePayload.model_validate_json(output_text)
+        payload_obj = SequencerAdvisorResponsePayload.model_validate_json(result.final_output)
     except (ValidationError, json.JSONDecodeError) as exc:
         raise SequencerAdvisorError(f"Sequencer advisor returned invalid payload: {exc}") from exc
 

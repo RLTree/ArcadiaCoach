@@ -8,9 +8,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Dict, Iterable, List, Optional
 
-from agents import Agent, ModelSettings, RunConfig, Runner
-from openai.types.shared.reasoning import Reasoning
-from openai.types.shared.reasoning_effort import ReasoningEffort
+from agents import Agent, ModelSettings, Runner
 from pydantic import BaseModel, Field, ValidationError
 
 from .arcadia_agent import ArcadiaAgentContext
@@ -59,9 +57,6 @@ class RequirementAdvisorResult:
     latency_ms: float
 
 
-_ADVISOR_CACHE: Dict[str, Agent[ArcadiaAgentContext]] = {}
-
-
 def resolve_mode(settings: Settings) -> RequirementAdvisorMode:
     value = getattr(settings, "arcadia_requirement_advisor_mode", "fallback")
     if value not in {"off", "fallback", "primary"}:
@@ -73,17 +68,13 @@ def should_advise(settings: Settings) -> bool:
     return resolve_mode(settings) != "off"
 
 
-def _advisor_effort(value: str) -> ReasoningEffort:
-    allowed = {"minimal", "low", "medium", "high"}
-    effort = value if value in allowed else "medium"
-    return ReasoningEffort(effort)  # type: ignore[arg-type]
-
-
 def _advisor_model(settings: Settings) -> str:
     explicit = getattr(settings, "arcadia_requirement_advisor_model", None)
     if explicit:
         return explicit
     return settings.arcadia_agent_model or "gpt-5"
+
+_ADVISOR_CACHE: Dict[str, Agent[ArcadiaAgentContext]] = {}
 
 
 def _advisor_agent(model: str) -> Agent[ArcadiaAgentContext]:
@@ -137,19 +128,7 @@ def advise_requirements(
     )
     started = perf_counter()
     try:
-        result = Runner.run_sync(
-            agent,
-            prompt,
-            context=None,
-            run_config=RunConfig(
-                model_settings=ModelSettings(
-                    reasoning=Reasoning(
-                        effort=_advisor_effort(resolved_settings.arcadia_agent_reasoning),
-                        summary="auto",
-                    )
-                )
-            ),
-        )
+        result = Runner.run_sync(agent, prompt, context=None)
     except Exception as exc:  # noqa: BLE001
         raise RequirementAdvisorError(f"Requirement advisor call failed: {exc}") from exc
 
