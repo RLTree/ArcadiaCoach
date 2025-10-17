@@ -29,6 +29,8 @@ from app.learner_profile import (
     OnboardingAssessment,
     CurriculumSchedule,
     SequencedWorkItem,
+    MilestoneRequirement,
+    MilestoneQueueEntry,
 )
 from app.main import app
 
@@ -435,3 +437,101 @@ def test_developer_auto_complete_schedule(tmp_path: Path, monkeypatch: pytest.Mo
     assert statuses["lesson-1"] == "completed"
     assert statuses["quiz-1"] == "completed"
     assert statuses["milestone-1"] == "pending"
+
+
+def test_developer_boost_elo_unlocks_milestone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _setup_db(tmp_path)
+
+    profile_store = LearnerProfileStore()
+    monkeypatch.setattr(developer_routes, "profile_store", profile_store, raising=False)
+
+    requirement = MilestoneRequirement(
+        category_key="backend",
+        category_label="Backend Systems",
+        minimum_rating=1500,
+        rationale="Raise backend rating",
+    )
+    initial_schedule = CurriculumSchedule(
+        generated_at=datetime.now(timezone.utc),
+        time_horizon_days=14,
+        timezone="UTC",
+        items=[
+            SequencedWorkItem(
+                item_id="milestone-backend",
+                category_key="backend",
+                kind="milestone",
+                title="Backend Milestone",
+                summary="Ship backend milestone",
+                objectives=[],
+                prerequisites=[],
+                recommended_minutes=90,
+                recommended_day_offset=3,
+                effort_level="focus",
+                milestone_requirements=[requirement],
+            )
+        ],
+    )
+
+    profile_store.upsert(
+        LearnerProfile(
+            username="developer",
+            elo_snapshot={"backend": 1200},
+            curriculum_schedule=initial_schedule,
+        )
+    )
+    profile_store.set_curriculum_schedule("developer", initial_schedule)
+
+    ready_queue = [
+        MilestoneQueueEntry(
+            item_id="milestone-backend",
+            title="Backend Milestone",
+            summary="Ship backend milestone",
+            category_key="backend",
+            readiness_state="ready",
+            badges=["Ready"],
+            next_actions=["Launch milestone"],
+            warnings=[],
+            launch_locked_reason=None,
+            last_updated_at=datetime.now(timezone.utc),
+            requirements=[
+                MilestoneRequirement(
+                    category_key="backend",
+                    category_label="Backend Systems",
+                    minimum_rating=1500,
+                    rationale="Raise backend rating",
+                    current_rating=1500,
+                    progress_percent=1.0,
+                )
+            ],
+        )
+    ]
+
+    def fake_generate(username: str):
+        assert username == "developer"
+        refreshed = profile_store.get(username)
+        assert refreshed is not None
+        refreshed.elo_snapshot["backend"] = 1500
+        refreshed.curriculum_schedule = CurriculumSchedule(
+            generated_at=datetime.now(timezone.utc),
+            time_horizon_days=14,
+            timezone="UTC",
+            items=refreshed.curriculum_schedule.items,
+            milestone_queue=ready_queue,
+        )
+        profile_store.set_curriculum_schedule(username, refreshed.curriculum_schedule)
+        return profile_store.get(username)
+
+    monkeypatch.setattr(developer_routes, "generate_schedule_for_user", fake_generate, raising=False)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/developer/boost-elo",
+        json={"username": "developer", "category_key": "backend", "target_rating": 1500},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["milestone_queue"][0]["readiness_state"] == "ready"
+    assert body["milestone_queue"][0]["requirements"][0]["current_rating"] == 1500
+    stored_profile = profile_store.get("developer")
+    assert stored_profile is not None
+    assert stored_profile.elo_snapshot["backend"] >= 1500

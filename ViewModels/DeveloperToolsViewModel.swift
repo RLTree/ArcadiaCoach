@@ -13,6 +13,8 @@ final class DeveloperToolsViewModel: ObservableObject {
     @Published var lastNormalizedAt: Date?
     @Published var autoCompleteInFlight = false
     @Published var autoCompleteMessage: String?
+    @Published var eloBoostInFlight = false
+    @Published var eloBoostMessage: String?
 
     func refreshSubmissions(baseURL: String, username: String?) async {
         guard !isLoadingSubmissions else { return }
@@ -128,6 +130,44 @@ final class DeveloperToolsViewModel: ObservableObject {
             let nsError = error as NSError
             lastError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
             autoCompleteMessage = nil
+        }
+    }
+
+    func boostElo(
+        baseURL: String,
+        settings: AppSettings,
+        appVM: AppViewModel,
+        categoryKey: String? = nil,
+        targetRating: Int = 1500
+    ) async {
+        guard !eloBoostInFlight else { return }
+        let trimmedBase = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBase.isEmpty else {
+            lastError = "Set the ChatKit backend URL before boosting ratings."
+            return
+        }
+        let trimmedUsername = settings.arcadiaUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            lastError = "Add a learner username in Settings before boosting ratings."
+            return
+        }
+        eloBoostInFlight = true
+        defer { eloBoostInFlight = false }
+        do {
+            let schedule = try await BackendService.boostElo(
+                baseURL: trimmedBase,
+                username: trimmedUsername,
+                categoryKey: categoryKey,
+                targetRating: targetRating
+            )
+            appVM.applyDeveloperScheduleOverride(schedule)
+            await appVM.refreshTelemetry(baseURL: trimmedBase, username: trimmedUsername)
+            eloBoostMessage = "Boosted ratings to \(targetRating) on \(Date().formatted(date: .numeric, time: .standard))."
+            lastError = nil
+        } catch {
+            let nsError = error as NSError
+            lastError = nsError.localizedDescription.isEmpty ? String(describing: error) : nsError.localizedDescription
+            eloBoostMessage = nil
         }
     }
 }

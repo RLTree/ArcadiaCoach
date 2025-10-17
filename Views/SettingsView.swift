@@ -180,6 +180,36 @@ struct SettingsView: View {
                         }
 
                         Button {
+                            Task {
+                                await developerTools.boostElo(
+                                    baseURL: settings.chatkitBackendURL,
+                                    settings: settings,
+                                    appVM: appVM,
+                                    categoryKey: nil,
+                                    targetRating: 1500
+                                )
+                            }
+                        } label: {
+                            if developerTools.eloBoostInFlight {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Boost ELO to Unlock Milestones", systemImage: "flag.checkered")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(developerTools.eloBoostInFlight)
+                        if let message = developerTools.eloBoostMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Raises all tracked categories to 1500 so milestone requirements are immediately satisfied. Refreshes the schedule afterward.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
                             showDeveloperResetConfirmation = true
                         } label: {
                             if developerTools.resetInFlight {

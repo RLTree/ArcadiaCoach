@@ -12,6 +12,7 @@ from .agent_models import AssessmentSubmissionPayload, CurriculumSchedulePayload
 from .assessment_submission import submission_payload, submission_store
 from .assessment_attachments import attachment_store
 from .learner_profile import profile_store
+from .curriculum_sequencer import generate_schedule_for_user
 from .tools import _schedule_payload
 from .telemetry import emit_event
 
@@ -54,6 +55,12 @@ class DeveloperAutoCompleteRequest(BaseModel):
     username: str = Field(..., min_length=1)
     include_lessons: bool = True
     include_quizzes: bool = True
+
+
+class DeveloperEloBoostRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    category_key: Optional[str] = Field(default=None, description="Restrict boost to a single category key")
+    target_rating: int = Field(default=1400, ge=0, le=5000)
 
 
 @router.post(
@@ -139,6 +146,67 @@ def developer_auto_complete(payload: DeveloperAutoCompleteRequest) -> Curriculum
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to prepare the updated schedule.",
         )
+    return schedule_payload
+
+
+@router.post(
+    "/boost-elo",
+    response_model=CurriculumSchedulePayload,
+    status_code=status.HTTP_200_OK,
+)
+def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedulePayload:
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username cannot be empty.",
+        )
+    profile = profile_store.get(username)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Learner profile for '{username}' was not found.",
+        )
+    snapshot = dict(getattr(profile, "elo_snapshot", {}) or {})
+    if not snapshot and payload.category_key is None:
+        plan = getattr(profile, "elo_category_plan", None)
+        if plan and getattr(plan, "categories", None):
+            snapshot = {category.key: int(category.starting_rating) for category in plan.categories if category.key}
+    if payload.category_key is not None:
+        categories: Set[str] = {payload.category_key.strip()}
+    else:
+        categories = set(snapshot.keys())
+    if not categories:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No categories available to boost ELO ratings.",
+        )
+    target = max(int(payload.target_rating), 1100)
+    metadata = {"elo": {key: target for key in categories}}
+    profile_store.apply_metadata(username, metadata)
+    boosted = generate_schedule_for_user(username)
+    schedule = boosted.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+    schedule_payload = _schedule_payload(
+        schedule,
+        elo_snapshot=getattr(boosted, "elo_snapshot", {}),
+        elo_plan=getattr(boosted, "elo_category_plan", None),
+    )
+    if schedule_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to prepare the updated schedule.",
+        )
+    emit_event(
+        "developer_elo_boost",
+        username=username,
+        categories=";".join(sorted(categories)),
+        target_rating=target,
+    )
     return schedule_payload
 
 

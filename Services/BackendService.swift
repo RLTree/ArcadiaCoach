@@ -103,6 +103,12 @@ final class BackendService {
         var includeQuizzes: Bool
     }
 
+    private struct DeveloperEloBoostPayload: Encodable {
+        var username: String
+        var categoryKey: String?
+        var targetRating: Int
+    }
+
     private struct AssessmentAttachmentLinkPayload: Encodable {
         var name: String?
         var url: String
@@ -297,6 +303,52 @@ final class BackendService {
         request.httpBody = try encoder.encode(payload)
 
         logger.debug("POST \(url.absoluteString, privacy: .public) -> auto-complete schedule")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BackendServiceError.transportFailure(status: -1, body: "Invalid response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "<no body>"
+            throw BackendServiceError.transportFailure(status: http.statusCode, body: body)
+        }
+
+        do {
+            return try decoder.decode(CurriculumSchedule.self, from: data)
+        } catch {
+            throw BackendServiceError.decodingFailure(error.localizedDescription)
+        }
+    }
+
+    static func boostElo(
+        baseURL: String,
+        username: String,
+        categoryKey: String?,
+        targetRating: Int
+    ) async throws -> CurriculumSchedule {
+        guard let trimmedBase = trimmed(url: baseURL) else {
+            throw BackendServiceError.missingBackend
+        }
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw BackendServiceError.invalidURL
+        }
+        guard let url = endpoint(baseURL: trimmedBase, path: "api/developer/boost-elo") else {
+            throw BackendServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = DeveloperEloBoostPayload(
+            username: trimmedUsername,
+            categoryKey: categoryKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+            targetRating: targetRating
+        )
+        request.httpBody = try encoder.encode(payload)
+
+        logger.debug("POST \(url.absoluteString, privacy: .public) -> boost elo")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {

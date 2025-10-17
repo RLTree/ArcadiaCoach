@@ -217,6 +217,7 @@ struct DashboardMilestonesSection: View {
     @ViewBuilder
     private func launchButtons(for entry: MilestoneQueueEntry, item: SequencedWorkItem) -> some View {
         let readiness = entry.readinessState.lowercased()
+        let actionLabel = readiness == "in_progress" ? "Resume" : "Launch"
         if launchingItemId == item.itemId {
             ProgressView()
                 .controlSize(.small)
@@ -225,13 +226,13 @@ struct DashboardMilestonesSection: View {
                 launchAction(item, false)
             } label: {
                 Label(
-                    readiness == "in_progress" ? "Resume" : "Launch",
+                    actionLabel,
                     systemImage: readiness == "in_progress" ? "play.circle" : "flag"
                 )
             }
             .buttonStyle(.borderedProminent)
             .disabled(readiness == "locked")
-            .accessibilityLabel("\(readiness == \"in_progress\" ? \"Resume\" : \"Launch\") \(entry.title)")
+            .accessibilityLabel("\(actionLabel) \(entry.title)")
             if let lockReason = entry.launchLockedReason,
                readiness == "locked",
                entry.requirements.allSatisfy({ $0.currentRating >= $0.minimumRating }) {
