@@ -831,7 +831,20 @@ async def launch_schedule_item(
             summary=item.summary,
             objectives=list(item.objectives),
         )
-        result = _render_milestone_envelope(item, brief)
+        item.milestone_brief = brief
+        base_display = (
+            brief.summary
+            or item.summary
+            or brief.headline
+            or item.title
+            or "Milestone"
+        )
+        base_envelope = EndMilestone(
+            intent="milestone",
+            display=base_display,
+            widgets=[],
+        )
+        result = _render_milestone_envelope(item, base_envelope)
     else:
         try:
             result = await _run_structured(

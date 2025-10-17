@@ -156,6 +156,36 @@ def test_milestone_brief_attached_to_schedule() -> None:
     profile_store.delete(username)
 
 
+def test_force_launch_milestone_returns_static_envelope() -> None:
+    username = "scheduler-force-launch"
+    profile_store.delete(username)
+    profile_store.upsert(_profile(username))
+    generated = generate_schedule_for_user(username)
+    assert generated.curriculum_schedule is not None
+    milestone = next(item for item in generated.curriculum_schedule.items if item.kind == "milestone")
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/session/schedule/launch",
+        json={
+            "username": username,
+            "item_id": milestone.item_id,
+            "session_id": "force-session",
+            "force": True,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["content"]["kind"] == "milestone"
+    milestone_payload = payload["content"]["milestone"]
+    assert milestone_payload["intent"] == "milestone"
+    assert milestone_payload["display"], "Expected milestone display text."
+    assert milestone_payload["widgets"], "Expected milestone widgets in forced path."
+
+    profile_store.delete(username)
+
+
 def test_schedule_completion_records_milestone_progress() -> None:
     username = "scheduler-progress"
     profile_store.delete(username)
