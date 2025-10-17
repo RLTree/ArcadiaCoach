@@ -19,3 +19,4 @@
 - Extend telemetry dashboards to chart multi-category unlock rates and advisor fallback frequency.
 - Update MCP widget payloads that render milestone summaries to include the new aggregated requirement data.
 - Review BackendService date formatting warnings (`iso8601*` formatters) for actor isolation and convert to Sendable-safe accessors.
+- Add regression coverage to ensure sliced schedules continue to include active milestone items so launch controls remain available after refreshes.
