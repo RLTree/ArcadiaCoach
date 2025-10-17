@@ -196,6 +196,9 @@ class MilestoneRequirement(BaseModel):
     category_label: Optional[str] = None
     minimum_rating: Optional[int] = None
     rationale: Optional[str] = None
+    current_rating: Optional[int] = None
+    progress_percent: Optional[float] = None
+    last_met_at: Optional[datetime] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -220,6 +223,8 @@ class MilestoneAuthorBrief(BaseModel):
     source: str = Field(default="agent", pattern="^(agent|template)$")
     warnings: List[str] = Field(default_factory=list)
     requirements: List[MilestoneRequirement] = Field(default_factory=list)
+    advisor_version: Optional[str] = None
+    advisor_warnings: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")
 

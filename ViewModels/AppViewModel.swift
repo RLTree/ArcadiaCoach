@@ -60,7 +60,15 @@ final class AppViewModel: ObservableObject {
     @Published var error: String?
     @Published var eloPlan: EloCategoryPlan?
     @Published var curriculumPlan: OnboardingCurriculumPlan?
-    @Published var curriculumSchedule: CurriculumSchedule?
+    @Published var curriculumSchedule: CurriculumSchedule? = nil {
+        didSet {
+            milestoneQueue = curriculumSchedule?.milestoneQueue ?? []
+            milestoneCompletions = curriculumSchedule?.milestoneCompletions ?? []
+            if let timezone = curriculumSchedule?.timezone, !timezone.isEmpty {
+                learnerTimezone = timezone
+            }
+        }
+    }
     @Published var onboardingAssessment: OnboardingAssessment?
     @Published var assessmentResult: AssessmentGradingResult?
     // Phase 8 – Track submission/grading history for dashboard + chat surfaces.
@@ -86,6 +94,9 @@ final class AppViewModel: ObservableObject {
     @Published var foundationTracks: [FoundationTrackModel] = []
     @Published var hasUnseenAssessmentResults: Bool = false
     @Published var milestoneCompletions: [MilestoneCompletion] = []
+    @Published var milestoneQueue: [MilestoneQueueEntry] = [] {
+        didSet { handleMilestoneQueueUpdate() }
+    }
     @Published var telemetryEvents: [LearnerTelemetryEvent] = []
 
     private var lastScheduleEventSignature: String?
@@ -94,11 +105,34 @@ final class AppViewModel: ObservableObject {
     private var lastBackendBaseURL: String?
     private var lastLearnerUsername: String?
     private var assessmentResultTracker = AssessmentResultTracker()
+    private var notifiedMilestoneIds: Set<String> = []
     private lazy var iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    private func handleMilestoneQueueUpdate() {
+        let readyIds = Set(
+            milestoneQueue.filter { $0.readinessState.lowercased() == "ready" }.map(\.itemId)
+        )
+        notifiedMilestoneIds = notifiedMilestoneIds.intersection(readyIds)
+        for entry in milestoneQueue where entry.readinessState.lowercased() == "ready" {
+            guard !notifiedMilestoneIds.contains(entry.itemId) else { continue }
+            let body: String
+            if let summary = entry.summary, !summary.isEmpty {
+                body = summary
+            } else {
+                body = "Milestone is ready to launch."
+            }
+            MilestoneNotificationManager.shared.sendMilestoneReadyNotification(
+                title: entry.title,
+                body: body,
+                identifier: entry.itemId
+            )
+            notifiedMilestoneIds.insert(entry.itemId)
+        }
+    }
 
     func applyElo(updated: [String:Int], delta: [String:Int]) {
         game.elo = updated

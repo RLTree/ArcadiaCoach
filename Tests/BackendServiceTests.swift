@@ -76,7 +76,8 @@ final class BackendServiceTests: XCTestCase {
             "total_days": 126,
             "has_more": true,
             "next_start_day": 7
-        }
+        },
+        "milestone_queue": []
     }
     """
     private let sampleLaunchJSON = """
@@ -117,7 +118,8 @@ final class BackendServiceTests: XCTestCase {
             "projected_weekly_minutes": 120,
             "long_range_item_count": 2,
             "extended_weeks": 4,
-            "long_range_category_keys": []
+            "long_range_category_keys": [],
+            "milestone_queue": []
         },
         "item": {
             "item_id": "lesson-intro",
@@ -292,7 +294,10 @@ final class BackendServiceTests: XCTestCase {
                     "category_key": "backend",
                     "category_label": "Backend Systems",
                     "minimum_rating": 1250,
-                    "rationale": "Raise your backend rating before unlocking."
+                    "rationale": "Raise your backend rating before unlocking.",
+                    "current_rating": 1180,
+                    "progress_percent": 0.94,
+                    "last_met_at": "2025-10-10T12:00:00Z"
                 }
             ],
             "milestone_guidance": {

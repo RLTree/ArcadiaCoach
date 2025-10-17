@@ -50,7 +50,9 @@
 		AA77A0032D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77A0022D4D2E6C00B8BEA0 /* CurriculumScheduleView.swift */; };
 		AA77D0112F9CB00000B8BEA0 /* DashboardSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */; };
 		AA77D0312F9CB1B000B8BEA0 /* DashboardEloSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */; };
-		AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */; };
+        AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */; };
+        AA77D0712F9CB1B10B8BEA0 /* DashboardMilestonesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0612F9CB1B10B8BEA0 /* DashboardMilestonesSection.swift */; };
+        AA8800012FA0D3A900B8BEA0 /* MilestoneNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8800022FA0D3A900B8BEA0 /* MilestoneNotificationManager.swift */; };
 		AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */; };
 		AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */; };
 		AA77D0B12F9CB1B40B8BEA0 /* FoundationTracksCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */; };
@@ -129,6 +131,8 @@
 		AA77D0012F9CB00000B8BEA0 /* DashboardSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSection.swift; sourceTree = "<group>"; };
 		AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardEloSection.swift; sourceTree = "<group>"; };
 		AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardScheduleSection.swift; sourceTree = "<group>"; };
+		AA77D0612F9CB1B10B8BEA0 /* DashboardMilestonesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardMilestonesSection.swift; sourceTree = "<group>"; };
+		AA8800022FA0D3A900B8BEA0 /* MilestoneNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MilestoneNotificationManager.swift; sourceTree = "<group>"; };
 		AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssessmentsSection.swift; sourceTree = "<group>"; };
 		AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardResourcesSection.swift; sourceTree = "<group>"; };
 		AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationTracksCard.swift; sourceTree = "<group>"; };
@@ -209,6 +213,7 @@
 				AA001F2E29250D0E00B8BEA0 /* WidgetResource.swift */,
 				AA00C0002A3B060800B8BEA0 /* ChatKitResource.swift */,
 				AA9000112D3A000000B8BEA0 /* CitationFormatter.swift */,
+				AA8800022FA0D3A900B8BEA0 /* MilestoneNotificationManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -314,6 +319,7 @@
 			children = (
 				AA77D0212F9CB1B000B8BEA0 /* DashboardEloSection.swift */,
 				AA77D0412F9CB1B10B8BEA0 /* DashboardScheduleSection.swift */,
+				AA77D0612F9CB1B10B8BEA0 /* DashboardMilestonesSection.swift */,
 				AA77D0612F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift */,
 				AA77D0812F9CB1B30B8BEA0 /* DashboardResourcesSection.swift */,
 				AA77D0A12F9CB1B40B8BEA0 /* FoundationTracksCard.swift */,
@@ -440,6 +446,7 @@
 				AA00100C2924F97A00B8BEA0 /* HomeView.swift in Sources */,
 				AA77D0312F9CB1B000B8BEA0 /* DashboardEloSection.swift in Sources */,
 				AA77D0512F9CB1B10B8BEA0 /* DashboardScheduleSection.swift in Sources */,
+				AA77D0712F9CB1B10B8BEA0 /* DashboardMilestonesSection.swift in Sources */,
 				AA77D0712F9CB1B20B8BEA0 /* DashboardAssessmentsSection.swift in Sources */,
 				AA77D0912F9CB1B30B8BEA0 /* DashboardResourcesSection.swift in Sources */,
 				CF412B8E86E1DBE10065A37A /* EloPlanSummaryView.swift in Sources */,
@@ -454,6 +461,7 @@
 				AA0010082924F97A00B8BEA0 /* MCPTypes.swift in Sources */,
 				AAF010022F25A00010B8BEA0 /* ScheduleSliceCache.swift in Sources */,
 				AA0010072924F97A00B8BEA0 /* BackendService.swift in Sources */,
+				AA8800012FA0D3A900B8BEA0 /* MilestoneNotificationManager.swift in Sources */,
 				AAFF10022FABCDEF00B8BEA0 /* AppClipboardManager.swift in Sources */,
 				AA30B0022D1A000000B8BEA0 /* DeveloperToolsViewModel.swift in Sources */,
 				AA0010052924F97A00B8BEA0 /* GameState.swift in Sources */,

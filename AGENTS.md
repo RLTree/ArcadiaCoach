@@ -94,6 +94,9 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_MCP_REQUIRE_APPROVAL` | MCP approval strategy (default `never`) |
 | `ARCADIA_MILESTONE_AUTHOR_MODE` | Controls agent usage: `off`, `fallback` (default), or `primary`. |
 | `ARCADIA_MILESTONE_AUTHOR_TIMEOUT_MS` | HTTP timeout (ms) for milestone author MCP calls (default `12000`). |
+| `ARCADIA_REQUIREMENT_ADVISOR_MODE` | Controls the Requirement Advisor: `off`, `fallback` (default), or `primary`. |
+| `ARCADIA_REQUIREMENT_ADVISOR_TIMEOUT_MS` | HTTP timeout (ms) for Requirement Advisor calls (default `8000`). |
+| `ARCADIA_REQUIREMENT_ADVISOR_MODEL` | Optional override model for the Requirement Advisor (defaults to `ARCADIA_AGENT_MODEL`). |
 | `ARCADIA_DEBUG_ENDPOINTS` | `true` to expose debugging routes in non-production builds |
 
 ## Local Debugging Checklist
@@ -340,12 +343,12 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Taught the sequencer + milestone author pipeline to emit validated requirements, merge agent output with deterministic fallbacks, and surface unmet thresholds through schedule payloads/tool guidance.  
     - Updated REST/Swift models, widgets, and the dashboard UI to render requirement badges, highlight unmet ratings, and propagate the data through chat/tooling; expanded pytest + Swift decoding coverage accordingly.  
     - **Follow-ups:** Stream requirement telemetry to observe unlock pressure, add Swift UI snapshot coverage for the new requirement badges, and expose coach-side prompts that explain how to raise the flagged ratings.  
-33. **Phase 33 – Milestone Unlock UX & Notifications**  
-    - Move milestones out of the main schedule into a dedicated dashboard tab with lock states, progress summaries, and unlock requirements.  
-    - Trigger in-app/system notifications when learners reach the required ratings, and log telemetry for unlock attempts, notifications, and milestone starts.  
-    - Stand up a dedicated *Requirement Advisor* agent (Agents SDK) that determines the canonical ELO categories/thresholds for each milestone using curriculum context + goal parser outputs, falling back only when rating evidence is missing.  
-    - Update macOS/SwiftUI models to display requirement breakdowns, gating status, and progress toward unlock thresholds with VoiceOver support.  
-    - **Follow-ups:** evaluate advisor recommendations against historical data, add admin tooling to override thresholds during pilot rollout, and wire requirement-tier telemetry into analytics.  
+33. **Phase 33 – Milestone Unlock UX & Notifications** ✅ *(completed October 17, 2025; see `docs/phase-33-milestone-unlock-ux.md`)*  
+    - Deployed the Requirement Advisor service and metadata pipeline so sequencer items carry calibrated rating thresholds, progress snapshots, and advisor provenance.  
+    - Persisted milestone queue state across API responses and Swift models, surfacing a dedicated dashboard tab with readiness badges, requirement progress bars, and launch/resume controls.  
+    - Wired milestone completion storage, telemetry, and events to retain project status/evaluation data consistently, enabling accurate unlock notifications and history.  
+    - Added macOS notification plumbing and accessibility updates so learners receive opt-in alerts when requirements are met, with VoiceOver-friendly milestone summaries.  
+    - **Follow-ups:** Monitor advisor outputs against production telemetry, expose requirement override tooling, and expand queue UI with quick links to milestone briefs/history.  
 34. **Phase 34 – Sequencer Dependency Alignment**  
     - Teach the curriculum sequencer to prioritise lessons/quizzes that advance the Requirement Advisor’s milestones, factoring in dependency metadata and respecting logical skill progression.  
     - Introduce a Sequencer Advisor agent (Agents SDK) that proposes curriculum ordering/slice adjustments using learner telemetry while the deterministic planner applies guardrails and fallback heuristics.  

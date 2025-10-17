@@ -96,6 +96,7 @@ struct HomeView: View {
                 if dashboardSection != storedSection {
                     dashboardSection = storedSection
                 }
+                MilestoneNotificationManager.shared.requestAuthorizationIfNeeded()
                 TelemetryReporter.shared.record(
                     event: "dashboard_tab_selected",
                     metadata: [
@@ -436,6 +437,19 @@ struct HomeView: View {
                 refreshAction: refreshSchedule,
                 adjustAction: deferSchedule,
                 loadMoreAction: loadMoreSchedule,
+                launchAction: { item, force in launchSchedule(item: item, force: force) },
+                completeAction: { item in completeSchedule(item: item) }
+            )
+            .transition(.opacity)
+        case .milestones:
+            DashboardMilestonesSection(
+                queue: appVM.milestoneQueue,
+                scheduleItems: appVM.curriculumSchedule?.items ?? [],
+                categoryLabels: categoryLabels,
+                isRefreshing: appVM.scheduleRefreshing,
+                launchingItemId: appVM.launchingScheduleItemId,
+                completingItemId: appVM.completingScheduleItemId,
+                refreshAction: refreshSchedule,
                 launchAction: { item, force in launchSchedule(item: item, force: force) },
                 completeAction: { item in completeSchedule(item: item) }
             )

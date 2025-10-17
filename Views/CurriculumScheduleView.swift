@@ -143,11 +143,13 @@ struct CurriculumScheduleView: View {
             if !rationaleEntries.isEmpty {
                 rationaleSection
             }
-            ForEach(schedule.groupedItems) { group in
+            ForEach(schedule.groupedItems.filter { group in
+                group.items.contains { $0.kind != .milestone }
+            }) { group in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(dayLabel(for: group))
                         .font(.subheadline.bold())
-                    ForEach(group.items) { item in
+                    ForEach(group.items.filter { $0.kind != .milestone }) { item in
                         itemRow(for: item)
                     }
                 }
