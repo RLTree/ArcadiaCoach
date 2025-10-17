@@ -823,23 +823,32 @@ async def launch_schedule_item(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported schedule item kind '{item.kind}'.",
         )
-    try:
-        result = await _run_structured(
-            settings,
-            session_id,
-            message,
-            expected_cls,
-            metadata=metadata,
-            augment_with_preferences=True,
+
+    use_agent = not (item.kind == "milestone" and payload.force)
+    if not use_agent:
+        result = EndMilestone(
+            intent="milestone",
+            display=item.milestone_brief.headline if getattr(item, "milestone_brief", None) else item.title,
+            widgets=[],
         )
-    except (OpenAIError, AuthenticationError, ValidationError, HTTPException) as exc:
-        reverted_profile = profile_store.update_schedule_item(
-            username,
-            item_id,
-            status=previous_status,
-            active_session_id=session_id if previous_status == "in_progress" else None,
-            clear_active_session=previous_status != "in_progress",
-        )
+    else:
+        try:
+            result = await _run_structured(
+                settings,
+                session_id,
+                message,
+                expected_cls,
+                metadata=metadata,
+                augment_with_preferences=True,
+            )
+        except (OpenAIError, AuthenticationError, ValidationError, HTTPException) as exc:
+            reverted_profile = profile_store.update_schedule_item(
+                username,
+                item_id,
+                status=previous_status,
+                active_session_id=session_id if previous_status == "in_progress" else None,
+                clear_active_session=previous_status != "in_progress",
+            )
         emit_event(
             "schedule_launch_completed",
             username=username,
@@ -900,6 +909,7 @@ async def launch_schedule_item(
                             item=item_payload,
                             content=content_payload,
                         )
+            raise exc
         if isinstance(exc, HTTPException):
             raise exc
         raise HTTPException(
