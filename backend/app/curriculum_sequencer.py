@@ -9,6 +9,7 @@ import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from .learner_profile import (
@@ -122,6 +123,23 @@ class CurriculumSequencer:
             slug = slug.replace("--", "-")
         return slug
 
+    @staticmethod
+    def _closest_slug(target: str, candidates: Iterable[str]) -> Optional[str]:
+        if not target:
+            return None
+        best_slug: Optional[str] = None
+        best_score = 0.0
+        for candidate in candidates:
+            if not candidate:
+                continue
+            score = SequenceMatcher(None, target, candidate).ratio()
+            if score > best_score:
+                best_score = score
+                best_slug = candidate
+        if best_score >= 0.55:
+            return best_slug
+        return None
+
     def _build_category_lookup(
         self,
         profile: LearnerProfile,
@@ -191,8 +209,17 @@ class CurriculumSequencer:
                 break
 
         if resolved is None:
-            seed = (candidate_key or candidate_label or "").strip()
-            resolved = seed or "category-1"
+            slug = self._slugify_category(candidate_label or candidate_key)
+            combined_map: Dict[str, str] = {}
+            combined_map.update(lookup.context_index)
+            combined_map.update(lookup.plan_index)
+            combined_map.update(lookup.snapshot_index)
+            closest_slug = self._closest_slug(slug, combined_map.keys())
+            if closest_slug and combined_map.get(closest_slug):
+                resolved = combined_map[closest_slug]
+            else:
+                seed = (candidate_key or candidate_label or "").strip()
+                resolved = seed or "category-1"
 
         label = (
             lookup.context_labels.get(resolved)

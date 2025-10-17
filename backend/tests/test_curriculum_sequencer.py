@@ -268,6 +268,70 @@ def test_milestone_requires_multiple_categories(monkeypatch) -> None:
     assert queue_entry.requirement_summary is not None
     assert queue_entry.requirement_summary.total == summary.total
     assert queue_entry.requirements
+
+
+def test_milestone_requirement_maps_to_existing_category(monkeypatch) -> None:
+    monkeypatch.setattr("app.curriculum_sequencer.should_author", lambda _settings: False)
+
+    plan = EloCategoryPlan(
+        categories=[
+            _category("workflow-testing", "Reproducible Workflows", 1.3),
+            _category("data-manipulation-analysis", "Data Manipulation & Analysis", 1.1),
+            _category("analytics-insights", "Analytics Insights", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Workflow testing",
+        success_criteria=["Deliver reproducible pipelines."],
+        modules=[
+            CurriculumModule(
+                module_id="workflow-nextflow",
+                category_key="workflow-testing",
+                title="Workflow Testing Foundations",
+                summary="Introduce reproducible workflow tooling.",
+                objectives=["Understand pipeline validation"],
+                activities=["Author smoke tests"],
+                deliverables=["Workflow validation plan"],
+                estimated_minutes=120,
+            )
+        ],
+    )
+    profile = LearnerProfile(
+        username="analytics-fallback",
+        goal="Automate reproducible workflows",
+        use_case="Research automation",
+        strengths="Data analytics",
+        elo_snapshot={"workflow-testing": 1180, "data-manipulation-analysis": 1120},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    project = MilestoneProject(
+        project_id="workflow-nextflow",
+        title="Workflow QA",
+        goal_alignment="Ensure pipelines remain reproducible",
+        summary="Extend workflow validation scripts",
+        related_categories=["analytics"],
+    )
+    monkeypatch.setattr(
+        "app.curriculum_sequencer.select_milestone_project",
+        lambda *_, **__: project,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    milestone_items = [item for item in schedule.items if item.kind == "milestone"]
+    assert milestone_items, "Expected milestone item to be generated."
+    requirement_keys = {requirement.category_key for requirement in milestone_items[0].milestone_requirements}
+    assert "analytics-insights" in requirement_keys
+
+    analytics_requirement = next(
+        requirement
+        for requirement in milestone_items[0].milestone_requirements
+        if requirement.category_key == "analytics-insights"
+    )
+    assert analytics_requirement.category_label == "Analytics Insights"
 def test_milestone_rotates_after_recent_completion() -> None:
     plan = EloCategoryPlan(
         categories=[
