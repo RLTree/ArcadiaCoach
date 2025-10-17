@@ -826,11 +826,12 @@ async def launch_schedule_item(
 
     use_agent = not (item.kind == "milestone" and payload.force)
     if not use_agent:
-        result = EndMilestone(
-            intent="milestone",
-            display=item.milestone_brief.headline if getattr(item, "milestone_brief", None) else item.title,
-            widgets=[],
+        brief = item.milestone_brief or MilestoneBrief(
+            headline=item.title,
+            summary=item.summary,
+            objectives=list(item.objectives),
         )
+        result = _render_milestone_envelope(item, brief)
     else:
         try:
             result = await _run_structured(

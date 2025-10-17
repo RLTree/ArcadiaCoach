@@ -457,18 +457,49 @@ def test_developer_boost_elo_unlocks_milestone(tmp_path: Path, monkeypatch: pyte
         timezone="UTC",
         items=[
             SequencedWorkItem(
+                item_id="lesson-backend",
+                category_key="backend",
+                kind="lesson",
+                title="Backend Lesson",
+                summary="Review backend fundamentals",
+                objectives=[],
+                prerequisites=[],
+                recommended_minutes=60,
+                recommended_day_offset=0,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="moderate",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
+                item_id="quiz-backend",
+                category_key="backend",
+                kind="quiz",
+                title="Backend Quiz",
+                summary="Confirm backend knowledge",
+                objectives=[],
+                prerequisites=["lesson-backend"],
+                recommended_minutes=30,
+                recommended_day_offset=1,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="light",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
                 item_id="milestone-backend",
                 category_key="backend",
                 kind="milestone",
                 title="Backend Milestone",
                 summary="Ship backend milestone",
                 objectives=[],
-                prerequisites=[],
+                prerequisites=["lesson-backend", "quiz-backend"],
                 recommended_minutes=90,
                 recommended_day_offset=3,
                 effort_level="focus",
                 milestone_requirements=[requirement],
-            )
+                launch_status="pending",
+            ),
         ],
     )
 
@@ -481,17 +512,28 @@ def test_developer_boost_elo_unlocks_milestone(tmp_path: Path, monkeypatch: pyte
     )
     profile_store.set_curriculum_schedule("developer", initial_schedule)
 
-    ready_queue = [
-        MilestoneQueueEntry(
+    def fake_generate(username: str):
+        assert username == "developer"
+        refreshed = profile_store.get(username)
+        assert refreshed is not None
+        refreshed.elo_snapshot["backend"] = 1500
+        items = list(refreshed.curriculum_schedule.items)
+        all_completed = all(
+            entry.kind == "milestone" or getattr(entry, "launch_status", "pending") == "completed"
+            for entry in items
+        )
+        readiness_state = "ready" if all_completed else "locked"
+        lock_reason = None if all_completed else "Complete earlier lessons and quizzes before unlocking this milestone."
+        queue_entry = MilestoneQueueEntry(
             item_id="milestone-backend",
             title="Backend Milestone",
             summary="Ship backend milestone",
             category_key="backend",
-            readiness_state="ready",
-            badges=["Ready"],
-            next_actions=["Launch milestone"],
-            warnings=[],
-            launch_locked_reason=None,
+            readiness_state=readiness_state,
+            badges=["Ready"] if all_completed else ["Locked"],
+            next_actions=["Launch milestone"] if all_completed else ["Reach 1500 in Backend Systems (current 1500)."],
+            warnings=[] if all_completed else [lock_reason],
+            launch_locked_reason=lock_reason,
             last_updated_at=datetime.now(timezone.utc),
             requirements=[
                 MilestoneRequirement(
@@ -504,19 +546,12 @@ def test_developer_boost_elo_unlocks_milestone(tmp_path: Path, monkeypatch: pyte
                 )
             ],
         )
-    ]
-
-    def fake_generate(username: str):
-        assert username == "developer"
-        refreshed = profile_store.get(username)
-        assert refreshed is not None
-        refreshed.elo_snapshot["backend"] = 1500
         refreshed.curriculum_schedule = CurriculumSchedule(
             generated_at=datetime.now(timezone.utc),
             time_horizon_days=14,
             timezone="UTC",
-            items=refreshed.curriculum_schedule.items,
-            milestone_queue=ready_queue,
+            items=items,
+            milestone_queue=[queue_entry],
         )
         profile_store.set_curriculum_schedule(username, refreshed.curriculum_schedule)
         return profile_store.get(username)
@@ -532,6 +567,151 @@ def test_developer_boost_elo_unlocks_milestone(tmp_path: Path, monkeypatch: pyte
     body = response.json()
     assert body["milestone_queue"][0]["readiness_state"] == "ready"
     assert body["milestone_queue"][0]["requirements"][0]["current_rating"] == 1500
+    assert body["milestone_queue"][0]["launch_locked_reason"] is None
+    statuses = {item["item_id"]: item["launch_status"] for item in body["items"]}
+    assert statuses["lesson-backend"] == "completed"
+    assert statuses["quiz-backend"] == "completed"
+    assert statuses["milestone-backend"] == "pending"
     stored_profile = profile_store.get("developer")
     assert stored_profile is not None
     assert stored_profile.elo_snapshot["backend"] >= 1500
+
+
+def test_developer_boost_elo_without_completing_prior_items_keeps_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _setup_db(tmp_path)
+
+    profile_store = LearnerProfileStore()
+    monkeypatch.setattr(developer_routes, "profile_store", profile_store, raising=False)
+
+    requirement = MilestoneRequirement(
+        category_key="backend",
+        category_label="Backend Systems",
+        minimum_rating=1500,
+        rationale="Raise backend rating",
+    )
+    initial_schedule = CurriculumSchedule(
+        generated_at=datetime.now(timezone.utc),
+        time_horizon_days=14,
+        timezone="UTC",
+        items=[
+            SequencedWorkItem(
+                item_id="lesson-backend",
+                category_key="backend",
+                kind="lesson",
+                title="Backend Lesson",
+                summary="Review backend fundamentals",
+                objectives=[],
+                prerequisites=[],
+                recommended_minutes=60,
+                recommended_day_offset=0,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="moderate",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
+                item_id="quiz-backend",
+                category_key="backend",
+                kind="quiz",
+                title="Backend Quiz",
+                summary="Confirm backend knowledge",
+                objectives=[],
+                prerequisites=["lesson-backend"],
+                recommended_minutes=30,
+                recommended_day_offset=1,
+                focus_reason=None,
+                expected_outcome=None,
+                effort_level="light",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
+                item_id="milestone-backend",
+                category_key="backend",
+                kind="milestone",
+                title="Backend Milestone",
+                summary="Ship backend milestone",
+                objectives=[],
+                prerequisites=["lesson-backend", "quiz-backend"],
+                recommended_minutes=90,
+                recommended_day_offset=3,
+                effort_level="focus",
+                milestone_requirements=[requirement],
+                launch_status="pending",
+            ),
+        ],
+    )
+
+    profile_store.upsert(
+        LearnerProfile(
+            username="developer-lock",
+            elo_snapshot={"backend": 1200},
+            curriculum_schedule=initial_schedule,
+        )
+    )
+    profile_store.set_curriculum_schedule("developer-lock", initial_schedule)
+
+    def fake_generate(username: str):
+        assert username == "developer-lock"
+        refreshed = profile_store.get(username)
+        assert refreshed is not None
+        refreshed.elo_snapshot["backend"] = 1500
+        items = list(refreshed.curriculum_schedule.items)
+        all_completed = all(
+            entry.kind == "milestone" or getattr(entry, "launch_status", "pending") == "completed"
+            for entry in items
+        )
+        readiness_state = "ready" if all_completed else "locked"
+        lock_reason = None if all_completed else "Complete earlier lessons and quizzes before unlocking this milestone."
+        queue_entry = MilestoneQueueEntry(
+            item_id="milestone-backend",
+            title="Backend Milestone",
+            summary="Ship backend milestone",
+            category_key="backend",
+            readiness_state=readiness_state,
+            badges=["Ready"] if all_completed else ["Locked"],
+            next_actions=["Launch milestone"] if all_completed else ["Reach 1500 in Backend Systems (current 1500)."],
+            warnings=[] if all_completed else [lock_reason],
+            launch_locked_reason=lock_reason,
+            last_updated_at=datetime.now(timezone.utc),
+            requirements=[
+                MilestoneRequirement(
+                    category_key="backend",
+                    category_label="Backend Systems",
+                    minimum_rating=1500,
+                    rationale="Raise backend rating",
+                    current_rating=1500,
+                    progress_percent=1.0,
+                )
+            ],
+        )
+        refreshed.curriculum_schedule = CurriculumSchedule(
+            generated_at=datetime.now(timezone.utc),
+            time_horizon_days=14,
+            timezone="UTC",
+            items=items,
+            milestone_queue=[queue_entry],
+        )
+        profile_store.set_curriculum_schedule(username, refreshed.curriculum_schedule)
+        return profile_store.get(username)
+
+    monkeypatch.setattr(developer_routes, "generate_schedule_for_user", fake_generate, raising=False)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/developer/boost-elo",
+        json={
+            "username": "developer-lock",
+            "category_key": "backend",
+            "target_rating": 1500,
+            "complete_prior_items": False,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["milestone_queue"][0]["readiness_state"] == "locked"
+    assert body["milestone_queue"][0]["launch_locked_reason"] == "Complete earlier lessons and quizzes before unlocking this milestone."
+    statuses = {item["item_id"]: item["launch_status"] for item in body["items"]}
+    assert statuses["lesson-backend"] == "pending"
+    assert statuses["quiz-backend"] == "pending"

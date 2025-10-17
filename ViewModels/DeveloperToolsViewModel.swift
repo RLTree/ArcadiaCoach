@@ -158,7 +158,8 @@ final class DeveloperToolsViewModel: ObservableObject {
                 baseURL: trimmedBase,
                 username: trimmedUsername,
                 categoryKey: categoryKey,
-                targetRating: targetRating
+                targetRating: targetRating,
+                completePriorItems: true
             )
             appVM.applyDeveloperScheduleOverride(schedule)
             await appVM.refreshTelemetry(baseURL: trimmedBase, username: trimmedUsername)

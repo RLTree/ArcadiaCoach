@@ -204,7 +204,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
-                            Text("Raises all tracked categories to 1500 so milestone requirements are immediately satisfied. Refreshes the schedule afterward.")
+                            Text("Raises all tracked categories to 1500 and marks earlier lessons/quizzes complete so milestone locks clear for testing.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -107,6 +107,7 @@ final class BackendService {
         var username: String
         var categoryKey: String?
         var targetRating: Int
+        var completePriorItems: Bool?
     }
 
     private struct AssessmentAttachmentLinkPayload: Encodable {
@@ -324,7 +325,8 @@ final class BackendService {
         baseURL: String,
         username: String,
         categoryKey: String?,
-        targetRating: Int
+        targetRating: Int,
+        completePriorItems: Bool = true
     ) async throws -> CurriculumSchedule {
         guard let trimmedBase = trimmed(url: baseURL) else {
             throw BackendServiceError.missingBackend
@@ -344,7 +346,8 @@ final class BackendService {
         let payload = DeveloperEloBoostPayload(
             username: trimmedUsername,
             categoryKey: categoryKey?.trimmingCharacters(in: .whitespacesAndNewlines),
-            targetRating: targetRating
+            targetRating: targetRating,
+            completePriorItems: completePriorItems
         )
         request.httpBody = try encoder.encode(payload)
 

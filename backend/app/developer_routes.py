@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from .agent_models import AssessmentSubmissionPayload, CurriculumSchedulePayload
 from .assessment_submission import submission_payload, submission_store
 from .assessment_attachments import attachment_store
-from .learner_profile import profile_store
+from .learner_profile import LearnerProfile, profile_store
 from .curriculum_sequencer import generate_schedule_for_user
 from .tools import _schedule_payload
 from .telemetry import emit_event
@@ -62,6 +62,10 @@ class DeveloperEloBoostRequest(BaseModel):
     category_key: Optional[str] = Field(default=None, description="Restrict boost to a single category key")
     target_rating: int = Field(default=1400, ge=0, le=5000)
     preserve_requirements: bool = Field(default=True, description="Keep milestone requirements at or below their previous thresholds")
+    complete_prior_items: bool = Field(
+        default=True,
+        description="Mark earlier lessons/quizzes complete so milestone locks clear after boosting ratings.",
+    )
 
 
 @router.post(
@@ -201,17 +205,8 @@ def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedule
                     for req in entry.requirements
                 }
 
-    profile_store.apply_metadata(username, metadata)
-    boosted = generate_schedule_for_user(username)
-    schedule = boosted.curriculum_schedule
-    if schedule is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No curriculum schedule configured for '{username}'.",
-        )
-
-    if payload.preserve_requirements and (original_requirements or original_queue):
-        for item in schedule.items:
+    def _restore_requirements_for_schedule(current: CurriculumSchedule) -> LearnerProfile:
+        for item in current.items:
             if item.kind != "milestone":
                 continue
             preserved = original_requirements.get(item.item_id)
@@ -231,8 +226,8 @@ def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedule
                     if snapshot_req.current_rating < snapshot_req.minimum_rating:
                         snapshot_req.current_rating = snapshot_req.minimum_rating
 
-        if getattr(schedule, "milestone_queue", None):
-            for entry in schedule.milestone_queue:
+        if getattr(current, "milestone_queue", None):
+            for entry in current.milestone_queue:
                 preserved = original_queue.get(entry.item_id)
                 if not preserved:
                     continue
@@ -243,19 +238,60 @@ def developer_boost_elo(payload: DeveloperEloBoostRequest) -> CurriculumSchedule
                     if requirement.current_rating < requirement.minimum_rating:
                         requirement.current_rating = requirement.minimum_rating
 
-        profile_store.set_curriculum_schedule(username, schedule)
-        boosted = profile_store.get(username)
-        if boosted is None or boosted.curriculum_schedule is None:
+        profile_store.set_curriculum_schedule(username, current)
+        refreshed = profile_store.get(username)
+        if refreshed is None or refreshed.curriculum_schedule is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No curriculum schedule configured for '{username}'.",
             )
-        schedule = boosted.curriculum_schedule
+        return refreshed
+
+    profile_store.apply_metadata(username, metadata)
+    boosted_profile = generate_schedule_for_user(username)
+    schedule = boosted_profile.curriculum_schedule
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No curriculum schedule configured for '{username}'.",
+        )
+
+    if payload.complete_prior_items:
+        now = datetime.now(timezone.utc)
+        for item in schedule.items:
+            if item.kind == "milestone":
+                continue
+            if getattr(item, "launch_status", "pending") == "completed":
+                continue
+            try:
+                profile_store.update_schedule_item(
+                    username,
+                    item.item_id,
+                    status="completed",
+                    last_completed_at=now,
+                    clear_active_session=True,
+                )
+            except LookupError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(exc),
+                ) from exc
+        boosted_profile = generate_schedule_for_user(username)
+        schedule = boosted_profile.curriculum_schedule
+        if schedule is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No curriculum schedule configured for '{username}'.",
+            )
+
+    if payload.preserve_requirements and (original_requirements or original_queue):
+        boosted_profile = _restore_requirements_for_schedule(schedule)
+        schedule = boosted_profile.curriculum_schedule
 
     schedule_payload = _schedule_payload(
         schedule,
-        elo_snapshot=getattr(boosted, "elo_snapshot", {}),
-        elo_plan=getattr(boosted, "elo_category_plan", None),
+        elo_snapshot=getattr(boosted_profile, "elo_snapshot", {}),
+        elo_plan=getattr(boosted_profile, "elo_category_plan", None),
     )
     if schedule_payload is None:
         raise HTTPException(
