@@ -148,7 +148,6 @@ def advise_sequence(
                 {"role": "user", "content": prompt},
             ],
             reasoning={"effort": _advisor_effort(resolved_settings.arcadia_agent_reasoning)},
-            temperature=0,
         )
     except Exception as exc:  # noqa: BLE001
         raise SequencerAdvisorError(f"Sequencer advisor call failed: {exc}") from exc
