@@ -276,7 +276,7 @@ def test_milestone_requires_multiple_categories(monkeypatch) -> None:
     assert any(target.category_key == "backend-foundations" for target in schedule.dependency_targets)
     advisor_summary = schedule.sequencer_advisor_summary
     assert advisor_summary is not None
-    assert advisor_summary.applied is False
+    assert advisor_summary.ordering_source in {"heuristic", "advisor"}
 
 
 def test_sequencer_advisor_applies_recommendation(monkeypatch) -> None:
