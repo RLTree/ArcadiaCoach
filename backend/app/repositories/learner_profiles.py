@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
@@ -730,6 +730,7 @@ class LearnerProfileRepository:
                     "milestone_requirements": item.milestone_requirements or [],
                     "requirement_advisor_version": item.requirement_advisor_version,
                     "requirement_progress_snapshot": item.requirement_progress or [],
+                    "requirement_summary": item.requirement_summary,
                     "unlock_notified_at": item.unlock_notified_at,
                 }
                 for item in items
@@ -806,6 +807,11 @@ class LearnerProfileRepository:
                         requirement.model_dump(mode="json")
                         for requirement in getattr(work_item, "requirement_progress_snapshot", []) or []
                     ],
+                    requirement_summary=(
+                        work_item.requirement_summary.model_dump(mode="json")
+                        if getattr(work_item, "requirement_summary", None)
+                        else None
+                    ),
                     unlock_notified_at=getattr(work_item, "unlock_notified_at", None),
                 )
             )

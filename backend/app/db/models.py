@@ -148,6 +148,7 @@ class CurriculumScheduleItemModel(Base):
     milestone_requirements: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
     requirement_advisor_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     requirement_progress: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
+    requirement_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     unlock_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")

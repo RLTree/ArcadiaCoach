@@ -187,6 +187,7 @@ class MilestoneAuthorProject(BaseModel):
     recommended_tools: List[str] = Field(default_factory=list)
     evaluation_focus: List[str] = Field(default_factory=list)
     evaluation_steps: List[str] = Field(default_factory=list)
+    related_categories: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -248,6 +249,7 @@ class MilestoneAuthorRequest(BaseModel):
     previous_brief: Optional[Dict[str, Any]] = None
     elo_snapshot: Dict[str, int] = Field(default_factory=dict)
     elo_categories: List[Dict[str, Any]] = Field(default_factory=list)
+    candidate_categories: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")
 

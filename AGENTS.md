@@ -350,12 +350,12 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added macOS notification plumbing and accessibility updates so learners receive opt-in alerts when requirements are met, with VoiceOver-friendly milestone summaries.  
     - Hardened developer tooling and forced-launch fallbacks so Boost ELO automatically completes prerequisites, preserves calibrated requirements, and forced milestone launches render static envelopes without agent calls.  
     - **Follow-ups:** Monitor advisor outputs against production telemetry, expose requirement override tooling, expand queue UI with quick links to milestone briefs/history, and backfill regression coverage for developer override workflows.  
-34. **Phase 34 – Multi-Category Milestone Requirements**  
-    - Teach the Requirement Advisor + milestone author stack to infer and emit multi-category requirement sets for each milestone project, evaluating deliverables, tooling, and prerequisite libraries.  
-    - Update ELO gating so milestones express blended thresholds (e.g., Python Foundations + Data Pipelines) and surface composite progress bars in the dashboard/UI.  
-    - Extend developer tooling/telemetry to compare agent-inferred categories with deterministic fallbacks, flagging missing skills and regression-testing multi-category unlocks.  
-    - Add regression coverage and prompt audits to ensure agent outputs map to canonical category keys, with fallbacks when confidence is low.  
-    - **Follow-ups:** Capture learner feedback on multi-category requirements and prepare UI space for requirement rationale per category.  
+34. **Phase 34 – Multi-Category Milestone Requirements** ✅ *(completed October 17, 2025; see `docs/phase-34-multi-category-milestone-requirements.md`)*
+    - Canonicalised milestone requirement generation so sequencer fallbacks, agent authoring, and the Requirement Advisor emit blended category sets with telemetry covering advisor fallbacks.
+    - Persisted project `related_categories`, requirement summaries, and aggregate progress snapshots through Postgres, schedule payloads, MCP tooling, and Swift models.
+    - Updated schedule and dashboard milestone views with composite progress bars, focus chips, and clearer locking guidance grounded in the new summary payloads.
+    - Extended regression coverage (pytest + Swift) for multi-category unlocks and requirement summaries, and wired automated build/test commands into the rollout checklist.
+    - **Follow-ups:** Stream multi-category unlock telemetry into dashboards, enrich MCP widgets with the new summary payloads, and instrument learner feedback on composite requirements.
 35. **Phase 35 – Sequencer Dependency Alignment**  
     - Teach the curriculum sequencer to prioritise lessons/quizzes that advance the Requirement Advisor’s milestones, factoring in dependency metadata and respecting logical skill progression.  
     - Introduce a Sequencer Advisor agent (Agents SDK) that proposes curriculum ordering/slice adjustments using learner telemetry while the deterministic planner applies guardrails and fallback heuristics.  

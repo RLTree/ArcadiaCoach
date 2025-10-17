@@ -286,6 +286,12 @@ def select_milestone_project(
             evaluation_focus=list(best_template.evaluation_focus),
             evaluation_steps=list(best_template.evaluation_steps),
         )
+        project.related_categories = list(best_template.category_keys)
+
+    if best_template is None:
+        project.related_categories = [category_key]
+
+    related_categories = list(project.related_categories)
 
     if format_context:
         safe_context = {key: value for key, value in format_context.items() if isinstance(value, str)}
@@ -300,7 +306,12 @@ def select_milestone_project(
                 recommended_tools=_format_list(project.recommended_tools, safe_context),
                 evaluation_focus=_format_list(project.evaluation_focus, safe_context),
                 evaluation_steps=_format_list(project.evaluation_steps, safe_context),
+                related_categories=related_categories,
             )
+        else:
+            project.related_categories = related_categories
+    else:
+        project.related_categories = related_categories
 
     return project
 

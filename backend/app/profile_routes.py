@@ -41,7 +41,6 @@ from .learner_profile import (
     EloCategoryDefinition,
     EloRubricBand,
     LearnerProfile,
-    MilestoneCompletion,
     OnboardingAssessment,
     ScheduleWarning,
     FoundationModuleReference,

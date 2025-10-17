@@ -198,6 +198,76 @@ def test_milestone_includes_requirements(monkeypatch) -> None:
     assert requirement.minimum_rating >= 1100
 
 
+def test_milestone_requires_multiple_categories(monkeypatch) -> None:
+    monkeypatch.setattr("app.curriculum_sequencer.should_author", lambda _settings: False)
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend-systems", "Backend Systems", 1.2),
+            _category("backend-foundations", "Backend Foundations", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Backend sequencing",
+        success_criteria=["Deploy reliable backend service slice."],
+        modules=[
+            CurriculumModule(
+                module_id="backend-foundations",
+                category_key="backend-foundations",
+                title="Backend Foundations",
+                summary="Core service design patterns.",
+                objectives=["Review architecture"],
+                activities=["Study reference systems"],
+                deliverables=["Architecture notes"],
+                estimated_minutes=120,
+            ),
+            CurriculumModule(
+                module_id="backend-service",
+                category_key="backend-systems",
+                title="Service Delivery",
+                summary="Ship a production-ready service slice.",
+                objectives=["Author resilient endpoints"],
+                activities=["Implement handlers"],
+                deliverables=["Service demo"],
+                estimated_minutes=150,
+                prerequisite_module_ids=["backend-foundations"],
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="multi-category",
+        goal="Own platform services",
+        use_case="Agent sequencing",
+        strengths="Systems thinking",
+        elo_snapshot={"backend-systems": 980, "backend-foundations": 1020},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    milestone_items = [item for item in schedule.items if item.kind == "milestone"]
+    assert milestone_items, "Expected milestone item to be generated."
+    milestone = milestone_items[0]
+    requirement_keys = {requirement.category_key for requirement in milestone.milestone_requirements}
+    assert {"backend-systems", "backend-foundations"}.issubset(requirement_keys)
+
+    summary = milestone.requirement_summary
+    assert summary is not None
+    assert summary.total == len(milestone.milestone_requirements)
+    assert summary.met <= summary.total
+
+    payload = _schedule_payload(
+        schedule,
+        elo_snapshot=profile.elo_snapshot,
+        elo_plan=plan,
+    )
+    assert payload is not None
+    assert payload.milestone_queue, "Expected milestone queue entry in payload"
+    queue_entry = payload.milestone_queue[0]
+    assert queue_entry.requirement_summary is not None
+    assert queue_entry.requirement_summary.total == summary.total
+    assert queue_entry.requirements
 def test_milestone_rotates_after_recent_completion() -> None:
     plan = EloCategoryPlan(
         categories=[

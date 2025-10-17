@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, cast
+from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Type, TypeVar, cast
 from uuid import uuid4
 
 from agents import ModelSettings, RunConfig, Runner
@@ -863,73 +863,72 @@ async def launch_schedule_item(
                 active_session_id=session_id if previous_status == "in_progress" else None,
                 clear_active_session=previous_status != "in_progress",
             )
-        emit_event(
-            "schedule_launch_completed",
-            username=username,
-            item_id=item_id,
-            kind=item.kind,
-            status="failed",
-            session_id=session_id,
-            error=str(exc),
-        )
-        if (
-            isinstance(exc, HTTPException)
-            and exc.status_code == status.HTTP_502_BAD_GATEWAY
-            and item.kind == "milestone"
-            and _is_mcp_http_detail(exc.detail)
-        ):
-            fallback_profile = reverted_profile or profile_store.get(username)
-            if fallback_profile and fallback_profile.curriculum_schedule:
-                fallback_schedule_payload = _schedule_payload(
-                    fallback_profile.curriculum_schedule,
-                    elo_snapshot=getattr(fallback_profile, "elo_snapshot", {}),
-                    elo_plan=getattr(fallback_profile, "elo_category_plan", None),
-                )
-                if fallback_schedule_payload:
-                    fallback_schedule_payload.milestone_completions = _milestone_completion_payloads(fallback_profile)
-                    item_payload = next(
-                        (
-                            entry
-                            for entry in fallback_schedule_payload.items
-                            if entry.item_id == item_id
-                        ),
-                        None,
+            emit_event(
+                "schedule_launch_completed",
+                username=username,
+                item_id=item_id,
+                kind=item.kind,
+                status="failed",
+                session_id=session_id,
+                error=str(exc),
+            )
+            if (
+                isinstance(exc, HTTPException)
+                and exc.status_code == status.HTTP_502_BAD_GATEWAY
+                and item.kind == "milestone"
+                and _is_mcp_http_detail(exc.detail)
+            ):
+                fallback_profile = reverted_profile or profile_store.get(username)
+                if fallback_profile and fallback_profile.curriculum_schedule:
+                    fallback_schedule_payload = _schedule_payload(
+                        fallback_profile.curriculum_schedule,
+                        elo_snapshot=getattr(fallback_profile, "elo_snapshot", {}),
+                        elo_plan=getattr(fallback_profile, "elo_category_plan", None),
                     )
-                    if item_payload is not None:
-                        fallback_content = _render_milestone_envelope(
-                            item,
-                            EndMilestone(
-                                intent="milestone",
-                                display=item.summary or item.title,
-                                widgets=[],
+                    if fallback_schedule_payload:
+                        fallback_schedule_payload.milestone_completions = _milestone_completion_payloads(fallback_profile)
+                        item_payload = next(
+                            (
+                                entry
+                                for entry in fallback_schedule_payload.items
+                                if entry.item_id == item_id
                             ),
+                            None,
                         )
-                        emit_event(
-                            "schedule_launch_completed",
-                            username=username,
-                            item_id=item_id,
-                            kind=item.kind,
-                            status="fallback",
-                            session_id=session_id,
-                            error="mcp_tool_unavailable",
-                        )
-                        content_payload = ScheduleLaunchContentPayload(
-                            kind="milestone",
-                            session_id=session_id,
-                            milestone=fallback_content,
-                        )
-                        return ScheduleLaunchResponsePayload(
-                            schedule=fallback_schedule_payload,
-                            item=item_payload,
-                            content=content_payload,
-                        )
-            raise exc
-        if isinstance(exc, HTTPException):
-            raise exc
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Unable to generate the scheduled content. Try again shortly.",
-        ) from exc
+                        if item_payload is not None:
+                            fallback_content = _render_milestone_envelope(
+                                item,
+                                EndMilestone(
+                                    intent="milestone",
+                                    display=item.summary or item.title,
+                                    widgets=[],
+                                ),
+                            )
+                            emit_event(
+                                "schedule_launch_completed",
+                                username=username,
+                                item_id=item_id,
+                                kind=item.kind,
+                                status="fallback",
+                                session_id=session_id,
+                                error="mcp_tool_unavailable",
+                            )
+                            content_payload = ScheduleLaunchContentPayload(
+                                kind="milestone",
+                                session_id=session_id,
+                                milestone=fallback_content,
+                            )
+                            return ScheduleLaunchResponsePayload(
+                                schedule=fallback_schedule_payload,
+                                item=item_payload,
+                                content=content_payload,
+                            )
+            if isinstance(exc, HTTPException):
+                raise exc
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Unable to generate the scheduled content. Try again shortly.",
+            ) from exc
     if item.kind == "milestone":
         result = _render_milestone_envelope(item, result)
     duration_ms = int((perf_counter() - started_at) * 1000)

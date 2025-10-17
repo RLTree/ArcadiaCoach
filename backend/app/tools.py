@@ -56,6 +56,7 @@ from .agent_models import (
     MilestoneProjectPayload,
     MilestonePrerequisitePayload,
     MilestoneRequirementPayload,
+    MilestoneRequirementSummaryPayload,
     MilestoneProgressPayload,
     MilestoneGuidancePayload,
     MilestoneQueueEntryPayload,
@@ -198,6 +199,58 @@ def _schedule_payload(
             )
         return payloads
 
+    def _summary_payload(
+        summary: Any,
+        requirements: List[MilestoneRequirementPayload],
+    ) -> Optional[MilestoneRequirementSummaryPayload]:
+        if summary is not None:
+            total = int(getattr(summary, "total", 0) or 0)
+            met = int(getattr(summary, "met", 0) or 0)
+            average = float(getattr(summary, "average_progress", 0.0) or 0.0)
+            blocking_count = int(getattr(summary, "blocking_count", 0) or 0)
+            blocking_categories = [
+                entry.strip()
+                for entry in getattr(summary, "blocking_categories", []) or []
+                if isinstance(entry, str) and entry.strip()
+            ]
+        else:
+            if not requirements:
+                return None
+            total = len(requirements)
+            met = 0
+            average = 0.0
+            blocking_categories: List[str] = []
+            for requirement in requirements:
+                current = int(getattr(requirement, "current_rating", 0) or 0)
+                minimum = int(getattr(requirement, "minimum_rating", 0) or 0)
+                if minimum > 0 and current >= minimum:
+                    met += 1
+                progress = getattr(requirement, "progress_percent", None)
+                if progress is not None:
+                    average += float(progress)
+                else:
+                    average += _progress_value(current, minimum)
+                if current < max(minimum, 1):
+                    label = getattr(requirement, "category_label", None) or requirement.category_key
+                    label = label.strip()
+                    if label and label not in blocking_categories:
+                        blocking_categories.append(label)
+            if total:
+                average = round(average / float(total), 4)
+            blocking_count = len(blocking_categories)
+        if total <= 0:
+            return None
+        average = max(0.0, min(float(average), 1.0))
+        met = max(0, min(int(met), total))
+        blocking_count = max(0, min(blocking_count, total))
+        return MilestoneRequirementSummaryPayload(
+            total=total,
+            met=met,
+            average_progress=average,
+            blocking_count=blocking_count,
+            blocking_categories=blocking_categories,
+        )
+
     def _locked_reason(
         target: Any,
         all_items: List[Any],
@@ -317,8 +370,9 @@ def _schedule_payload(
             badges.append("In progress")
             launch_time = getattr(item, "last_launched_at", None)
             if launch_time:
-                last_update_at = max(last_update_at, launch_time) if last_update_at else launch_time
-                if now - launch_time >= timedelta(hours=48):
+                launch_dt = launch_time if getattr(launch_time, "tzinfo", None) else launch_time.replace(tzinfo=tz)
+                last_update_at = max(last_update_at, launch_dt) if last_update_at else launch_dt
+                if now - launch_dt >= timedelta(hours=48):
                     warnings_local.append("Milestone has been active for over 48 hours.")
                     next_actions.append("Log progress or request support from Arcadia Coach.")
             if progress and (progress.notes or progress.external_links or progress.attachment_ids):
@@ -542,6 +596,8 @@ def _schedule_payload(
                         generated_at=schedule.generated_at,
                     )
                 )
+        summary_model = getattr(item, "requirement_summary", None)
+        summary_payload = _summary_payload(summary_model, requirement_payloads)
         items.append(
             SequencedWorkItemPayload(
                 item_id=item.item_id,
@@ -570,6 +626,7 @@ def _schedule_payload(
                 milestone_requirements=requirement_payloads,
                 requirement_advisor_version=getattr(item, "requirement_advisor_version", None),
                 requirement_progress_snapshot=progress_snapshot_payloads,
+                requirement_summary=summary_payload,
                 unlock_notified_at=getattr(item, "unlock_notified_at", None),
             )
         )
@@ -601,6 +658,7 @@ def _schedule_payload(
                         or getattr(item, "last_launched_at", None)
                     ),
                     requirements=requirement_payloads,
+                    requirement_summary=summary_payload,
                 )
             )
     if dynamic_warning_entries:
@@ -645,22 +703,25 @@ def _schedule_payload(
         )
     raw_queue_entries = getattr(schedule, "milestone_queue", []) or []
     if raw_queue_entries:
-        milestone_queue_payloads = [
-            MilestoneQueueEntryPayload(
-                item_id=entry.item_id,
-                title=entry.title,
-                summary=entry.summary,
-                category_key=entry.category_key,
-                readiness_state=entry.readiness_state,
-                badges=list(dict.fromkeys(entry.badges)),
-                next_actions=list(dict.fromkeys(entry.next_actions)),
-                warnings=list(dict.fromkeys(entry.warnings)),
-                launch_locked_reason=entry.launch_locked_reason,
-                last_updated_at=entry.last_updated_at,
-                requirements=_payloads_for_requirements(entry.requirements),
+        milestone_queue_payloads = []
+        for entry in raw_queue_entries:
+            requirement_payloads = _payloads_for_requirements(entry.requirements)
+            milestone_queue_payloads.append(
+                MilestoneQueueEntryPayload(
+                    item_id=entry.item_id,
+                    title=entry.title,
+                    summary=entry.summary,
+                    category_key=entry.category_key,
+                    readiness_state=entry.readiness_state,
+                    badges=list(dict.fromkeys(entry.badges)),
+                    next_actions=list(dict.fromkeys(entry.next_actions)),
+                    warnings=list(dict.fromkeys(entry.warnings)),
+                    launch_locked_reason=entry.launch_locked_reason,
+                    last_updated_at=entry.last_updated_at,
+                    requirements=requirement_payloads,
+                    requirement_summary=_summary_payload(entry.requirement_summary, requirement_payloads),
+                )
             )
-            for entry in raw_queue_entries
-        ]
     else:
         milestone_queue_payloads = fallback_queue_entries
 

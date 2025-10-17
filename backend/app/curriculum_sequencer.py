@@ -23,6 +23,7 @@ from .learner_profile import (
     SequencedWorkItem,
     MilestoneBrief,
     MilestoneRequirement,
+    MilestoneRequirementSummary,
     MilestonePrerequisite,
     MilestoneQueueEntry,
     profile_store,
@@ -81,6 +82,17 @@ class _CategoryContext:
     completion_count: int = 0
 
 
+@dataclass(frozen=True)
+class _CategoryLookup:
+    plan_index: Dict[str, str]
+    plan_labels: Dict[str, str]
+    plan_weights: Dict[str, float]
+    context_index: Dict[str, str]
+    context_labels: Dict[str, str]
+    snapshot_index: Dict[str, str]
+    snapshot_ratings: Dict[str, int]
+
+
 class CurriculumSequencer:
     """Derives a near-term curriculum schedule from learner signals."""
 
@@ -94,6 +106,148 @@ class CurriculumSequencer:
         self._daily_capacity = max(daily_capacity_minutes, 45)
         self._default_horizon = max(default_time_horizon_days, 7)
         self._default_sessions_per_week = max(default_sessions_per_week, 2)
+
+    @staticmethod
+    def _slugify_category(value: Optional[str]) -> str:
+        if not value:
+            return ""
+        slug_chars: List[str] = []
+        for char in value:
+            if char.isalnum():
+                slug_chars.append(char.lower())
+            elif char in {" ", "-", "_", "/"}:
+                slug_chars.append("-")
+        slug = "".join(slug_chars).strip("-")
+        while "--" in slug:
+            slug = slug.replace("--", "-")
+        return slug
+
+    def _build_category_lookup(
+        self,
+        profile: LearnerProfile,
+        categories: Dict[str, _CategoryContext],
+    ) -> _CategoryLookup:
+        plan_index: Dict[str, str] = {}
+        plan_labels: Dict[str, str] = {}
+        plan_weights: Dict[str, float] = {}
+        plan = getattr(profile, "elo_category_plan", None)
+        if plan and getattr(plan, "categories", None):
+            for entry in plan.categories:
+                if not getattr(entry, "key", None):
+                    continue
+                key = entry.key
+                plan_weights[key] = max(float(getattr(entry, "weight", 0.0) or 0.0), 0.0)
+                plan_labels[key] = getattr(entry, "label", None) or key.replace("-", " ").title()
+                for candidate in (entry.key, getattr(entry, "label", None)):
+                    slug = self._slugify_category(candidate)
+                    if slug and slug not in plan_index:
+                        plan_index[slug] = key
+
+        context_index: Dict[str, str] = {}
+        context_labels: Dict[str, str] = {}
+        for key, context in categories.items():
+            context_labels[key] = context.label
+            for candidate in (key, context.label):
+                slug = self._slugify_category(candidate)
+                if slug and slug not in context_index:
+                    context_index[slug] = key
+
+        snapshot = dict(getattr(profile, "elo_snapshot", {}) or {})
+        snapshot_index = {
+            self._slugify_category(key): key for key in snapshot.keys() if self._slugify_category(key)
+        }
+
+        return _CategoryLookup(
+            plan_index=plan_index,
+            plan_labels=plan_labels,
+            plan_weights=plan_weights,
+            context_index=context_index,
+            context_labels=context_labels,
+            snapshot_index=snapshot_index,
+            snapshot_ratings={key: int(value) for key, value in snapshot.items()},
+        )
+
+    def _resolve_category_metadata(
+        self,
+        candidate_key: Optional[str],
+        candidate_label: Optional[str],
+        *,
+        lookup: _CategoryLookup,
+        categories: Dict[str, _CategoryContext],
+    ) -> tuple[str, str, _CategoryContext]:
+        resolved: Optional[str] = None
+        for candidate in (candidate_key, candidate_label):
+            slug = self._slugify_category(candidate)
+            if not slug:
+                continue
+            if slug in lookup.context_index:
+                resolved = lookup.context_index[slug]
+                break
+            if slug in lookup.plan_index:
+                resolved = lookup.plan_index[slug]
+                break
+            if slug in lookup.snapshot_index:
+                resolved = lookup.snapshot_index[slug]
+                break
+
+        if resolved is None:
+            seed = (candidate_key or candidate_label or "").strip()
+            resolved = seed or "category-1"
+
+        label = (
+            lookup.context_labels.get(resolved)
+            or lookup.plan_labels.get(resolved)
+            or candidate_label
+            or resolved.replace("-", " ").title()
+        )
+
+        context = categories.get(resolved)
+        if context is None:
+            weight = lookup.plan_weights.get(resolved, 0.0)
+            rating = lookup.snapshot_ratings.get(resolved, 0)
+            context = _CategoryContext(
+                key=resolved,
+                label=label,
+                weight=weight,
+                rating=rating,
+                average_score=None,
+                rating_delta=None,
+                modules=[],
+                track_weight=0.0,
+            )
+        return resolved, label, context
+
+    @staticmethod
+    def _summarize_requirements(
+        requirements: Sequence[MilestoneRequirement],
+    ) -> Optional[MilestoneRequirementSummary]:
+        if not requirements:
+            return None
+        total = len(requirements)
+        met = 0
+        progress_sum = 0.0
+        blocking: List[str] = []
+        for requirement in requirements:
+            current = int(getattr(requirement, "current_rating", 0) or 0)
+            minimum = int(getattr(requirement, "minimum_rating", 0) or 0)
+            if current >= minimum and minimum > 0:
+                met += 1
+            progress = _clamp_progress(current, minimum)
+            progress_sum += progress
+            if current < max(minimum, 1):
+                label = getattr(requirement, "category_label", None) or getattr(requirement, "category_key", "")
+                if label and label not in blocking:
+                    blocking.append(label)
+        average_progress = 0.0
+        if total:
+            average_progress = round(progress_sum / float(total), 4)
+        return MilestoneRequirementSummary(
+            total=total,
+            met=met,
+            average_progress=average_progress,
+            blocking_count=len(blocking),
+            blocking_categories=blocking,
+        )
 
     def build_schedule(
         self,
@@ -620,12 +774,15 @@ class CurriculumSequencer:
         quiz_tail_id: str,
         categories: Dict[str, _CategoryContext],
     ) -> MilestoneBrief:
+        lookup = self._build_category_lookup(profile, categories)
         fallback_brief = self._fallback_milestone_brief(
             module,
             context,
             profile,
             lesson_tail_id,
             quiz_tail_id,
+            categories,
+            lookup,
         )
         fallback_requirements = list(fallback_brief.requirements or [])
         settings = get_settings()
@@ -654,7 +811,7 @@ class CurriculumSequencer:
             )
             fallback_brief.warnings.append("Agent brief unavailable; using template guidance.")
             return fallback_brief
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("Milestone author failed for module=%s", module.module_id)
             emit_event(
                 "milestone_author_fallback",
@@ -695,6 +852,8 @@ class CurriculumSequencer:
             getattr(brief, "requirements", []) or [],
             fallback_requirements,
             categories,
+            lookup,
+            module=module,
         )
         advisor_result = self._run_requirement_advisor(
             profile=profile,
@@ -702,6 +861,8 @@ class CurriculumSequencer:
             context=context,
             brief=brief,
             fallback_requirements=fallback_requirements,
+            categories=categories,
+            lookup=lookup,
         )
         if advisor_result:
             brief.requirements = advisor_result.requirements
@@ -733,6 +894,8 @@ class CurriculumSequencer:
         profile: LearnerProfile,
         lesson_tail_id: str,
         quiz_tail_id: str,
+        categories: Dict[str, _CategoryContext],
+        lookup: _CategoryLookup,
     ) -> MilestoneBrief:
         summary = module.summary or f"Apply {context.label} in a realistic deliverable."
         objectives = list(module.objectives) or [
@@ -815,8 +978,18 @@ class CurriculumSequencer:
             coaching_prompts=coaching_prompts,
         )
         if project:
+            if module.category_key and module.category_key not in project.related_categories:
+                project.related_categories.append(module.category_key)
             brief.project = project
-        brief.requirements = self._fallback_requirements(module, context, profile)
+        related_categories = list(getattr(project, "related_categories", []) or [])
+        brief.requirements = self._fallback_requirements(
+            module,
+            context,
+            profile,
+            categories,
+            lookup,
+            related_categories=related_categories,
+        )
         return brief
 
     def _author_payload(
@@ -844,6 +1017,17 @@ class CurriculumSequencer:
             completion.model_dump(mode="json")
             for completion in getattr(profile, "milestone_completions", [])[:5]
         ]
+        candidate_categories: Set[str] = {
+            requirement.category_key
+            for requirement in getattr(fallback_brief, "requirements", []) or []
+            if getattr(requirement, "category_key", None)
+        }
+        project = getattr(fallback_brief, "project", None)
+        if project and getattr(project, "related_categories", None):
+            candidate_categories.update(
+                value for value in project.related_categories if value
+            )
+        candidate_categories_list = sorted(candidate_categories)
         return MilestoneAuthorRequestPayload(
             username=getattr(profile, "username", None),
             goal=getattr(profile, "goal", None),
@@ -863,6 +1047,7 @@ class CurriculumSequencer:
             previous_brief=fallback_brief.model_dump(mode="json"),
             elo_snapshot=dict(getattr(profile, "elo_snapshot", {}) or {}),
             elo_categories=elo_categories,
+            candidate_categories=candidate_categories_list,
         )
 
     def _author_schedule_notes(
@@ -919,22 +1104,82 @@ class CurriculumSequencer:
         module: CurriculumModule,
         context: _CategoryContext,
         profile: LearnerProfile,
+        categories: Dict[str, _CategoryContext],
+        lookup: _CategoryLookup,
+        *,
+        related_categories: Optional[Iterable[str]] = None,
     ) -> List[MilestoneRequirement]:
-        label = context.label or module.category_key
-        minimum = self._default_requirement_threshold(profile, module.category_key, context)
-        rationale = (
-            f"Reach {minimum} in {label} before launching this milestone."
-            if label
-            else f"Reach a rating of {minimum} before launching this milestone."
-        )
-        return [
-            MilestoneRequirement(
-                category_key=module.category_key,
-                category_label=label or module.category_key,
-                minimum_rating=minimum,
-                rationale=rationale,
+        module_index: Dict[str, _CategoryContext] = {}
+        for cat_context in categories.values():
+            for mod in getattr(cat_context, "modules", []) or []:
+                module_index.setdefault(mod.module_id, cat_context)
+
+        snapshot = lookup.snapshot_ratings
+        seen: Set[str] = set()
+        requirements: List[MilestoneRequirement] = []
+
+        def _append_requirement(
+            candidate_key: Optional[str],
+            candidate_label: Optional[str],
+        ) -> None:
+            if not candidate_key and not candidate_label:
+                return
+            resolved_key, resolved_label, resolved_context = self._resolve_category_metadata(
+                candidate_key,
+                candidate_label,
+                lookup=lookup,
+                categories=categories,
             )
-        ]
+            if resolved_key in seen:
+                return
+            minimum = self._default_requirement_threshold(profile, resolved_key, resolved_context)
+            minimum = min(max(minimum, 1100), 2400)
+            rationale = f"Reach {minimum} in {resolved_label} before launching this milestone."
+            current = int(snapshot.get(resolved_key, 0) or 0)
+            requirements.append(
+                MilestoneRequirement(
+                    category_key=resolved_key,
+                    category_label=resolved_label,
+                    minimum_rating=minimum,
+                    rationale=rationale,
+                    current_rating=current,
+                    progress_percent=_clamp_progress(current, minimum),
+                )
+            )
+            seen.add(resolved_key)
+
+        # Always include the primary milestone category.
+        _append_requirement(module.category_key, context.label)
+
+        # Include categories tied to prerequisite modules.
+        for prerequisite_id in getattr(module, "prerequisite_module_ids", []) or []:
+            prereq_context = module_index.get(prerequisite_id)
+            if prereq_context:
+                _append_requirement(prereq_context.key, prereq_context.label)
+
+        # Include categories suggested by the milestone project template/agent.
+        for related in related_categories or []:
+            _append_requirement(related, related)
+
+        if not requirements:
+            label = context.label or module.category_key
+            minimum = self._default_requirement_threshold(profile, module.category_key, context)
+            minimum = min(max(minimum, 1100), 2400)
+            rationale = (
+                f"Reach {minimum} in {label} before launching this milestone."
+                if label
+                else f"Reach a rating of {minimum} before launching this milestone."
+            )
+            requirements.append(
+                MilestoneRequirement(
+                    category_key=module.category_key,
+                    category_label=label or module.category_key,
+                    minimum_rating=minimum,
+                    rationale=rationale,
+                )
+            )
+
+        return requirements
 
     def _merge_milestone_requirements(
         self,
@@ -943,44 +1188,115 @@ class CurriculumSequencer:
         generated: Iterable[MilestoneRequirement],
         fallback: List[MilestoneRequirement],
         categories: Dict[str, _CategoryContext],
+        lookup: _CategoryLookup,
+        *,
+        module: CurriculumModule,
     ) -> List[MilestoneRequirement]:
-        fallback_by_key = {entry.category_key: entry for entry in fallback if entry.category_key}
+        fallback_by_slug: Dict[str, MilestoneRequirement] = {
+            self._slugify_category(entry.category_key): entry for entry in fallback if entry.category_key
+        }
         merged: List[MilestoneRequirement] = []
-        seen: Set[str] = set()
+        seen_keys: Set[str] = set()
+        snapshot = lookup.snapshot_ratings
+        fallback_slugs = set(fallback_by_slug.keys())
+        generated_slugs: Set[str] = set()
+
         for entry in generated or []:
             key = (getattr(entry, "category_key", "") or "").strip()
             if not key:
                 continue
-            source_context = categories.get(key, context)
-            if source_context is None:
+            resolved_key, resolved_label, resolved_context = self._resolve_category_metadata(
+                key,
+                getattr(entry, "category_label", None),
+                lookup=lookup,
+                categories=categories,
+            )
+            slug = self._slugify_category(resolved_key)
+            generated_slugs.add(slug)
+            if resolved_key in seen_keys:
                 continue
-            label = getattr(entry, "category_label", None) or source_context.label or key
             try:
                 minimum = int(getattr(entry, "minimum_rating", 0) or 0)
             except (TypeError, ValueError):
                 minimum = 0
             if minimum <= 0:
-                fallback_requirement = fallback_by_key.get(key)
+                fallback_requirement = fallback_by_slug.get(slug)
                 if fallback_requirement:
                     minimum = fallback_requirement.minimum_rating
                 else:
-                    minimum = self._default_requirement_threshold(profile, key, source_context)
+                    minimum = self._default_requirement_threshold(profile, resolved_key, resolved_context)
             minimum = min(max(minimum, 1100), 2400)
             rationale = getattr(entry, "rationale", None)
+            current = int(
+                getattr(entry, "current_rating", None)
+                or snapshot.get(resolved_key, 0)
+            )
+            progress = getattr(entry, "progress_percent", None)
+            if progress is None:
+                progress = _clamp_progress(current, minimum)
             merged.append(
                 MilestoneRequirement(
-                    category_key=key,
-                    category_label=label,
+                    category_key=resolved_key,
+                    category_label=resolved_label,
                     minimum_rating=minimum,
                     rationale=rationale,
+                    current_rating=current,
+                    progress_percent=progress,
+                    last_met_at=getattr(entry, "last_met_at", None),
                 )
             )
-            seen.add(key)
+            seen_keys.add(resolved_key)
+
         for entry in fallback:
-            if entry.category_key not in seen:
-                merged.append(entry.model_copy(deep=True))
+            resolved_key, resolved_label, resolved_context = self._resolve_category_metadata(
+                entry.category_key,
+                entry.category_label,
+                lookup=lookup,
+                categories=categories,
+            )
+            if resolved_key in seen_keys:
+                continue
+            minimum = min(max(int(getattr(entry, "minimum_rating", 0) or 0), 1100), 2400)
+            current = int(snapshot.get(resolved_key, getattr(entry, "current_rating", 0) or 0))
+            progress = getattr(entry, "progress_percent", None)
+            if progress is None:
+                progress = _clamp_progress(current, minimum)
+            merged.append(
+                MilestoneRequirement(
+                    category_key=resolved_key,
+                    category_label=resolved_label,
+                    minimum_rating=minimum,
+                    rationale=getattr(entry, "rationale", None),
+                    current_rating=current,
+                    progress_percent=progress,
+                    last_met_at=getattr(entry, "last_met_at", None),
+                )
+            )
+            seen_keys.add(resolved_key)
+
         if not merged:
             return [entry.model_copy(deep=True) for entry in fallback]
+
+        if len(merged) > 1:
+            emit_event(
+                "milestone_requirements_multicategory",
+                username=profile.username,
+                module_id=module.module_id,
+                category_key=module.category_key,
+                requirement_keys=[requirement.category_key for requirement in merged],
+            )
+
+        missing_slugs = fallback_slugs - generated_slugs
+        if missing_slugs:
+            emit_event(
+                "milestone_requirement_fallback_applied",
+                username=profile.username,
+                module_id=module.module_id,
+                category_key=module.category_key,
+                missing_categories=[
+                    fallback_by_slug[slug].category_key for slug in sorted(missing_slugs) if slug in fallback_by_slug
+                ],
+            )
         return merged
 
     def _run_requirement_advisor(
@@ -991,6 +1307,8 @@ class CurriculumSequencer:
         context: _CategoryContext,
         brief: MilestoneBrief,
         fallback_requirements: List[MilestoneRequirement],
+        categories: Dict[str, _CategoryContext],
+        lookup: _CategoryLookup,
     ) -> Optional[RequirementAdvisorResult]:
         settings = get_settings()
         if not should_advise_requirements(settings):
@@ -998,6 +1316,22 @@ class CurriculumSequencer:
         baseline_requirements = list(brief.requirements or fallback_requirements or [])
         if not baseline_requirements:
             return None
+        candidate_categories: Set[str] = {
+            requirement.category_key
+            for requirement in baseline_requirements
+            if getattr(requirement, "category_key", None)
+        }
+        project = getattr(brief, "project", None)
+        if project and getattr(project, "related_categories", None):
+            for related in project.related_categories:
+                resolved_key, _, _ = self._resolve_category_metadata(
+                    related,
+                    related,
+                    lookup=lookup,
+                    categories=categories,
+                )
+                candidate_categories.add(resolved_key)
+        candidate_list = sorted({value for value in candidate_categories if value})
         mode = resolve_requirement_mode(settings)
         emit_event(
             "requirement_advisor_invoked",
@@ -1033,6 +1367,7 @@ class CurriculumSequencer:
                 for prereq in getattr(brief, "prerequisites", []) or []
                 if getattr(prereq, "required", True)
             ],
+            candidate_categories=candidate_list,
         )
         try:
             result = advise_requirements(payload, settings=settings)
@@ -1078,6 +1413,8 @@ class CurriculumSequencer:
         item.requirement_progress_snapshot = [
             requirement.model_copy(deep=True) for requirement in requirements
         ]
+        summary = self._summarize_requirements(requirements)
+        item.requirement_summary = summary.model_copy(deep=True) if summary else None
 
     def _build_milestone_queue(
         self,
@@ -1094,6 +1431,7 @@ class CurriculumSequencer:
                 requirement.model_copy(deep=True)
                 for requirement in getattr(item, "milestone_requirements", []) or []
             ]
+            requirements_summary = self._summarize_requirements(requirements)
             lock_reason = self._milestone_lock_reason(item, scheduled_items)
             unmet = [
                 requirement
@@ -1160,6 +1498,11 @@ class CurriculumSequencer:
                     launch_locked_reason=lock_reason,
                     last_updated_at=self._milestone_last_updated(item),
                     requirements=requirements,
+                    requirement_summary=(
+                        requirements_summary.model_copy(deep=True)
+                        if requirements_summary
+                        else None
+                    ),
                 )
             )
         queue.sort(

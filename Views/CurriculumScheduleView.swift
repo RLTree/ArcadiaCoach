@@ -80,6 +80,67 @@ struct CurriculumScheduleView: View {
         return (current >= requirement.minimumRating, current)
     }
 
+    private func aggregateSummary(for item: SequencedWorkItem, requirements: [MilestoneRequirement]) -> MilestoneRequirementSummary? {
+        if let summary = item.requirementSummary {
+            return summary
+        }
+        guard !requirements.isEmpty else { return nil }
+        var met = 0
+        var progressSum: Double = 0
+        var blocking: [String] = []
+        for requirement in requirements {
+            let status = requirementStatus(for: requirement)
+            if status.met {
+                met += 1
+            } else if !blocking.contains(requirement.categoryLabel) {
+                blocking.append(requirement.categoryLabel)
+            }
+            let denominator = max(Double(requirement.minimumRating), 1.0)
+            let ratio = requirement.minimumRating > 0 ? min(max(Double(status.current) / denominator, 0.0), 1.0) : 1.0
+            progressSum += ratio
+        }
+        let total = requirements.count
+        let average = progressSum / Double(total)
+        return MilestoneRequirementSummary(
+            total: total,
+            met: met,
+            averageProgress: average,
+            blockingCount: blocking.count,
+            blockingCategories: blocking
+        )
+    }
+
+    private func progressColor(for summary: MilestoneRequirementSummary) -> Color {
+        switch summary.averageProgress {
+        case let value where value >= 0.99:
+            return .green
+        case let value where value >= 0.6:
+            return .orange
+        default:
+            return .red
+        }
+    }
+
+    @ViewBuilder
+    private func requirementChip(for requirement: MilestoneRequirement) -> some View {
+        let status = requirementStatus(for: requirement)
+        let color: Color = status.met ? .green : .orange
+        HStack(spacing: 6) {
+            Image(systemName: status.met ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.caption2)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(requirement.categoryLabel)
+                    .font(.caption2.bold())
+                Text("\(status.current)/\(requirement.minimumRating)")
+                    .font(.caption2)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(color.opacity(0.12), in: Capsule())
+        .foregroundStyle(color)
+    }
+
     private var longRangeDescription: String? {
         guard schedule.sessionsPerWeek > 0 || schedule.projectedWeeklyMinutes > 0 || schedule.longRangeItemCount > 0 else {
             return nil
@@ -962,22 +1023,34 @@ private var loadMoreSection: some View {
         }()
 
         if !effectiveRequirements.isEmpty && !isExpanded {
-            let unmet = effectiveRequirements.filter { !requirementStatus(for: $0).met }
-            if let first = unmet.first {
-                let status = requirementStatus(for: first)
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    Text("Need \(first.minimumRating) in \(first.categoryLabel) • current \(status.current)")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .lineLimit(1)
+            if let summary = aggregateSummary(for: item, requirements: effectiveRequirements) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ProgressView(value: min(summary.averageProgress, 1.0), total: 1.0)
+                        .progressViewStyle(.linear)
+                        .tint(progressColor(for: summary))
+                    HStack(spacing: 4) {
+                        Image(systemName: summary.met == summary.total ? "checkmark.circle" : "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(summary.met == summary.total ? Color.green : Color.orange)
+                        Text("\(summary.met)/\(summary.total) requirements met")
+                            .font(.caption2)
+                            .foregroundStyle(summary.met == summary.total ? Color.secondary : Color.orange)
+                    }
+                    if summary.blockingCount > 0 {
+                        Text("Focus next: \(summary.blockingCategories.joined(separator: ", "))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !effectiveRequirements.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(Array(effectiveRequirements.prefix(6))) { requirement in
+                                    requirementChip(for: requirement)
+                                }
+                            }
+                        }
+                    }
                 }
-            } else {
-                Label("Requirements met", systemImage: "checkmark.circle")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
         }
 

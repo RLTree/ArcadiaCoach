@@ -48,6 +48,7 @@ class RequirementAdvisorRequestPayload(BaseModel):
     goal_summary: Optional[str] = None
     schedule_notes: Optional[str] = None
     outstanding_prereqs: List[str] = Field(default_factory=list)
+    candidate_categories: List[str] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,7 @@ def advise_requirements(
         "goal_summary": payload.goal_summary,
         "schedule_notes": payload.schedule_notes,
         "outstanding_prereqs": payload.outstanding_prereqs,
+        "candidate_categories": payload.candidate_categories,
     }
     prompt = (
         "Respond strictly with JSON. Schema:\n"

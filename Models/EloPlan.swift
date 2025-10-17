@@ -409,6 +409,74 @@ struct MilestoneProject: Codable, Hashable {
     var recommendedTools: [String] = []
     var evaluationFocus: [String] = []
     var evaluationSteps: [String] = []
+    var relatedCategories: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case projectId
+        case title
+        case goalAlignment
+        case summary
+        case deliverables
+        case evidenceChecklist
+        case recommendedTools
+        case evaluationFocus
+        case evaluationSteps
+        case relatedCategories
+    }
+
+    init(
+        projectId: String,
+        title: String,
+        goalAlignment: String,
+        summary: String? = nil,
+        deliverables: [String] = [],
+        evidenceChecklist: [String] = [],
+        recommendedTools: [String] = [],
+        evaluationFocus: [String] = [],
+        evaluationSteps: [String] = [],
+        relatedCategories: [String] = []
+    ) {
+        self.projectId = projectId
+        self.title = title
+        self.goalAlignment = goalAlignment
+        self.summary = summary
+        self.deliverables = deliverables
+        self.evidenceChecklist = evidenceChecklist
+        self.recommendedTools = recommendedTools
+        self.evaluationFocus = evaluationFocus
+        self.evaluationSteps = evaluationSteps
+        self.relatedCategories = relatedCategories
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        projectId = try container.decode(String.self, forKey: .projectId)
+        title = try container.decode(String.self, forKey: .title)
+        goalAlignment = try container.decode(String.self, forKey: .goalAlignment)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        deliverables = try container.decodeIfPresent([String].self, forKey: .deliverables) ?? []
+        evidenceChecklist = try container.decodeIfPresent([String].self, forKey: .evidenceChecklist) ?? []
+        recommendedTools = try container.decodeIfPresent([String].self, forKey: .recommendedTools) ?? []
+        evaluationFocus = try container.decodeIfPresent([String].self, forKey: .evaluationFocus) ?? []
+        evaluationSteps = try container.decodeIfPresent([String].self, forKey: .evaluationSteps) ?? []
+        relatedCategories = try container.decodeIfPresent([String].self, forKey: .relatedCategories) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(projectId, forKey: .projectId)
+        try container.encode(title, forKey: .title)
+        try container.encode(goalAlignment, forKey: .goalAlignment)
+        try container.encodeIfPresent(summary, forKey: .summary)
+        try container.encode(deliverables, forKey: .deliverables)
+        try container.encode(evidenceChecklist, forKey: .evidenceChecklist)
+        try container.encode(recommendedTools, forKey: .recommendedTools)
+        try container.encode(evaluationFocus, forKey: .evaluationFocus)
+        try container.encode(evaluationSteps, forKey: .evaluationSteps)
+        if !relatedCategories.isEmpty {
+            try container.encode(relatedCategories, forKey: .relatedCategories)
+        }
+    }
 }
 
 struct MilestoneRequirement: Codable, Hashable, Identifiable {
@@ -421,6 +489,14 @@ struct MilestoneRequirement: Codable, Hashable, Identifiable {
     var lastMetAt: Date?
 
     var id: String { categoryKey }
+}
+
+struct MilestoneRequirementSummary: Codable, Hashable {
+    var total: Int
+    var met: Int
+    var averageProgress: Double
+    var blockingCount: Int
+    var blockingCategories: [String]
 }
 
 struct MilestoneBrief: Codable, Hashable {
@@ -603,6 +679,7 @@ struct MilestoneQueueEntry: Codable, Hashable, Identifiable {
     var launchLockedReason: String?
     var lastUpdatedAt: Date?
     var requirements: [MilestoneRequirement]
+    var requirementSummary: MilestoneRequirementSummary?
 
     var id: String { itemId }
 }
@@ -719,6 +796,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var requirementAdvisorVersion: String?
     var requirementProgressSnapshot: [MilestoneRequirement] = []
     var unlockNotifiedAt: Date?
+    var requirementSummary: MilestoneRequirementSummary?
 
     var id: String { itemId }
 
@@ -755,6 +833,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         case requirementAdvisorVersion
         case requirementProgressSnapshot
         case unlockNotifiedAt
+        case requirementSummary
     }
 
     init(
@@ -784,7 +863,8 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         milestoneRequirements: [MilestoneRequirement] = [],
         requirementAdvisorVersion: String? = nil,
         requirementProgressSnapshot: [MilestoneRequirement] = [],
-        unlockNotifiedAt: Date? = nil
+        unlockNotifiedAt: Date? = nil,
+        requirementSummary: MilestoneRequirementSummary? = nil
     ) {
         self.itemId = itemId
         self.kind = kind
@@ -813,6 +893,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         self.requirementAdvisorVersion = requirementAdvisorVersion
         self.requirementProgressSnapshot = requirementProgressSnapshot
         self.unlockNotifiedAt = unlockNotifiedAt
+        self.requirementSummary = requirementSummary
     }
 
     init(from decoder: Decoder) throws {
@@ -844,6 +925,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         requirementAdvisorVersion = try container.decodeIfPresent(String.self, forKey: .requirementAdvisorVersion)
         requirementProgressSnapshot = try container.decodeIfPresent([MilestoneRequirement].self, forKey: .requirementProgressSnapshot) ?? []
         unlockNotifiedAt = try container.decodeIfPresent(Date.self, forKey: .unlockNotifiedAt)
+        requirementSummary = try container.decodeIfPresent(MilestoneRequirementSummary.self, forKey: .requirementSummary)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -875,5 +957,6 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         try container.encodeIfPresent(requirementAdvisorVersion, forKey: .requirementAdvisorVersion)
         try container.encode(requirementProgressSnapshot, forKey: .requirementProgressSnapshot)
         try container.encodeIfPresent(unlockNotifiedAt, forKey: .unlockNotifiedAt)
+        try container.encodeIfPresent(requirementSummary, forKey: .requirementSummary)
     }
 }

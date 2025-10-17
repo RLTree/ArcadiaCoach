@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple
 
-from pydantic import BaseModel, Field, model_validator, ValidationInfo
+from pydantic import BaseModel, Field, model_validator
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .assessment_result import AssessmentGradingResult
@@ -151,6 +151,7 @@ class MilestoneProject(BaseModel):
     recommended_tools: List[str] = Field(default_factory=list)
     evaluation_focus: List[str] = Field(default_factory=list)
     evaluation_steps: List[str] = Field(default_factory=list)
+    related_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneRequirement(BaseModel):
@@ -163,6 +164,16 @@ class MilestoneRequirement(BaseModel):
     current_rating: int = Field(default=0, ge=0)
     progress_percent: float = Field(default=0.0, ge=0.0, le=1.0)
     last_met_at: Optional[datetime] = None
+
+
+class MilestoneRequirementSummary(BaseModel):
+    """Aggregated progress snapshot across milestone requirements."""
+
+    total: int = Field(default=0, ge=0)
+    met: int = Field(default=0, ge=0)
+    average_progress: float = Field(default=0.0, ge=0.0, le=1.0)
+    blocking_count: int = Field(default=0, ge=0)
+    blocking_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneQueueEntry(BaseModel):
@@ -179,6 +190,7 @@ class MilestoneQueueEntry(BaseModel):
     launch_locked_reason: Optional[str] = None
     last_updated_at: Optional[datetime] = None
     requirements: List[MilestoneRequirement] = Field(default_factory=list)
+    requirement_summary: Optional[MilestoneRequirementSummary] = None
 
 
 class MilestoneBrief(BaseModel):
@@ -290,6 +302,7 @@ class SequencedWorkItem(BaseModel):
     requirement_advisor_version: Optional[str] = None
     requirement_progress_snapshot: List[MilestoneRequirement] = Field(default_factory=list)
     unlock_notified_at: Optional[datetime] = None
+    requirement_summary: Optional[MilestoneRequirementSummary] = None
 
 
 class ScheduleWarning(BaseModel):

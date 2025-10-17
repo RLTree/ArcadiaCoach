@@ -28,6 +28,7 @@ class MilestoneAuthorProjectPayload(BaseModel):
     recommended_tools: List[str] = Field(default_factory=list)
     evaluation_focus: List[str] = Field(default_factory=list)
     evaluation_steps: List[str] = Field(default_factory=list)
+    related_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneAuthorRequirementPayload(BaseModel):
@@ -89,6 +90,7 @@ class MilestoneAuthorResponsePayload(BaseModel):
                 recommended_tools=list(project_payload.recommended_tools),
                 evaluation_focus=list(project_payload.evaluation_focus),
                 evaluation_steps=list(project_payload.evaluation_steps),
+                related_categories=list(project_payload.related_categories),
             )
         brief = MilestoneBrief(
             headline=self.brief.headline,
@@ -153,6 +155,7 @@ class MilestoneAuthorRequestPayload(BaseModel):
     previous_brief: Optional[Dict[str, Any]] = None
     elo_snapshot: Dict[str, int] = Field(default_factory=dict)
     elo_categories: List[Dict[str, Any]] = Field(default_factory=list)
+    candidate_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneAuthorError(RuntimeError):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from .agent_models import AssessmentSubmissionPayload, CurriculumSchedulePayload
 from .assessment_submission import submission_payload, submission_store
 from .assessment_attachments import attachment_store
-from .learner_profile import LearnerProfile, profile_store
+from .learner_profile import CurriculumSchedule, LearnerProfile, profile_store
 from .curriculum_sequencer import generate_schedule_for_user
 from .tools import _schedule_payload
 from .telemetry import emit_event

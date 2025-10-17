@@ -119,6 +119,7 @@ class MilestoneProjectPayload(BaseModel):
     recommended_tools: List[str] = Field(default_factory=list)
     evaluation_focus: List[str] = Field(default_factory=list)
     evaluation_steps: List[str] = Field(default_factory=list)
+    related_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneRequirementPayload(BaseModel):
@@ -129,6 +130,14 @@ class MilestoneRequirementPayload(BaseModel):
     current_rating: int = Field(default=0, ge=0)
     progress_percent: float = Field(default=0.0, ge=0.0, le=1.0)
     last_met_at: Optional[datetime] = None
+
+
+class MilestoneRequirementSummaryPayload(BaseModel):
+    total: int = Field(ge=0)
+    met: int = Field(ge=0)
+    average_progress: float = Field(default=0.0, ge=0.0, le=1.0)
+    blocking_count: int = Field(default=0, ge=0)
+    blocking_categories: List[str] = Field(default_factory=list)
 
 
 class MilestoneBriefPayload(BaseModel):
@@ -201,6 +210,7 @@ class SequencedWorkItemPayload(BaseModel):
     milestone_requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
     requirement_advisor_version: Optional[str] = None
     requirement_progress_snapshot: List[MilestoneRequirementPayload] = Field(default_factory=list)
+    requirement_summary: Optional[MilestoneRequirementSummaryPayload] = None
     unlock_notified_at: Optional[datetime] = None
 
 
@@ -216,6 +226,7 @@ class MilestoneQueueEntryPayload(BaseModel):
     launch_locked_reason: Optional[str] = None
     last_updated_at: Optional[datetime] = None
     requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
+    requirement_summary: Optional[MilestoneRequirementSummaryPayload] = None
 
 
 class MilestoneCompletionPayload(BaseModel):

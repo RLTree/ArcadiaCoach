@@ -102,23 +102,19 @@ struct DashboardMilestonesSection: View {
                     }
                 }
             }
+            if let summary = entry.requirementSummary {
+                requirementSummaryView(summary)
+            }
             if !entry.requirements.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Requirements")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
-                    ForEach(entry.requirements) { requirement in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(requirement.categoryLabel)
-                                    .font(.caption.weight(.semibold))
-                                Spacer()
-                                Text("\(requirement.currentRating) / \(requirement.minimumRating)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(entry.requirements) { requirement in
+                                requirementChip(for: requirement)
                             }
-                            ProgressView(value: min(requirement.progressPercent, 1.0))
-                                .tint(requirement.currentRating >= requirement.minimumRating ? Color.green : Color.orange)
                         }
                     }
                 }
@@ -179,6 +175,59 @@ struct DashboardMilestonesSection: View {
             .padding(.vertical, 6)
             .background(color.opacity(0.15), in: Capsule())
             .foregroundStyle(color)
+    }
+
+    @ViewBuilder
+    private func requirementSummaryView(_ summary: MilestoneRequirementSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ProgressView(value: min(summary.averageProgress, 1.0), total: 1.0)
+                .progressViewStyle(.linear)
+                .tint(progressColor(for: summary))
+            HStack(spacing: 4) {
+                Image(systemName: summary.met == summary.total ? "checkmark.circle" : "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(summary.met == summary.total ? Color.green : Color.orange)
+                Text("\(summary.met)/\(summary.total) requirements met")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if summary.blockingCount > 0 {
+                Text("Focus next: \(summary.blockingCategories.joined(separator: ", "))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func requirementChip(for requirement: MilestoneRequirement) -> some View {
+        let met = requirement.currentRating >= requirement.minimumRating
+        let color: Color = met ? .green : .orange
+        HStack(spacing: 6) {
+            Image(systemName: met ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.caption2)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(requirement.categoryLabel)
+                    .font(.caption2.bold())
+                Text("\(requirement.currentRating)/\(requirement.minimumRating)")
+                    .font(.caption2)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(color.opacity(0.12), in: Capsule())
+        .foregroundStyle(color)
+    }
+
+    private func progressColor(for summary: MilestoneRequirementSummary) -> Color {
+        switch summary.averageProgress {
+        case let value where value >= 0.99:
+            return .green
+        case let value where value >= 0.6:
+            return .orange
+        default:
+            return .red
+        }
     }
 
     @ViewBuilder
