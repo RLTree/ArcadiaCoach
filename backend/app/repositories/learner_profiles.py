@@ -237,6 +237,14 @@ class LearnerProfileRepository:
         schedule_model.milestone_queue = [
             entry.model_dump(mode="json") for entry in schedule.milestone_queue
         ]
+        schedule_model.dependency_targets = [
+            target.model_dump(mode="json")
+            for target in getattr(schedule, "dependency_targets", []) or []
+        ]
+        advisor_summary = getattr(schedule, "sequencer_advisor_summary", None)
+        schedule_model.sequencer_advisor_summary = (
+            advisor_summary.model_dump(mode="json") if advisor_summary else None
+        )
 
         self._replace_schedule_items(session, schedule_model, schedule.items)
 
@@ -732,6 +740,7 @@ class LearnerProfileRepository:
                     "requirement_progress_snapshot": item.requirement_progress or [],
                     "requirement_summary": item.requirement_summary,
                     "unlock_notified_at": item.unlock_notified_at,
+                    "dependency_targets": item.dependency_targets or [],
                 }
                 for item in items
             ],
@@ -746,6 +755,8 @@ class LearnerProfileRepository:
             "extended_weeks": schedule_model.extended_weeks,
             "long_range_category_keys": schedule_model.long_range_category_keys or [],
             "milestone_queue": schedule_model.milestone_queue or [],
+            "dependency_targets": schedule_model.dependency_targets or [],
+            "sequencer_advisor_summary": schedule_model.sequencer_advisor_summary,
         }
         return CurriculumSchedule.model_validate(schedule_payload)
 
@@ -813,6 +824,10 @@ class LearnerProfileRepository:
                         else None
                     ),
                     unlock_notified_at=getattr(work_item, "unlock_notified_at", None),
+                    dependency_targets=[
+                        target.model_dump(mode="json")
+                        for target in getattr(work_item, "dependency_targets", []) or []
+                    ],
                 )
             )
 

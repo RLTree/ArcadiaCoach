@@ -7,7 +7,7 @@ import logging
 import math
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Literal, Optional, Sequence, Set, Tuple
@@ -27,6 +27,8 @@ from .learner_profile import (
     MilestoneRequirementSummary,
     MilestonePrerequisite,
     MilestoneQueueEntry,
+    DependencyTarget,
+    SequencerAdvisorSummary,
     profile_store,
 )
 from .milestone_projects import select_milestone_project
@@ -45,6 +47,16 @@ from .requirement_advisor import (
     advise_requirements,
     resolve_mode as resolve_requirement_mode,
     should_advise as should_advise_requirements,
+)
+from .sequencer_advisor import (
+    SequencerAdvisorError,
+    SequencerAdvisorRequestPayload,
+    SequencerAdvisorCategoryPayload,
+    SequencerAdvisorRequirementPayload,
+    SequencerAdvisorModulePayload,
+    advise_sequence,
+    resolve_mode as resolve_sequencer_mode,
+    should_advise as should_advise_sequencer,
 )
 from .config import get_settings
 from .telemetry import emit_event
@@ -81,6 +93,9 @@ class _CategoryContext:
     track_weight: float = 0.0
     last_completion_at: Optional[datetime] = None
     completion_count: int = 0
+    requirement_gap: int = 0
+    dependency_targets: List[DependencyTarget] = field(default_factory=list)
+    deferral_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -315,7 +330,12 @@ class CurriculumSequencer:
             raise ValueError("No curriculum categories available for sequencing.")
 
         pacing_sessions = self._determine_sessions_per_week(previous_schedule, adjustments)
-        module_order = self._prioritize_modules(categories.values())
+        module_order, advisor_summary = self._prioritize_modules(
+            categories.values(),
+            profile=profile,
+            adjustments=adjustments,
+            previous_schedule=previous_schedule,
+        )
         module_chunks: List[Tuple[str, List[SequencedWorkItem]]] = []
         milestone_attached = False
         milestone_target_key = self._select_milestone_category(categories)
@@ -506,11 +526,45 @@ class CurriculumSequencer:
         for item in scheduled_items:
             if item.kind == "milestone":
                 self._apply_requirement_progress(item, profile)
-        milestone_queue = self._build_milestone_queue(
+        milestone_queue, dependency_targets_map = self._build_milestone_queue(
             scheduled_items=scheduled_items,
             profile=profile,
             categories=categories,
         )
+        aggregated_dependency_targets: Dict[Tuple[str, str], DependencyTarget] = {}
+        for targets in dependency_targets_map.values():
+            for target in targets:
+                aggregated_dependency_targets[(target.milestone_item_id, target.category_key)] = target.model_copy(deep=True)
+        for item in scheduled_items:
+            category_targets = dependency_targets_map.get(item.category_key, [])
+            if not category_targets and item.kind == "milestone":
+                continue
+            if category_targets:
+                unique: Dict[Tuple[str, str], DependencyTarget] = {}
+                for target in category_targets:
+                    unique[(target.milestone_item_id, target.category_key)] = target
+                item.dependency_targets = [
+                    entry.model_copy(deep=True) for entry in unique.values()
+                ]
+        dependency_targets = list(aggregated_dependency_targets.values())
+        for target in dependency_targets:
+            emit_event(
+                "sequencer_dependency_target",
+                username=profile.username,
+                milestone_item_id=target.milestone_item_id,
+                category_key=target.category_key,
+                deficit=target.deficit,
+                target_rating=target.target_rating,
+            )
+        if advisor_summary:
+            emit_event(
+                "sequencer_advisor_applied",
+                username=profile.username,
+                source=advisor_summary.ordering_source,
+                recommended_count=len(advisor_summary.recommended_modules),
+                slice_span=advisor_summary.slice_span_days,
+                applied=advisor_summary.applied,
+            )
 
         return CurriculumSchedule(
             generated_at=datetime.now(timezone.utc),
@@ -527,7 +581,100 @@ class CurriculumSequencer:
             extended_weeks=extended_weeks,
             long_range_category_keys=long_range_category_keys,
             milestone_queue=milestone_queue,
+            dependency_targets=dependency_targets,
+            sequencer_advisor_summary=advisor_summary,
         )
+
+    def _collect_requirement_targets(self, profile: LearnerProfile) -> Dict[str, List[DependencyTarget]]:
+        snapshot = dict(getattr(profile, "elo_snapshot", {}) or {})
+        targets_by_category: Dict[str, Dict[str, DependencyTarget]] = {}
+        schedule = getattr(profile, "curriculum_schedule", None)
+        if not schedule:
+            return {}
+
+        def _record(
+            milestone_id: str,
+            title: str,
+            requirement: MilestoneRequirement,
+            advisor_version: Optional[str],
+        ) -> None:
+            current_raw = snapshot.get(requirement.category_key, requirement.current_rating)
+            try:
+                current_rating = int(current_raw or 0)
+            except (TypeError, ValueError):
+                current_rating = 0
+            try:
+                target_rating = int(getattr(requirement, "minimum_rating", 0) or 0)
+            except (TypeError, ValueError):
+                target_rating = 0
+            deficit = max(target_rating - current_rating, 0)
+            if deficit <= 0 or not requirement.category_key:
+                return
+            bucket = targets_by_category.setdefault(requirement.category_key, {})
+            existing = bucket.get(milestone_id)
+            if existing and existing.deficit >= deficit:
+                return
+            bucket[milestone_id] = DependencyTarget(
+                milestone_item_id=milestone_id,
+                milestone_title=title,
+                category_key=requirement.category_key,
+                category_label=requirement.category_label or requirement.category_key.replace("-", " ").title(),
+                target_rating=target_rating,
+                current_rating=current_rating,
+                deficit=deficit,
+                requirement_rationale=requirement.rationale,
+                advisor_version=advisor_version,
+            )
+
+        for entry in getattr(schedule, "milestone_queue", []) or []:
+            for existing in getattr(entry, "dependency_targets", []) or []:
+                bucket = targets_by_category.setdefault(existing.category_key, {})
+                bucket[existing.milestone_item_id] = existing.model_copy(deep=True)
+            for requirement in getattr(entry, "requirements", []) or []:
+                _record(entry.item_id, entry.title, requirement, None)
+
+        for item in getattr(schedule, "items", []) or []:
+            if getattr(item, "kind", None) != "milestone":
+                continue
+            if getattr(item, "launch_status", "pending") == "completed":
+                continue
+            for existing in getattr(item, "dependency_targets", []) or []:
+                bucket = targets_by_category.setdefault(existing.category_key, {})
+                bucket[existing.milestone_item_id] = existing.model_copy(deep=True)
+            for requirement in getattr(item, "milestone_requirements", []) or []:
+                _record(
+                    item.item_id,
+                    item.title,
+                    requirement,
+                    getattr(item, "requirement_advisor_version", None),
+                )
+
+        aggregated: Dict[str, List[DependencyTarget]] = {}
+        for category_key, bucket in targets_by_category.items():
+            aggregated[category_key] = [
+                target.model_copy(deep=True) for target in sorted(
+                    bucket.values(),
+                    key=lambda entry: entry.deficit,
+                    reverse=True,
+                )
+            ]
+        return aggregated
+
+    def _category_deferral_counts(self, profile: LearnerProfile) -> Dict[str, int]:
+        adjustments = getattr(profile, "schedule_adjustments", {}) or {}
+        if not adjustments:
+            return {}
+        schedule = getattr(profile, "curriculum_schedule", None)
+        if not schedule:
+            return {}
+        lookup = {item.item_id: item for item in getattr(schedule, "items", []) or []}
+        counts: Dict[str, int] = defaultdict(int)
+        for item_id in adjustments.keys():
+            item = lookup.get(item_id)
+            if item is None:
+                continue
+            counts[item.category_key] += 1
+        return counts
 
     def _build_category_context(self, profile: LearnerProfile) -> Dict[str, _CategoryContext]:
         modules_by_category: Dict[str, List[CurriculumModule]] = {}
@@ -583,6 +730,9 @@ class CurriculumSequencer:
                 track_weight=track_weights.get(key, 0.0),
             )
 
+        requirement_targets = self._collect_requirement_targets(profile)
+        deferral_counts = self._category_deferral_counts(profile)
+
         # Ensure at least one placeholder module exists per category.
         for context in categories.values():
             if context.modules:
@@ -606,6 +756,11 @@ class CurriculumSequencer:
                 tier=1,
             )
             context.modules.append(placeholder)
+        for key, context in categories.items():
+            targets = requirement_targets.get(key, [])
+            context.requirement_gap = max((target.deficit for target in targets), default=0)
+            context.dependency_targets = [target.model_copy(deep=True) for target in targets]
+            context.deferral_count = deferral_counts.get(key, 0)
 
         completions = getattr(profile, "milestone_completions", []) or []
         if completions:
@@ -622,16 +777,177 @@ class CurriculumSequencer:
 
         return categories
 
-    def _prioritize_modules(self, contexts: Iterable[_CategoryContext]) -> List[CurriculumModule]:
+    def _prioritize_modules(
+        self,
+        contexts: Iterable[_CategoryContext],
+        *,
+        profile: LearnerProfile,
+        adjustments: Dict[str, int],
+        previous_schedule: Optional[CurriculumSchedule],
+    ) -> Tuple[List[CurriculumModule], Optional[SequencerAdvisorSummary]]:
+        context_list = list(contexts)
         module_entries: List[tuple[float, CurriculumModule]] = []
-        for context in contexts:
+        for context in context_list:
             priority = self._priority_score(context)
             for module in context.modules:
                 module_entries.append((priority, module))
         if not module_entries:
-            return []
-        ordered = self._order_modules_with_dependencies(module_entries)
-        return ordered
+            return [], None
+        context_map = {context.key: context for context in context_list}
+        adjusted_entries, advisor_summary = self._apply_sequencer_advisor_priorities(
+            module_entries,
+            profile=profile,
+            contexts=context_map,
+            adjustments=adjustments,
+            previous_schedule=previous_schedule,
+        )
+        ordered = self._order_modules_with_dependencies(adjusted_entries)
+        return ordered, advisor_summary
+
+    def _apply_sequencer_advisor_priorities(
+        self,
+        module_entries: List[Tuple[float, CurriculumModule]],
+        *,
+        profile: LearnerProfile,
+        contexts: Dict[str, _CategoryContext],
+        adjustments: Dict[str, int],
+        previous_schedule: Optional[CurriculumSchedule],
+    ) -> Tuple[List[Tuple[float, CurriculumModule]], Optional[SequencerAdvisorSummary]]:
+        settings = get_settings()
+        if not should_advise_sequencer(settings):
+            return module_entries, None
+
+        mode = resolve_sequencer_mode(settings)
+        now = datetime.now(timezone.utc)
+        category_payloads: List[SequencerAdvisorCategoryPayload] = []
+        requirement_payloads: List[SequencerAdvisorRequirementPayload] = []
+        recommendation_targets: set[str] = set()
+
+        for context in contexts.values():
+            days_since_completion: Optional[int] = None
+            if context.last_completion_at is not None:
+                try:
+                    days_since_completion = max((now - context.last_completion_at).days, 0)
+                except Exception:  # noqa: BLE001
+                    days_since_completion = None
+            category_payloads.append(
+                SequencerAdvisorCategoryPayload(
+                    category_key=context.key,
+                    category_label=context.label,
+                    rating=context.rating,
+                    weight=context.weight,
+                    requirement_deficit=context.requirement_gap,
+                    track_weight=context.track_weight,
+                    average_score=context.average_score,
+                    rating_delta=context.rating_delta,
+                    deferral_count=context.deferral_count,
+                    days_since_completion=days_since_completion,
+                )
+            )
+            for target in context.dependency_targets:
+                requirement_payloads.append(
+                    SequencerAdvisorRequirementPayload(
+                        milestone_item_id=target.milestone_item_id,
+                        milestone_title=target.milestone_title,
+                        category_key=target.category_key,
+                        category_label=target.category_label,
+                        target_rating=target.target_rating,
+                        current_rating=target.current_rating,
+                        deficit=target.deficit,
+                        requirement_rationale=target.requirement_rationale,
+                    )
+                )
+                recommendation_targets.add(target.milestone_item_id)
+
+        module_payloads: List[SequencerAdvisorModulePayload] = []
+        for priority, module in module_entries:
+            module_payloads.append(
+                SequencerAdvisorModulePayload(
+                    module_id=module.module_id,
+                    category_key=module.category_key,
+                    priority_score=priority,
+                    estimated_minutes=module.estimated_minutes or 45,
+                )
+            )
+
+        payload = SequencerAdvisorRequestPayload(
+            username=profile.username,
+            categories=category_payloads,
+            requirements=requirement_payloads,
+            candidate_modules=module_payloads,
+            schedule_adjustment_count=len(adjustments),
+            sessions_per_week=(
+                previous_schedule.sessions_per_week
+                if previous_schedule and previous_schedule.sessions_per_week
+                else self._default_sessions_per_week
+            ),
+            goal_summary=getattr(getattr(profile, "goal_inference", None), "summary", None)
+            or (profile.goal or None),
+        )
+
+        emit_event(
+            "sequencer_advisor_invoked",
+            username=profile.username,
+            mode=mode,
+            module_count=len(module_payloads),
+            requirement_count=len(requirement_payloads),
+            target_count=len(recommendation_targets),
+        )
+
+        try:
+            result = advise_sequence(payload, settings=settings)
+        except SequencerAdvisorError as exc:
+            emit_event(
+                "sequencer_advisor_fallback",
+                username=profile.username,
+                mode=mode,
+                reason=str(exc),
+            )
+            summary = SequencerAdvisorSummary(
+                mode=mode,
+                applied=False,
+                ordering_source="heuristic",
+                fallback_reason=str(exc),
+            )
+            return module_entries, summary
+
+        emit_event(
+            "sequencer_advisor_latency",
+            username=profile.username,
+            mode=mode,
+            latency_ms=result.latency_ms,
+            recommended_count=len(result.recommended_modules),
+            slice_span=result.slice_span_days,
+            warning_count=len(result.warnings),
+        )
+
+        summary = SequencerAdvisorSummary(
+            mode=mode,
+            applied=bool(result.recommended_modules),
+            ordering_source="advisor" if result.recommended_modules else "heuristic",
+            recommended_modules=list(result.recommended_modules),
+            slice_span_days=result.slice_span_days,
+            notes=result.notes,
+            version=result.version,
+            latency_ms=result.latency_ms,
+            fallback_reason=None,
+            warning_count=len(result.warnings),
+        )
+        if result.warnings:
+            merged_note = " ".join(result.warnings)
+            summary.notes = f"{summary.notes} {merged_note}".strip() if summary.notes else merged_note
+
+        ranking = {module_id: index for index, module_id in enumerate(result.recommended_modules)}
+        max_rank = len(result.recommended_modules) or 1
+        adjusted: List[Tuple[float, CurriculumModule]] = []
+        for priority, module in module_entries:
+            rank = ranking.get(module.module_id)
+            if rank is not None:
+                boost = max(max_rank - rank, 1) * 0.2
+                priority += boost
+            adjusted.append((priority, module))
+
+        return adjusted, summary
 
     def _order_modules_with_dependencies(
         self,
@@ -1472,8 +1788,9 @@ class CurriculumSequencer:
         scheduled_items: Sequence[SequencedWorkItem],
         profile: LearnerProfile,
         categories: Dict[str, _CategoryContext],
-    ) -> List[MilestoneQueueEntry]:
+    ) -> Tuple[List[MilestoneQueueEntry], Dict[str, List[DependencyTarget]]]:
         queue: List[MilestoneQueueEntry] = []
+        dependency_map: Dict[str, List[DependencyTarget]] = defaultdict(list)
         for item in scheduled_items:
             if item.kind != "milestone":
                 continue
@@ -1488,6 +1805,22 @@ class CurriculumSequencer:
                 for requirement in requirements
                 if requirement.current_rating < requirement.minimum_rating
             ]
+            dependency_targets: List[DependencyTarget] = []
+            for requirement in unmet:
+                deficit = max(requirement.minimum_rating - requirement.current_rating, 0)
+                dependency_target = DependencyTarget(
+                    milestone_item_id=item.item_id,
+                    milestone_title=item.title,
+                    category_key=requirement.category_key,
+                    category_label=requirement.category_label,
+                    target_rating=requirement.minimum_rating,
+                    current_rating=requirement.current_rating,
+                    deficit=deficit,
+                    requirement_rationale=requirement.rationale,
+                    advisor_version=getattr(item, "requirement_advisor_version", None),
+                )
+                dependency_targets.append(dependency_target)
+                dependency_map[requirement.category_key].append(dependency_target)
             if item.launch_status == "completed":
                 state: Literal["locked", "ready", "in_progress", "completed"] = "completed"
             elif item.launch_status == "in_progress":
@@ -1553,6 +1886,7 @@ class CurriculumSequencer:
                         if requirements_summary
                         else None
                     ),
+                    dependency_targets=[target.model_copy(deep=True) for target in dependency_targets],
                 )
             )
         queue.sort(
@@ -1562,7 +1896,7 @@ class CurriculumSequencer:
             ),
             reverse=True,
         )
-        return queue
+        return queue, dependency_map
 
     def _milestone_last_updated(self, item: SequencedWorkItem) -> Optional[datetime]:
         candidates: List[datetime] = []
@@ -1794,12 +2128,16 @@ class CurriculumSequencer:
             elif days_since < 42:
                 completion_penalty += 0.2
         completion_penalty += min(context.completion_count * 0.05, 0.3)
+        requirement_component = min(context.requirement_gap / 80.0, 3.0)
+        deferral_component = min(context.deferral_count * 0.15, 1.5)
         return (
             weight_component
             + rating_component
             + score_component
             + delta_component
             + track_component
+            + requirement_component
+            + deferral_component
             - completion_penalty
         )
 
@@ -1951,6 +2289,16 @@ class CurriculumSequencer:
             adjustment_notes.append("Maintained learner-selected offsets from recent deferrals.")
         if not adjustment_notes:
             adjustment_notes.append("No active deferrals carried over.")
+        dependency_focus: List[str] = []
+        for item in scheduled_items:
+            for target in getattr(item, "dependency_targets", []) or []:
+                if getattr(target, "deficit", 0) > 0:
+                    label = getattr(target, "category_label", target.category_key)
+                    dependency_focus.append(f"{label} → {target.target_rating}")
+        if dependency_focus:
+            adjustment_notes.append(
+                "Unlock focus: " + ", ".join(dependency_focus[:3])
+            )
         focus_text = ", ".join(categories[alloc.category_key].label for alloc in top_allocations) or "mixed coverage"
         headline = (
             f"Roadmap extended to {horizon_days} days with {sessions_per_week} session"

@@ -61,6 +61,8 @@ from .agent_models import (
     MilestoneGuidancePayload,
     MilestoneQueueEntryPayload,
     SequencedWorkItemPayload,
+    DependencyTargetPayload,
+    SequencerAdvisorSummaryPayload,
     SkillRatingPayload,
 )
 
@@ -198,6 +200,60 @@ def _schedule_payload(
                 )
             )
         return payloads
+
+    def _payloads_for_dependency_targets(entries: Iterable[Any]) -> List[DependencyTargetPayload]:
+        payloads: List[DependencyTargetPayload] = []
+        for target in entries or []:
+            milestone_id = getattr(target, "milestone_item_id", None)
+            category_key = getattr(target, "category_key", None)
+            if not milestone_id or not category_key:
+                continue
+            try:
+                target_rating = int(getattr(target, "target_rating", 0) or 0)
+            except (TypeError, ValueError):
+                target_rating = 0
+            try:
+                current_rating = int(
+                    getattr(target, "current_rating", snapshot.get(category_key, 0))
+                    or snapshot.get(category_key, 0)
+                    or 0
+                )
+            except (TypeError, ValueError):
+                current_rating = 0
+            try:
+                deficit = int(getattr(target, "deficit", target_rating - current_rating) or 0)
+            except (TypeError, ValueError):
+                deficit = max(target_rating - current_rating, 0)
+            payloads.append(
+                DependencyTargetPayload(
+                    milestone_item_id=milestone_id,
+                    milestone_title=getattr(target, "milestone_title", ""),
+                    category_key=category_key,
+                    category_label=getattr(target, "category_label", category_key),
+                    target_rating=target_rating,
+                    current_rating=current_rating,
+                    deficit=max(deficit, 0),
+                    requirement_rationale=getattr(target, "requirement_rationale", None),
+                    advisor_version=getattr(target, "advisor_version", None),
+                )
+            )
+        return payloads
+
+    def _advisor_summary_payload_local(summary: Any) -> Optional[SequencerAdvisorSummaryPayload]:
+        if summary is None:
+            return None
+        return SequencerAdvisorSummaryPayload(
+            mode=getattr(summary, "mode", "fallback"),
+            applied=bool(getattr(summary, "applied", False)),
+            ordering_source=getattr(summary, "ordering_source", "heuristic"),
+            recommended_modules=list(getattr(summary, "recommended_modules", []) or []),
+            slice_span_days=getattr(summary, "slice_span_days", None),
+            notes=getattr(summary, "notes", None),
+            version=getattr(summary, "version", None),
+            latency_ms=getattr(summary, "latency_ms", None),
+            fallback_reason=getattr(summary, "fallback_reason", None),
+            warning_count=int(getattr(summary, "warning_count", 0) or 0),
+        )
 
     def _summary_payload(
         summary: Any,
@@ -628,6 +684,9 @@ def _schedule_payload(
                 requirement_progress_snapshot=progress_snapshot_payloads,
                 requirement_summary=summary_payload,
                 unlock_notified_at=getattr(item, "unlock_notified_at", None),
+                dependency_targets=_payloads_for_dependency_targets(
+                    getattr(item, "dependency_targets", []) or []
+                ),
             )
         )
         if getattr(item, "kind", None) == "milestone":
@@ -659,6 +718,9 @@ def _schedule_payload(
                     ),
                     requirements=requirement_payloads,
                     requirement_summary=summary_payload,
+                    dependency_targets=_payloads_for_dependency_targets(
+                        getattr(item, "dependency_targets", []) or []
+                    ),
                 )
             )
     if dynamic_warning_entries:
@@ -720,6 +782,7 @@ def _schedule_payload(
                     last_updated_at=entry.last_updated_at,
                     requirements=requirement_payloads,
                     requirement_summary=_summary_payload(entry.requirement_summary, requirement_payloads),
+                    dependency_targets=_payloads_for_dependency_targets(entry.dependency_targets),
                 )
             )
     else:
@@ -744,6 +807,10 @@ def _schedule_payload(
         long_range_category_keys=list(getattr(schedule, "long_range_category_keys", [])),
         slice=slice_payload,
         milestone_queue=milestone_queue_payloads,
+        dependency_targets=_payloads_for_dependency_targets(getattr(schedule, "dependency_targets", []) or []),
+        sequencer_advisor_summary=_advisor_summary_payload_local(
+            getattr(schedule, "sequencer_advisor_summary", None)
+        ),
     )
 
 

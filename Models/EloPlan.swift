@@ -341,6 +341,8 @@ struct CurriculumSchedule: Codable, Hashable {
     var longRangeCategoryKeys: [String] = []
     var slice: Slice?
     var milestoneQueue: [MilestoneQueueEntry] = []
+    var dependencyTargets: [DependencyTarget] = []
+    var sequencerAdvisorSummary: SequencerAdvisorSummary?
 
     struct Group: Hashable, Identifiable {
         var offset: Int
@@ -386,6 +388,19 @@ struct CurriculumSchedule: Codable, Hashable {
         }
         return segments.joined(separator: " · ")
     }
+}
+
+struct SequencerAdvisorSummary: Codable, Hashable {
+    var mode: String
+    var applied: Bool
+    var orderingSource: String
+    var recommendedModules: [String]
+    var sliceSpanDays: Int?
+    var notes: String?
+    var version: String?
+    var latencyMs: Double?
+    var fallbackReason: String?
+    var warningCount: Int
 }
 
 struct MilestonePrerequisite: Codable, Hashable, Identifiable {
@@ -667,6 +682,20 @@ struct MilestoneGuidance: Codable, Hashable {
     var lastUpdateAt: Date?
 }
 
+struct DependencyTarget: Codable, Hashable, Identifiable {
+    var milestoneItemId: String
+    var milestoneTitle: String
+    var categoryKey: String
+    var categoryLabel: String
+    var targetRating: Int
+    var currentRating: Int
+    var deficit: Int
+    var requirementRationale: String?
+    var advisorVersion: String?
+
+    var id: String { "\(milestoneItemId)::\(categoryKey)" }
+}
+
 struct MilestoneQueueEntry: Codable, Hashable, Identifiable {
     var itemId: String
     var title: String
@@ -680,6 +709,7 @@ struct MilestoneQueueEntry: Codable, Hashable, Identifiable {
     var lastUpdatedAt: Date?
     var requirements: [MilestoneRequirement]
     var requirementSummary: MilestoneRequirementSummary?
+    var dependencyTargets: [DependencyTarget] = []
 
     var id: String { itemId }
 }
@@ -797,6 +827,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
     var requirementProgressSnapshot: [MilestoneRequirement] = []
     var unlockNotifiedAt: Date?
     var requirementSummary: MilestoneRequirementSummary?
+    var dependencyTargets: [DependencyTarget] = []
 
     var id: String { itemId }
 
@@ -834,6 +865,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         case requirementProgressSnapshot
         case unlockNotifiedAt
         case requirementSummary
+        case dependencyTargets
     }
 
     init(
@@ -864,7 +896,8 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         requirementAdvisorVersion: String? = nil,
         requirementProgressSnapshot: [MilestoneRequirement] = [],
         unlockNotifiedAt: Date? = nil,
-        requirementSummary: MilestoneRequirementSummary? = nil
+        requirementSummary: MilestoneRequirementSummary? = nil,
+        dependencyTargets: [DependencyTarget] = []
     ) {
         self.itemId = itemId
         self.kind = kind
@@ -894,6 +927,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         self.requirementProgressSnapshot = requirementProgressSnapshot
         self.unlockNotifiedAt = unlockNotifiedAt
         self.requirementSummary = requirementSummary
+        self.dependencyTargets = dependencyTargets
     }
 
     init(from decoder: Decoder) throws {
@@ -926,6 +960,7 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         requirementProgressSnapshot = try container.decodeIfPresent([MilestoneRequirement].self, forKey: .requirementProgressSnapshot) ?? []
         unlockNotifiedAt = try container.decodeIfPresent(Date.self, forKey: .unlockNotifiedAt)
         requirementSummary = try container.decodeIfPresent(MilestoneRequirementSummary.self, forKey: .requirementSummary)
+        dependencyTargets = try container.decodeIfPresent([DependencyTarget].self, forKey: .dependencyTargets) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -958,5 +993,6 @@ struct SequencedWorkItem: Codable, Hashable, Identifiable {
         try container.encode(requirementProgressSnapshot, forKey: .requirementProgressSnapshot)
         try container.encodeIfPresent(unlockNotifiedAt, forKey: .unlockNotifiedAt)
         try container.encodeIfPresent(requirementSummary, forKey: .requirementSummary)
+        try container.encode(dependencyTargets, forKey: .dependencyTargets)
     }
 }

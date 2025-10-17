@@ -77,7 +77,32 @@ final class BackendServiceTests: XCTestCase {
             "has_more": true,
             "next_start_day": 7
         },
-        "milestone_queue": []
+        "milestone_queue": [],
+        "dependency_targets": [
+            {
+                "milestone_item_id": "milestone-backend",
+                "milestone_title": "Milestone: Apply Backend Systems",
+                "category_key": "backend",
+                "category_label": "Backend Systems",
+                "target_rating": 1300,
+                "current_rating": 1040,
+                "deficit": 260,
+                "requirement_rationale": "Raise backend rating",
+                "advisor_version": "v1"
+            }
+        ],
+        "sequencer_advisor_summary": {
+            "mode": "primary",
+            "applied": true,
+            "ordering_source": "advisor",
+            "recommended_modules": ["backend-module"],
+            "slice_span_days": 21,
+            "notes": "Advisor reordered modules",
+            "version": "v3",
+            "latency_ms": 92.5,
+            "fallback_reason": null,
+            "warning_count": 1
+        }
     }
     """
     private let sampleLaunchJSON = """
@@ -119,7 +144,9 @@ final class BackendServiceTests: XCTestCase {
             "long_range_item_count": 2,
             "extended_weeks": 4,
             "long_range_category_keys": [],
-            "milestone_queue": []
+            "milestone_queue": [],
+            "dependency_targets": [],
+            "sequencer_advisor_summary": null
         },
         "item": {
             "item_id": "lesson-intro",
@@ -204,6 +231,12 @@ final class BackendServiceTests: XCTestCase {
         XCTAssertEqual(schedule.slice?.daySpan, 7)
         XCTAssertEqual(schedule.slice?.hasMore, true)
         XCTAssertEqual(schedule.slice?.nextStartDay, 7)
+        XCTAssertEqual(schedule.dependencyTargets.count, 1)
+        XCTAssertEqual(schedule.dependencyTargets.first?.categoryKey, "backend")
+        XCTAssertEqual(schedule.dependencyTargets.first?.targetRating, 1300)
+        XCTAssertEqual(schedule.sequencerAdvisorSummary?.orderingSource, "advisor")
+        XCTAssertEqual(schedule.sequencerAdvisorSummary?.recommendedModules, ["backend-module"])
+        XCTAssertEqual(schedule.sequencerAdvisorSummary?.warningCount, 1)
     }
 
     func testScheduleLaunchResponseDecodes() throws {

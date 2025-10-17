@@ -39,6 +39,18 @@ class Settings(BaseSettings):
         None,
         alias="ARCADIA_REQUIREMENT_ADVISOR_MODEL",
     )
+    arcadia_sequencer_advisor_mode: Literal["off", "fallback", "primary"] = Field(
+        "fallback",
+        alias="ARCADIA_SEQUENCER_ADVISOR_MODE",
+    )
+    arcadia_sequencer_advisor_model: Optional[str] = Field(
+        None,
+        alias="ARCADIA_SEQUENCER_ADVISOR_MODEL",
+    )
+    arcadia_sequencer_advisor_timeout_ms: int = Field(
+        9000,
+        alias="ARCADIA_SEQUENCER_ADVISOR_TIMEOUT_MS",
+    )
     arcadia_persistence_mode: Literal["database", "legacy", "hybrid"] = Field(
         "database",
         alias="ARCADIA_PERSISTENCE_MODE",

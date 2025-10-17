@@ -176,6 +176,35 @@ class MilestoneRequirementSummary(BaseModel):
     blocking_categories: List[str] = Field(default_factory=list)
 
 
+class DependencyTarget(BaseModel):
+    """Describes a rating gap that must close to unlock a milestone."""
+
+    milestone_item_id: str
+    milestone_title: str
+    category_key: str
+    category_label: str
+    target_rating: int = Field(default=0, ge=0)
+    current_rating: int = Field(default=0, ge=0)
+    deficit: int = Field(default=0, ge=0)
+    requirement_rationale: Optional[str] = None
+    advisor_version: Optional[str] = None
+
+
+class SequencerAdvisorSummary(BaseModel):
+    """Captures how the Sequencer Advisor influenced ordering."""
+
+    mode: Literal["off", "fallback", "primary"] = "fallback"
+    applied: bool = False
+    ordering_source: Literal["heuristic", "advisor"] = "heuristic"
+    recommended_modules: List[str] = Field(default_factory=list)
+    slice_span_days: Optional[int] = None
+    notes: Optional[str] = None
+    version: Optional[str] = None
+    latency_ms: Optional[float] = None
+    fallback_reason: Optional[str] = None
+    warning_count: int = 0
+
+
 class MilestoneQueueEntry(BaseModel):
     """Aggregated milestone entry rendered in the dedicated dashboard queue."""
 
@@ -191,6 +220,7 @@ class MilestoneQueueEntry(BaseModel):
     last_updated_at: Optional[datetime] = None
     requirements: List[MilestoneRequirement] = Field(default_factory=list)
     requirement_summary: Optional[MilestoneRequirementSummary] = None
+    dependency_targets: List[DependencyTarget] = Field(default_factory=list)
 
 
 class MilestoneBrief(BaseModel):
@@ -302,6 +332,7 @@ class SequencedWorkItem(BaseModel):
     requirement_advisor_version: Optional[str] = None
     requirement_progress_snapshot: List[MilestoneRequirement] = Field(default_factory=list)
     unlock_notified_at: Optional[datetime] = None
+    dependency_targets: List[DependencyTarget] = Field(default_factory=list)
     requirement_summary: Optional[MilestoneRequirementSummary] = None
 
 
@@ -368,6 +399,8 @@ class CurriculumSchedule(BaseModel):
     long_range_category_keys: List[str] = Field(default_factory=list)
     slice: Optional[ScheduleSliceMetadata] = None
     milestone_queue: List[MilestoneQueueEntry] = Field(default_factory=list)
+    dependency_targets: List[DependencyTarget] = Field(default_factory=list)
+    sequencer_advisor_summary: Optional[SequencerAdvisorSummary] = None
 
 
 def _now() -> datetime:

@@ -13,6 +13,7 @@ from app.curriculum_sequencer import (
     MAX_CONSECUTIVE_CATEGORY_ITEMS,
     _CategoryContext,
 )
+from app.sequencer_advisor import SequencerAdvisorResult
 from app.config import get_settings
 from app.learner_profile import (
     CategoryPacing,
@@ -269,6 +270,86 @@ def test_milestone_requires_multiple_categories(monkeypatch) -> None:
     assert queue_entry.requirement_summary is not None
     assert queue_entry.requirement_summary.total == summary.total
     assert queue_entry.requirements
+    assert queue_entry.dependency_targets
+    assert any(target.category_key == "backend-foundations" for target in queue_entry.dependency_targets)
+    assert schedule.dependency_targets
+    assert any(target.category_key == "backend-foundations" for target in schedule.dependency_targets)
+    advisor_summary = schedule.sequencer_advisor_summary
+    assert advisor_summary is not None
+    assert advisor_summary.applied is False
+
+
+def test_sequencer_advisor_applies_recommendation(monkeypatch) -> None:
+    monkeypatch.setattr("app.curriculum_sequencer.should_author", lambda _settings: False)
+    monkeypatch.setattr("app.curriculum_sequencer.should_advise_requirements", lambda _settings: False)
+    monkeypatch.setattr("app.curriculum_sequencer.should_advise_sequencer", lambda _settings: True)
+    monkeypatch.setattr("app.curriculum_sequencer.resolve_sequencer_mode", lambda _: "primary")
+
+    def _fake_advise(payload, *, settings=None):  # noqa: ANN001
+        return SequencerAdvisorResult(
+            recommended_modules=["backend-project"],
+            slice_span_days=14,
+            notes="Prioritise backend milestone unlock",
+            version="v2",
+            warnings=["requires focus"],
+            latency_ms=128.0,
+        )
+
+    monkeypatch.setattr("app.curriculum_sequencer.advise_sequence", _fake_advise)
+
+    plan = EloCategoryPlan(
+        categories=[
+            _category("backend", "Backend Systems", 1.2),
+            _category("frontend", "Frontend Flow", 1.0),
+        ]
+    )
+    curriculum = CurriculumPlan(
+        overview="Advisor ordering",
+        success_criteria=["Ship feature"],
+        modules=[
+            CurriculumModule(
+                module_id="frontend-overview",
+                category_key="frontend",
+                title="Frontend Overview",
+                summary="UI module",
+                objectives=[],
+                activities=[],
+                deliverables=[],
+                estimated_minutes=60,
+            ),
+            CurriculumModule(
+                module_id="backend-project",
+                category_key="backend",
+                title="Backend Project",
+                summary="Backend focus",
+                objectives=[],
+                activities=[],
+                deliverables=[],
+                estimated_minutes=75,
+            ),
+        ],
+    )
+    profile = LearnerProfile(
+        username="advisor-order",
+        goal="Build product backend",
+        use_case="Advisor",
+        strengths="",
+        elo_snapshot={"backend": 1040, "frontend": 1180},
+        elo_category_plan=plan,
+        curriculum_plan=curriculum,
+    )
+
+    sequencer = CurriculumSequencer()
+    schedule = sequencer.build_schedule(profile)
+
+    summary = schedule.sequencer_advisor_summary
+    assert summary is not None
+    assert summary.applied is True
+    assert summary.ordering_source == "advisor"
+    assert summary.recommended_modules == ["backend-project"]
+    lessons = [item.item_id for item in schedule.items if item.item_id.startswith("lesson-")]
+    assert lessons[0].startswith("lesson-backend-project")
+    assert schedule.dependency_targets
 
 
 def test_milestone_requirement_maps_to_existing_category(monkeypatch) -> None:

@@ -110,6 +110,8 @@ class CurriculumScheduleModel(Base):
     extended_weeks: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     long_range_category_keys: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     milestone_queue: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
+    dependency_targets: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
+    sequencer_advisor_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
     learner: Mapped[LearnerProfileModel] = relationship(back_populates="schedule")
     items: Mapped[list["CurriculumScheduleItemModel"]] = relationship(
@@ -150,6 +152,7 @@ class CurriculumScheduleItemModel(Base):
     requirement_progress: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
     requirement_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     unlock_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dependency_targets: Mapped[list[dict]] = mapped_column(JSONType, default=list, nullable=False)
 
     schedule: Mapped[CurriculumScheduleModel] = relationship(back_populates="items")
 

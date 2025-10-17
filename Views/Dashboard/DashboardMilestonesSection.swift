@@ -119,6 +119,17 @@ struct DashboardMilestonesSection: View {
                     }
                 }
             }
+            if !entry.dependencyTargets.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Unlock targets")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    ForEach(entry.dependencyTargets, id: \.id) { target in
+                        Text("• \(target.categoryLabel) → \(target.targetRating) (current \(target.currentRating))")
+                            .font(.caption)
+                    }
+                }
+            }
             if let lockReason = entry.launchLockedReason, !lockReason.isEmpty {
                 Label(lockReason, systemImage: "lock.fill")
                     .font(.caption)

@@ -97,6 +97,9 @@ MCP endpoint: `https://mcp.arcadiacoach.com/mcp` (Render service). It exposes:
 | `ARCADIA_REQUIREMENT_ADVISOR_MODE` | Controls the Requirement Advisor: `off`, `fallback` (default), or `primary`. |
 | `ARCADIA_REQUIREMENT_ADVISOR_TIMEOUT_MS` | HTTP timeout (ms) for Requirement Advisor calls (default `8000`). |
 | `ARCADIA_REQUIREMENT_ADVISOR_MODEL` | Optional override model for the Requirement Advisor (defaults to `ARCADIA_AGENT_MODEL`). |
+| `ARCADIA_SEQUENCER_ADVISOR_MODE` | Controls the Sequencer Advisor: `off`, `fallback` (default), or `primary`. |
+| `ARCADIA_SEQUENCER_ADVISOR_TIMEOUT_MS` | Optional timeout (ms) for Sequencer Advisor runs (default `9000`). |
+| `ARCADIA_SEQUENCER_ADVISOR_MODEL` | Optional override model for the Sequencer Advisor (defaults to `ARCADIA_AGENT_MODEL`). |
 | `ARCADIA_DEBUG_ENDPOINTS` | `true` to expose debugging routes in non-production builds |
 
 ## Local Debugging Checklist
@@ -356,12 +359,11 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Updated schedule and dashboard milestone views with composite progress bars, focus chips, and clearer locking guidance grounded in the new summary payloads.
     - Extended regression coverage (pytest + Swift) for multi-category unlocks and requirement summaries, and wired automated build/test commands into the rollout checklist.
     - **Follow-ups:** Stream multi-category unlock telemetry into dashboards, enrich MCP widgets with the new summary payloads, instrument learner feedback on composite requirements, and add regression checks so schedule slices always retain their active milestone items.
-35. **Phase 35 – Sequencer Dependency Alignment**  
-    - Teach the curriculum sequencer to prioritise lessons/quizzes that advance the Requirement Advisor’s milestones, factoring in dependency metadata and respecting logical skill progression.  
-    - Introduce a Sequencer Advisor agent (Agents SDK) that proposes curriculum ordering/slice adjustments using learner telemetry while the deterministic planner applies guardrails and fallback heuristics.  
-    - Ensure adaptive scheduling avoids surfacing milestones with unsatisfied foundational categories (e.g. PLM projects only after Python/PyTorch/CUDA tracks reach required ratings) and records rationale/history updates.  
-    - Add regression tests and telemetry verifying requirement-driven pacing, agent-vs-heuristic comparisons, unlock readiness calculations, and agent fallbacks when thresholds cannot be inferred.  
-    - **Follow-ups:** run A/B analysis on advisor influence, and expand dependency metadata authoring tools if advisors highlight coverage gaps.  
+35. **Phase 35 – Sequencer Dependency Alignment** ✅ *(completed October 17, 2025; see `docs/phase-35-sequencer-dependency-alignment.md`)*  
+    - Deployed the Sequencer Advisor agent (Responses API) with telemetry + guardrails so dependency pressure can reshuffle near-term modules while deterministic ordering still enforces prerequisites.  
+    - Propagated dependency targets and advisor summaries through persistence, APIs, and the macOS dashboard, surfacing unlock targets and rationale in milestone queue cards.  
+    - Refined scheduler heuristics to boost categories blocking milestones, refreshed rationale notes with unlock focus, and expanded automated tests for advisor/fallback paths.  
+    - **Follow-ups:** Instrument advisor telemetry in production dashboards, expose dependency targets within chat/session launch flows, and gather learner feedback on the new unlock messaging to tune copy + heuristics.
 36. **Phase 36 – Milestone Guidance Personalisation**  
     - Provide learner-facing controls for low/medium/high milestone guidance, surfacing clear descriptions of each tier and capturing per-learner preferences.  
     - Extend the milestone author pipeline so briefs, deliverables, and success metrics adapt to the selected guidance tier with deterministic fallbacks when the agent is unavailable.  

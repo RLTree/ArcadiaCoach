@@ -183,6 +183,31 @@ class MilestoneGuidancePayload(BaseModel):
     last_update_at: Optional[datetime] = None
 
 
+class DependencyTargetPayload(BaseModel):
+    milestone_item_id: str
+    milestone_title: str
+    category_key: str
+    category_label: str
+    target_rating: int = Field(default=0)
+    current_rating: int = Field(default=0)
+    deficit: int = Field(default=0)
+    requirement_rationale: Optional[str] = None
+    advisor_version: Optional[str] = None
+
+
+class SequencerAdvisorSummaryPayload(BaseModel):
+    mode: Literal["off", "fallback", "primary"]
+    applied: bool = False
+    ordering_source: Literal["heuristic", "advisor"] = "heuristic"
+    recommended_modules: List[str] = Field(default_factory=list)
+    slice_span_days: Optional[int] = None
+    notes: Optional[str] = None
+    version: Optional[str] = None
+    latency_ms: Optional[float] = None
+    fallback_reason: Optional[str] = None
+    warning_count: int = 0
+
+
 class SequencedWorkItemPayload(BaseModel):
     item_id: str
     kind: Literal["lesson", "quiz", "milestone"]
@@ -212,6 +237,7 @@ class SequencedWorkItemPayload(BaseModel):
     requirement_progress_snapshot: List[MilestoneRequirementPayload] = Field(default_factory=list)
     requirement_summary: Optional[MilestoneRequirementSummaryPayload] = None
     unlock_notified_at: Optional[datetime] = None
+    dependency_targets: List[DependencyTargetPayload] = Field(default_factory=list)
 
 
 class MilestoneQueueEntryPayload(BaseModel):
@@ -227,6 +253,7 @@ class MilestoneQueueEntryPayload(BaseModel):
     last_updated_at: Optional[datetime] = None
     requirements: List[MilestoneRequirementPayload] = Field(default_factory=list)
     requirement_summary: Optional[MilestoneRequirementSummaryPayload] = None
+    dependency_targets: List[DependencyTargetPayload] = Field(default_factory=list)
 
 
 class MilestoneCompletionPayload(BaseModel):
@@ -304,6 +331,8 @@ class CurriculumSchedulePayload(BaseModel):
     slice: Optional[ScheduleSlicePayload] = None
     milestone_completions: List[MilestoneCompletionPayload] = Field(default_factory=list)
     milestone_queue: List[MilestoneQueueEntryPayload] = Field(default_factory=list)
+    dependency_targets: List[DependencyTargetPayload] = Field(default_factory=list)
+    sequencer_advisor_summary: Optional[SequencerAdvisorSummaryPayload] = None
 
 
 class ScheduleLaunchContentPayload(BaseModel):
