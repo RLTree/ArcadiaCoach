@@ -202,7 +202,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
 7. **Phase 6 – Frontend Chat & Accessibility Enhancements** ✅ *(completed October 13, 2025; see `docs/phase-6-frontend-chat-accessibility.md`)*
    - Deliver the upgraded Agent Chat panel with per-model capability picker, reasoning effort controls, attachment rendering, and a persisted transcript sidebar.
    - Harden attachment policies (full files for GPT-5/Mini, images-only for GPT-5 Codex) while keeping web search available per model selection.
-   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 41).
+   - Follow-up: move the “read attachments before responding” guidance into the chat prompt so `file_search` is always invoked when files are present (tracked under Phase 42).
 8. **Phase 7 – Chat Continuity & Prompt Hardening** ✅ *(completed October 13, 2025; see `docs/phase-7-chat-continuity.md`)*
    - Centralise prompt overlays so GPT-5/Mini always run `file_search` on attachments, GPT-5 Codex leans on inline previews, and web-enabled turns call `web_search` with Markdown hyperlink citations.
    - Add session resume support in the macOS client (active transcript tracking, sidebar ordering, resume button) without resetting backend threads.
@@ -216,7 +216,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Delivered detailed submission drilldowns with rubric notes, attachment manifests, and category ELO deltas in both dashboard and chat surfaces.
     - Normalised assessment submissions to include parsed attachments and explicit rating deltas across backend APIs and client models.
     - Captured the latest lesson/quiz/milestone envelopes so learners can revisit content immediately after agent actions.
-   - Follow-ups: add UI coverage for the new detail view (Phase 49) and expand curriculum tie-ins alongside the milestone roadmap (Phase 22).
+   - Follow-ups: add UI coverage for the new detail view (Phase 50) and expand curriculum tie-ins alongside the milestone roadmap (Phase 22).
    
 11. **Phase 10 – Assessment Attachment UX & Agent Ingestion** ✅ *(completed October 13, 2025; see `docs/phase-10-assessment-attachment-ux-agent-ingestion.md`)*
     - Replaced the metadata workaround with a structured `attachments` array on submissions, populated from the new attachment store (legacy metadata remains a fallback parser).
@@ -234,7 +234,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Added resilient fallbacks: failed refreshes now reuse the previous schedule, mark it `is_stale`, and surface warning metadata to both API and SwiftUI.
     - Triggered automatic schedule regeneration immediately after onboarding grading and updated the agent prompt so Chat answers reference `curriculum_schedule` data.
     - Expanded regression coverage for telemetry fan-out, fallback warnings, and post-grading schedule creation.
-   - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 43).
+   - **Follow-ups:** Stream telemetry into production observability once the persistence migration lands and finish the richer citation UX (tracked under Phase 44).
 14. **Phase 13 – Adaptive Curriculum MVP** ✅ *(completed October 14, 2025; see `docs/phase-13-adaptive-curriculum-mvp.md`)*
     - Regenerated curriculum schedules immediately after onboarding so every learner leaves planning with a populated 2–3 week roadmap.
     - Persisted learner `schedule_adjustments`, surfaced `user_adjusted` flags in schedule payloads, and taught the sequencer to honour deferrals on refresh.
@@ -301,7 +301,7 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Hid the Assessment tab once calibration completes while keeping developer resets and in-progress bundles responsive through `AppViewModel.requiresAssessment`.
     - Added a dashboard nudge and summary highlighting fresh grading, backed by the new `AssessmentResultTracker` so unseen results persist across launches and resets.
     - Instrumented unseen-result telemetry and persisted the last reviewed submission ID to support future analytics and automation.
-   - **Follow-ups:** stream unseen-result telemetry into the observability dashboards (Phase 50) and explore auto-expanding the latest graded submission when the nudge clears (Phase 49).
+   - **Follow-ups:** stream unseen-result telemetry into the observability dashboards (Phase 51) and explore auto-expanding the latest graded submission when the nudge clears (Phase 50).
 25. **Phase 25 – Clipboard & Selection Support** ✅ *(completed October 15, 2025; see `docs/phase-25-clipboard-selection.md`)*
     - Delivered a shared `AppClipboardManager` and reusable `selectableContent` modifier so chat, lessons, assessments, widgets, and dashboard panels all support Command+C plus context-menu copying.
     - Hardened accessibility by auditing VoiceOver/keyboard flows, pruning recursive selection states that triggered the AttributeGraph loop, and adding schedule/assessment copy affordances.
@@ -348,118 +348,130 @@ Use the roadmap below to scope future tasks. When a phase is “completed”, ne
     - Persisted milestone queue state across API responses and Swift models, surfacing a dedicated dashboard tab with readiness badges, requirement progress bars, and launch/resume controls.  
     - Wired milestone completion storage, telemetry, and events to retain project status/evaluation data consistently, enabling accurate unlock notifications and history.  
     - Added macOS notification plumbing and accessibility updates so learners receive opt-in alerts when requirements are met, with VoiceOver-friendly milestone summaries.  
-    - **Follow-ups:** Monitor advisor outputs against production telemetry, expose requirement override tooling, and expand queue UI with quick links to milestone briefs/history.  
-34. **Phase 34 – Sequencer Dependency Alignment**  
+    - Hardened developer tooling and forced-launch fallbacks so Boost ELO automatically completes prerequisites, preserves calibrated requirements, and forced milestone launches render static envelopes without agent calls.  
+    - **Follow-ups:** Monitor advisor outputs against production telemetry, expose requirement override tooling, expand queue UI with quick links to milestone briefs/history, and backfill regression coverage for developer override workflows.  
+34. **Phase 34 – Multi-Category Milestone Requirements**  
+    - Teach the Requirement Advisor + milestone author stack to infer and emit multi-category requirement sets for each milestone project, evaluating deliverables, tooling, and prerequisite libraries.  
+    - Update ELO gating so milestones express blended thresholds (e.g., Python Foundations + Data Pipelines) and surface composite progress bars in the dashboard/UI.  
+    - Extend developer tooling/telemetry to compare agent-inferred categories with deterministic fallbacks, flagging missing skills and regression-testing multi-category unlocks.  
+    - Add regression coverage and prompt audits to ensure agent outputs map to canonical category keys, with fallbacks when confidence is low.  
+    - **Follow-ups:** Capture learner feedback on multi-category requirements and prepare UI space for requirement rationale per category.  
+35. **Phase 35 – Sequencer Dependency Alignment**  
     - Teach the curriculum sequencer to prioritise lessons/quizzes that advance the Requirement Advisor’s milestones, factoring in dependency metadata and respecting logical skill progression.  
     - Introduce a Sequencer Advisor agent (Agents SDK) that proposes curriculum ordering/slice adjustments using learner telemetry while the deterministic planner applies guardrails and fallback heuristics.  
     - Ensure adaptive scheduling avoids surfacing milestones with unsatisfied foundational categories (e.g. PLM projects only after Python/PyTorch/CUDA tracks reach required ratings) and records rationale/history updates.  
     - Add regression tests and telemetry verifying requirement-driven pacing, agent-vs-heuristic comparisons, unlock readiness calculations, and agent fallbacks when thresholds cannot be inferred.  
     - **Follow-ups:** run A/B analysis on advisor influence, and expand dependency metadata authoring tools if advisors highlight coverage gaps.  
-35. **Phase 35 – Milestone Guidance Personalisation**  
+36. **Phase 36 – Milestone Guidance Personalisation**  
     - Provide learner-facing controls for low/medium/high milestone guidance, surfacing clear descriptions of each tier and capturing per-learner preferences.  
     - Extend the milestone author pipeline so briefs, deliverables, and success metrics adapt to the selected guidance tier with deterministic fallbacks when the agent is unavailable.  
     - Update schedule launch flows, chat overlays, and milestone summaries to preview guidance tier, allow mid-milestone adjustments (with guardrails), and record telemetry on tier usage/outcomes.  
     - **Follow-ups:** evaluate completion quality vs. guidance tier, localise tier descriptions, and explore adaptive tier suggestions driven by advisor signals.  
-36. **Phase 36 – Lesson Guidance Personalisation**  
+37. **Phase 37 – Lesson Guidance Personalisation**  
     - Introduce a Lesson Guidance agent that curates low/medium/high support variants (outline-only, scaffolded options, fully scripted walkthroughs) tuned to learner goals and accessibility needs.  
     - Add learner controls in schedule cards and lesson launches to pick or adjust guidance depth, persisting preferences per category.  
     - Instrument lesson telemetry to compare retention/ELO deltas across guidance tiers and surface prompts nudging learners toward the most effective depth.  
-37. **Phase 37 – Quiz Blueprint Personalisation**  
+38. **Phase 38 – Quiz Blueprint Personalisation**  
     - Launch a Quiz Designer agent that assembles quiz variants with configurable scaffolding (open-ended vs. guided, hint density, rubric strictness) aligned to category confidence levels.  
     - Let learners toggle quiz guidance tiers before launch, preview expected support (hints, breakdowns, timeboxes), and capture outcomes for adaptive follow-up.  
     - Ensure grading pipelines honour the selected tier while maintaining comparable ELO updates through normalisation.  
-38. **Phase 38 – Refresher Sprint Personalisation**  
+39. **Phase 39 – Refresher Sprint Personalisation**  
     - Create a Refresher Coach agent that tailors daily refreshers/focus sprints based on learner energy, time windows, and recent friction, adjusting format between quick recall, micro-projects, and spaced repetition prompts.  
     - Add schedule controls for learners to request lighter/heavier refreshers and observe how preference shifts affect adherence.  
     - Capture telemetry linking refresher intensity to assessment outcomes, feeding data back into Requirement + Sequencer advisors.  
-39. **Phase 39 – Lesson Deck Foundations**  
+40. **Phase 40 – Lesson Deck Foundations**  
     - Stand up a Lesson Deck Author agent (MCP endpoint) that converts curriculum modules into slide-style decks with citations, accessibility notes, and optional deep-dive links.  
     - Establish shared deck components and export formats so both chat and dashboard views reuse the agent-authored content pipeline.  
     - Ensure lesson decks remain self-contained while highlighting optional references pulled in by the agent.  
-40. **Phase 40 – Lesson Comprehension & Knowledge Checks**  
+41. **Phase 41 – Lesson Comprehension & Knowledge Checks**  
     - Introduce a Lesson Coach agent that generates adaptive comprehension checks and targeted explanations based on the learner’s recent deck interactions.  
     - Add lightweight progress indicators and reminders so learners know when to complete follow-up checks, feeding agent-authored results back into the sequencer and ELO model.  
     - Resolve remaining Swift concurrency warnings tied to the deck components so agent-generated content renders smoothly on macOS.  
-41. **Phase 41 – Attachment Preview & Mapping**  
+42. **Phase 42 – Attachment Preview & Mapping**  
     - Extend attachment presentation with inline previews/captions and map `file_search` IDs to human-readable filenames and titles across chat, schedule, and assessment panes.  
     - Launch an Attachment Summariser agent that generates concise captions, risk flags, and accessibility notes for new uploads while falling back to deterministic metadata when the agent is unavailable.  
     - Align attachment chips/cards in macOS and widgets so completion sheets and history surfaces share a unified layout.  
     - Expose preview metadata and agent-authored captions so milestone summaries and grading notes reference friendly filenames.  
-42. **Phase 42 – Attachment Resiliency & Lifecycle**  
+43. **Phase 43 – Attachment Resiliency & Lifecycle**  
     - Harden upload flows for large artefacts with resumable transfers, checksum validation, and progress indicators.  
     - Add retry/backoff handling plus UI error states for failed uploads and external link attachments.  
     - Document attachment retention/encryption policies ahead of the persistence migration freeze.  
-43. **Phase 43 – Citation UX & Linking**  
+44. **Phase 44 – Citation UX & Linking**  
     - Refresh the agent + client rendering pipeline so Markdown citations consistently show richer metadata across chat, lessons, and dashboard views.  
     - Add a Citation Verifier agent that samples references, validates availability, and proposes replacements when links drift, with dashboards tracking verification status.  
     - Surface backend citation metadata in UI chip components with quick-open/download affordances.  
     - Add regression coverage ensuring citation targets remain accessible after persistence migration.  
-44. **Phase 44 – MCP Marketplace Discoverability**  
+45. **Phase 45 – MCP Marketplace Discoverability**  
     - Build an MCP marketplace surface in the macOS dashboard so learners can browse, search, and filter curated connectors (e.g., PubMed).  
     - Launch a Marketplace Curator agent that recommends connectors based on learner goals, recent sessions, and accessibility preferences, with deterministic fallbacks for offline support.  
     - Provide detailed connector sheets outlining capabilities, permissions, accessibility notes, and expected usage costs before enabling.  
     - Gate marketplace access behind onboarding state and capture discovery telemetry to inform future curation and prioritisation.  
-45. **Phase 45 – MCP Governance Foundations**  
+46. **Phase 46 – MCP Governance Foundations**  
     - Define connector review policies, permission prompts, and telemetry requirements before learners can enable new MCP tools.  
     - Implement admin/developer workflows for approving, suspending, and auditing marketplace connectors.  
     - Document operational runbooks covering review cadence, rollback procedure, and escalations.  
-46. **Phase 46 – MCP Runtime Integration**  
+47. **Phase 47 – MCP Runtime Integration**  
     - Update agent tooling to hydrate only approved MCP endpoints per learner selections.  
     - Enforce quotas, safety policies, and graceful fallbacks when MCP calls fail or exceed limits.  
     - Add integration tests that simulate connector enable/disable flows and ensure telemetry captures remediation paths.  
-47. **Phase 47 – Code Editor Foundations**  
+48. **Phase 48 – Code Editor Foundations**  
     - Ship syntax highlighting, inline formatting, and editor shortcuts inside assessment and lesson surfaces ahead of richer quiz flows.  
     - Introduce a Pair Programming tutor agent that offers contextual hints, code reviews, and debugging prompts directly in the editor, with toggles for instructor-mode or silent mode.  
     - Respect accessibility preferences (font sizing, colour themes, reduced motion) across every code-entry context.  
     - Add UI tests that lock in the new editor behaviours and keyboard interactions.  
-48. **Phase 48 – Interactive Quiz Runner**  
+49. **Phase 49 – Interactive Quiz Runner**  
     - Build an in-app quiz runner with interactive question types, attempt tracking, and immediate feedback loops.  
     - Integrate the new code editor components and ensure quizzes capture attempt metadata for follow-up analysis.  
     - Deploy a Quiz Judge agent that evaluates open-ended responses, surfaces formative feedback, and hands off final grading to the existing rubric pipeline when higher assurance is needed.  
     - Ensure accessibility and offline considerations are met for the upgraded quiz surfaces.  
-49. **Phase 49 – Assessment Review & Adaptive Feedback**  
+50. **Phase 50 – Assessment Review & Adaptive Feedback**  
     - Provide dedicated review views so learners can revisit answers, rationales, references, and attachments across assessment attempts.  
     - Deploy a Reflection Guide agent that summarises assessment outcomes, suggests next steps, and feeds personalised feedback into ELO updates with clearer explanations of rating deltas and confidence bands.  
     - Sync key feedback summaries back into the broader coaching prompts so future agent turns reference the latest review data.  
-50. **Phase 50 – Learner Insight Nudges**  
+51. **Phase 51 – Learner Insight Nudges**  
     - Capture telemetry on assessment retries, snoozes, and follow-up completions to power personalised nudges.  
     - Launch a Nudge Orchestrator agent that composes gentle reminders and motivational check-ins aligned with learner preferences, with deterministic fallback messaging when agents are offline.  
     - Trigger in-app reminders and chat suggestions that align with pending schedule items or weak categories.  
     - Expose opt-in controls and audit logging so learners can tune reminder frequency.  
-51. **Phase 51 – Reassessment & Refresh Cadence**  
+52. **Phase 52 – Reassessment & Refresh Cadence**  
     - Schedule periodic reassessments and surface their status alongside historical submissions.  
     - Introduce a Reassessment Planner agent that proposes timing, scope, and preparatory resources based on learner mastery trends and agent feedback.  
     - Adapt refresher frequency based on recent grading outcomes and learner momentum.  
     - Define thresholds for triggering reassessment vs. lightweight check-ins.  
-52. **Phase 52 – Developer Sandbox & Execution Toggles**  
+53. **Phase 53 – Developer Sandbox & Execution Toggles**  
     - Evaluate optional lint/run hooks for in-app prompts and surface clear affordances when sandbox execution is available.  
     - Provide developer-oriented toggles for sandboxed execution, logging verbosity, and failure triage.  
     - Document the security and resource guardrails required before enabling execution in production.  
-53. **Phase 53 – API Reliability & Test Coverage**  
+54. **Phase 54 – API Reliability & Test Coverage**  
     - Expand automated tests for profile, assessment, and submission endpoints (happy path, retries, and grading fallbacks).  
     - Add contract tests for assessment history payloads, including legacy compatibility verification.  
     - Integrate the new telemetry signals into CI to guard against tool invocation regressions and attachment ingestion failures.  
-54. **Phase 54 – Evaluation & Benchmarking Framework**  
+55. **Phase 55 – Evaluation & Benchmarking Framework**  
     - Validate GPT-graded outcomes against representative human reviews and build a replayable evaluation harness.  
     - Curate ground-truth datasets across lesson types and surface scorecards to the team.  
     - Track model drift and regression deltas, feeding results into adaptive curriculum decisions.  
-55. **Phase 55 – Adaptive Safety & Prompt Hardening**  
+56. **Phase 56 – Adaptive Safety & Prompt Hardening**  
     - Tune grading and response prompts (language, scoring thresholds, guardrails) using insights from the evaluation framework.  
     - Revisit default model/web-search settings, codify safety policies, and document escalation paths for risky content.  
     - Align tooling with OpenAI policy updates and ensure guardrail prompts are centrally versioned.  
-56. **Phase 56 – Agent Observability Dashboards**  
+57. **Phase 57 – Agent Observability Dashboards**  
     - Build dashboards tracking agent tool usage, grading latency, unseen-result telemetry, token consumption, and database health (`db_pool_status`).  
     - Connect the dashboards to alerting thresholds so on-call responders receive actionable signals.  
     - Feed dashboard metrics back into release readiness reviews and on-call runbooks.  
-57. **Phase 57 – QA & Release Readiness**  
+58. **Phase 58 – QA & Release Readiness**  
     - Run full-stack QA passes covering onboarding, curriculum sequencing, reassessments, and chat flows.  
     - Implement a preflight checklist for the Render deploy (env vars, secrets, migrations, observability hooks).  
     - Capture release notes, rollback procedures, and sign-off criteria.  
-58. **Phase 58 – Agent Configuration & Runbooks**  
+59. **Phase 59 – Agent Configuration & Runbooks**  
     - Harden configuration syncing across dev/staging/prod and document operational runbooks.  
     - Expand alert routing (web search success, migration duration, telemetry failures) and codify the escalation matrix.  
     - Finalise playbooks for release, rollback, and incident response.  
 ## Known Corrections & References
+
+### Milestone forced launch envelope crash (added October 17, 2025)
+- **What went wrong:** Forcing a milestone launch (`force=true`) passed the stored `MilestoneBrief` back into the widget renderer, which expected an `EndMilestone` payload. Because briefs lack the `intent` attribute, the launch endpoint threw `MilestoneBrief object has no attribute 'intent'` and returned HTTP 500.  
+- **Correct approach:** When bypassing the agent, synthesise an `EndMilestone` envelope (intent/display/widgets) and reuse the stored brief to populate checklist content, ensuring the developer override path never dereferences optional fields.  
+- **Action for future work:** Any time we add milestone metadata, re-run the forced launch smoke test and keep minimal pytest coverage (`test_force_launch_milestone_returns_static_envelope`) so the override path stays in sync with agent-rendered launches.  
 
 ### Milestone MCP brief mismatch (added October 16, 2025)
 - **What went wrong:** The `milestone_update` tool continued returning the fallback celebration copy even after Phase 27 added structured briefs, so learners never saw the refined kickoff/coaching guidance.
