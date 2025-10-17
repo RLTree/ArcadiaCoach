@@ -420,9 +420,14 @@ def slice_schedule(
 
     clone = schedule.model_copy(deep=True)
     full_items = sorted(clone.items, key=lambda item: item.recommended_day_offset)
-    filtered: List[SequencedWorkItem] = [
-        item for item in full_items if start <= item.recommended_day_offset < limit
-    ]
+    filtered: List[SequencedWorkItem] = []
+    for item in full_items:
+        in_window = start <= item.recommended_day_offset < limit
+        if in_window:
+            filtered.append(item)
+            continue
+        if item.kind == "milestone" and getattr(item, "launch_status", None) != "completed":
+            filtered.append(item)
 
     if filtered:
         end_day = max(item.recommended_day_offset for item in filtered)

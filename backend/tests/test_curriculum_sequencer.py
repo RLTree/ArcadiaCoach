@@ -19,6 +19,7 @@ from app.learner_profile import (
     CurriculumModule,
     CurriculumPlan,
     CurriculumSchedule,
+    slice_schedule,
     EloCategoryDefinition,
     EloCategoryPlan,
     EloRubricBand,
@@ -332,6 +333,43 @@ def test_milestone_requirement_maps_to_existing_category(monkeypatch) -> None:
         if requirement.category_key == "analytics-insights"
     )
     assert analytics_requirement.category_label == "Analytics Insights"
+
+
+def test_slice_schedule_keeps_pending_milestones_outside_window() -> None:
+    schedule = CurriculumSchedule(
+        time_horizon_days=60,
+        items=[
+            SequencedWorkItem(
+                item_id="lesson-one",
+                category_key="workflow-testing",
+                kind="lesson",
+                title="Intro",
+                objectives=[],
+                prerequisites=[],
+                recommended_minutes=45,
+                recommended_day_offset=2,
+                effort_level="moderate",
+                launch_status="pending",
+            ),
+            SequencedWorkItem(
+                item_id="milestone-workflow",
+                category_key="workflow-testing",
+                kind="milestone",
+                title="Workflow Milestone",
+                objectives=[],
+                prerequisites=["lesson-one"],
+                recommended_minutes=120,
+                recommended_day_offset=30,
+                effort_level="focus",
+                launch_status="pending",
+            ),
+        ],
+    )
+
+    sliced = slice_schedule(schedule, start_day=0, day_span=7)
+    item_ids = {item.item_id for item in sliced.items}
+    assert "milestone-workflow" in item_ids
+    assert any(item.kind == "milestone" for item in sliced.items)
 def test_milestone_rotates_after_recent_completion() -> None:
     plan = EloCategoryPlan(
         categories=[
