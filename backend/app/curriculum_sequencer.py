@@ -218,8 +218,31 @@ class CurriculumSequencer:
             if closest_slug and combined_map.get(closest_slug):
                 resolved = combined_map[closest_slug]
             else:
-                seed = (candidate_key or candidate_label or "").strip()
-                resolved = seed or "category-1"
+                text = (candidate_label or candidate_key or "").strip().lower()
+                best_key: Optional[str] = None
+                best_score = 0.0
+                if text:
+                    label_sources: Dict[str, str] = {}
+                    label_sources.update(lookup.context_labels)
+                    label_sources.update(lookup.plan_labels)
+                    for key, label in label_sources.items():
+                        if not label:
+                            continue
+                        label_lower = label.lower()
+                        overall = SequenceMatcher(None, text, label_lower).ratio()
+                        best_local = overall
+                        for word in {segment for segment in label_lower.replace("&", " ").replace("-", " ").split() if segment}:
+                            score = SequenceMatcher(None, text, word).ratio()
+                            if score > best_local:
+                                best_local = score
+                        if best_local > best_score:
+                            best_score = best_local
+                            best_key = key
+                    if best_key and best_score >= 0.65:
+                        resolved = best_key
+                if resolved is None:
+                    seed = (candidate_key or candidate_label or "").strip()
+                    resolved = seed or "category-1"
 
         label = (
             lookup.context_labels.get(resolved)
