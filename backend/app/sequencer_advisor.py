@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from functools import partial
 from time import perf_counter
 from typing import List, Optional
 
@@ -148,7 +149,7 @@ def advise_sequence(
         if "no current event loop" not in str(exc).lower():
             raise SequencerAdvisorError(f"Sequencer advisor call failed: {exc}") from exc
         try:
-            result = anyio.from_thread.run(Runner.run, agent, prompt, context=None)
+            result = anyio.from_thread.run(partial(Runner.run, agent, prompt, context=None))
         except Exception as inner_exc:  # noqa: BLE001
             raise SequencerAdvisorError(f"Sequencer advisor call failed: {inner_exc}") from inner_exc
     except Exception as exc:  # noqa: BLE001
