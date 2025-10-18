@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import List, Optional
 
+import anyio
 from agents import Agent, ModelSettings, Runner
 from pydantic import BaseModel, Field, ValidationError
 
@@ -143,6 +144,13 @@ def advise_sequence(
     started = perf_counter()
     try:
         result = Runner.run_sync(agent, prompt, context=None)
+    except RuntimeError as exc:
+        if "no current event loop" not in str(exc).lower():
+            raise SequencerAdvisorError(f"Sequencer advisor call failed: {exc}") from exc
+        try:
+            result = anyio.from_thread.run(Runner.run, agent, prompt, context=None)
+        except Exception as inner_exc:  # noqa: BLE001
+            raise SequencerAdvisorError(f"Sequencer advisor call failed: {inner_exc}") from inner_exc
     except Exception as exc:  # noqa: BLE001
         raise SequencerAdvisorError(f"Sequencer advisor call failed: {exc}") from exc
 
